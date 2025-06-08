@@ -1,15 +1,12 @@
 package cert
 
 import (
-        "crypto/rand"
-        "crypto/x509"
         "encoding/pem"
         "fmt"
         "os"
         "path/filepath"
         "strings"
 
-        "golang.org/x/crypto/pkcs12"
         "zcert/internal/api"
 )
 
