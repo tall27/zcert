@@ -56,14 +56,19 @@ Authentication to ZTPKI requires HAWK credentials:
   --algo       HAWK algorithm (default: sha256)
 
 Examples:
-  # Basic enrollment with command-line auth
+  # Using profile configuration (recommended)
+  zcert -config zcert.cnf --cn "example.com"
+  zcert -config zcert.cnf -profile p12 --cn "example.com"
+  zcert -config zcert.cnf -profile prod --cn "prod.example.com"
+  
+  # Command-line authentication (all parameters required)
   zcert enroll --cn "example.com" --url "https://api.ztpki.venafi.com" --key-id "your-key-id" --secret "your-secret"
   
-  # Enrollment with policy and output file
-  zcert enroll --cn "app.company.com" --policy "WebServer" --file "certificate.pem" --url "https://api.ztpki.venafi.com" --key-id "your-key-id" --secret "your-secret"
+  # Generate example configuration file
+  zcert config --example
   
-  # PKCS#12 output with password
-  zcert enroll --cn "secure.app.com" --format "p12" --p12-password "secret123" --url "https://api.ztpki.venafi.com" --key-id "your-key-id" --secret "your-secret"`,
+  # Mixed mode: profile for auth, command-line for specific options
+  zcert -config zcert.cnf --cn "app.company.com" --format "p12" --p12-password "secret123"`,
         RunE: runEnroll,
 }
 
@@ -109,20 +114,80 @@ func init() {
 }
 
 func runEnroll(cmd *cobra.Command, args []string) error {
-        cfg := config.GetConfig()
+        // Use profile configuration if available
+        profile := GetCurrentProfile()
+        var finalProfile *config.Profile
         
-        // Initialize API client
+        if profile != nil {
+                // Merge profile with command-line flags (flags take precedence)
+                finalProfile = config.MergeProfileWithFlags(
+                        profile,
+                        enrollURL, enrollKeyID, enrollSecret, enrollAlgo,
+                        enrollFormat, enrollPolicy, enrollP12Pass,
+                        enrollKeySize, enrollKeyType,
+                )
+        } else {
+                // No profile config, use command-line flags or defaults
+                finalProfile = &config.Profile{
+                        URL:      enrollURL,
+                        KeyID:    enrollKeyID,
+                        Secret:   enrollSecret,
+                        Algo:     enrollAlgo,
+                        Format:   enrollFormat,
+                        PolicyID: enrollPolicy,
+                        P12Pass:  enrollP12Pass,
+                        KeySize:  enrollKeySize,
+                        KeyType:  enrollKeyType,
+                }
+                
+                // Set defaults if not provided
+                if finalProfile.Algo == "" {
+                        finalProfile.Algo = "sha256"
+                }
+                if finalProfile.Format == "" {
+                        finalProfile.Format = "pem"
+                }
+                if finalProfile.KeySize == 0 {
+                        finalProfile.KeySize = 2048
+                }
+                if finalProfile.KeyType == "" {
+                        finalProfile.KeyType = "rsa"
+                }
+        }
+
+        // Validate required authentication parameters
+        if finalProfile.URL == "" {
+                return fmt.Errorf("ZTPKI URL is required (use --url flag or config file)")
+        }
+        if finalProfile.KeyID == "" {
+                return fmt.Errorf("HAWK key ID is required (use --key-id flag or config file)")
+        }
+        if finalProfile.Secret == "" {
+                return fmt.Errorf("HAWK secret is required (use --secret flag or config file)")
+        }
+
+        // Create API client with profile settings
+        cfg := &config.Config{
+                BaseURL: finalProfile.URL,
+                HawkID:  finalProfile.KeyID,
+                HawkKey: finalProfile.Secret,
+        }
+        
         client, err := api.NewClient(cfg)
         if err != nil {
                 return fmt.Errorf("failed to initialize API client: %w", err)
         }
 
-        // Get configuration values (CLI flags override config file)
-        cn := getStringValue("enroll.cn", enrollCN)
-        policy := getStringValue("enroll.policy", enrollPolicy)
-        keySize := getIntValue("enroll.key_size", enrollKeySize)
-        keyType := getStringValue("enroll.key_type", enrollKeyType)
-        format := getStringValue("enroll.format", enrollFormat)
+        // Get configuration values (CLI flags override config/profile)
+        cn := enrollCN
+        if cn == "" && profile != nil {
+                // Could add default CN from profile if needed
+        }
+        
+        policy := finalProfile.PolicyID
+        keySize := finalProfile.KeySize
+        keyType := finalProfile.KeyType
+        format := finalProfile.Format
 
         // Interactive prompts for missing required information
         if cn == "" {
