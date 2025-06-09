@@ -50,7 +50,7 @@ submit it to ZTPKI, poll for certificate issuance, and output the certificate in
 various formats including PEM, PKCS#12, and Java Keystore.
 
 Authentication to ZTPKI requires HAWK credentials:
-  --url        ZTPKI API base URL (e.g., https://api.ztpki.venafi.com)
+  --url        ZTPKI API base URL (e.g., https://ztpki-dev.venafi.com/api/v2)
   --key-id     Your HAWK authentication key ID
   --secret     Your HAWK authentication secret
   --algo       HAWK algorithm (default: sha256)
@@ -83,7 +83,7 @@ func init() {
         enrollCmd.Flags().StringVar(&enrollPolicy, "policy", "", "Policy ID or name for certificate issuance")
         
         // ZTPKI Authentication flags
-        enrollCmd.Flags().StringVar(&enrollURL, "url", "", "ZTPKI API base URL (e.g., https://api.ztpki.venafi.com)")
+        enrollCmd.Flags().StringVar(&enrollURL, "url", "", "ZTPKI API base URL (e.g., https://ztpki-dev.venafi.com/api/v2)")
         enrollCmd.Flags().StringVar(&enrollKeyID, "key-id", "", "HAWK authentication key ID")
         enrollCmd.Flags().StringVar(&enrollSecret, "secret", "", "HAWK authentication secret")
         enrollCmd.Flags().StringVar(&enrollAlgo, "algo", "sha256", "HAWK algorithm (sha1, sha256)")
