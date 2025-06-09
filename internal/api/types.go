@@ -1,114 +1,114 @@
 package api
 
 import (
-	"fmt"
-	"time"
+        "fmt"
+        "time"
 )
 
 // Policy represents a certificate policy/template
 type Policy struct {
-	ID          string `json:"id"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	Type        string `json:"type"`
-	Enabled     bool   `json:"enabled"`
+        ID          string `json:"id"`
+        Name        string `json:"name"`
+        Description string `json:"description"`
+        Type        string `json:"type"`
+        Enabled     bool   `json:"enabled"`
 }
 
 // Certificate represents a certificate from the ZTPKI API
 type Certificate struct {
-	ID           string    `json:"id"`
-	CommonName   string    `json:"commonName"`
-	SerialNumber string    `json:"serialNumber"`
-	Status       string    `json:"status"`
-	Issuer       string    `json:"issuer"`
-	Subject      string    `json:"subject"`
-	PolicyID     string    `json:"policyId"`
-	CreatedDate  time.Time `json:"createdDate"`
-	ExpiryDate   time.Time `json:"expiryDate"`
-	Certificate  string    `json:"certificate"` // PEM-encoded certificate
-	Chain        []string  `json:"chain"`       // PEM-encoded certificate chain
-	SANs         []string  `json:"subjectAlternativeNames"`
+        ID           string    `json:"id"`
+        CommonName   string    `json:"commonName"`
+        SerialNumber string    `json:"serialNumber"`
+        Status       string    `json:"status"`
+        Issuer       string    `json:"issuer"`
+        Subject      string    `json:"subject"`
+        PolicyID     string    `json:"policyId"`
+        CreatedDate  time.Time `json:"createdDate"`
+        ExpiryDate   time.Time `json:"expiryDate"`
+        Certificate  string    `json:"certificate"` // PEM-encoded certificate
+        Chain        []string  `json:"chain"`       // PEM-encoded certificate chain
+        SANs         []string  `json:"subjectAlternativeNames"`
 }
 
 // CSRSubmissionRequest represents a request to submit a CSR
 type CSRSubmissionRequest struct {
-	CSR      string `json:"csr"`
-	PolicyID string `json:"policyId"`
+        CSR    string `json:"csr"`
+        Policy string `json:"policy"`
 }
 
 // CSRSubmissionResponse represents the response from CSR submission
 type CSRSubmissionResponse struct {
-	RequestID string `json:"requestId"`
-	Status    string `json:"status"`
-	Message   string `json:"message"`
+        RequestID string `json:"requestId"`
+        Status    string `json:"status"`
+        Message   string `json:"message"`
 }
 
 // RevocationRequest represents a certificate revocation request
 type RevocationRequest struct {
-	CertificateID string `json:"certificateId"`
-	Reason        string `json:"reason"`
+        CertificateID string `json:"certificateId"`
+        Reason        string `json:"reason"`
 }
 
 // CertificateSearchParams represents search parameters for certificates
 type CertificateSearchParams struct {
-	CommonName    string     `json:"commonName,omitempty"`
-	Serial        string     `json:"serial,omitempty"`
-	Issuer        string     `json:"issuer,omitempty"`
-	PolicyID      string     `json:"policyId,omitempty"`
-	Status        string     `json:"status,omitempty"`
-	Limit         int        `json:"limit,omitempty"`
-	ExpiresBefore *time.Time `json:"expiresBefore,omitempty"`
+        CommonName    string     `json:"commonName,omitempty"`
+        Serial        string     `json:"serial,omitempty"`
+        Issuer        string     `json:"issuer,omitempty"`
+        PolicyID      string     `json:"policyId,omitempty"`
+        Status        string     `json:"status,omitempty"`
+        Limit         int        `json:"limit,omitempty"`
+        ExpiresBefore *time.Time `json:"expiresBefore,omitempty"`
 }
 
 // APIError represents an error response from the ZTPKI API
 type APIError struct {
-	Code    int    `json:"code"`
-	Message string `json:"message"`
-	Details string `json:"details,omitempty"`
+        Code    int    `json:"code"`
+        Message string `json:"message"`
+        Details string `json:"details,omitempty"`
 }
 
 // Error implements the error interface for APIError
 func (e *APIError) Error() string {
-	if e.Details != "" {
-		return fmt.Sprintf("API Error %d: %s (%s)", e.Code, e.Message, e.Details)
-	}
-	return fmt.Sprintf("API Error %d: %s", e.Code, e.Message)
+        if e.Details != "" {
+                return fmt.Sprintf("API Error %d: %s (%s)", e.Code, e.Message, e.Details)
+        }
+        return fmt.Sprintf("API Error %d: %s", e.Code, e.Message)
 }
 
 // IsNotFound returns true if the error represents a "not found" condition
 func (e *APIError) IsNotFound() bool {
-	return e.Code == 404
+        return e.Code == 404
 }
 
 // IsUnauthorized returns true if the error represents an authentication/authorization failure
 func (e *APIError) IsUnauthorized() bool {
-	return e.Code == 401 || e.Code == 403
+        return e.Code == 401 || e.Code == 403
 }
 
 // IsBadRequest returns true if the error represents a bad request
 func (e *APIError) IsBadRequest() bool {
-	return e.Code == 400
+        return e.Code == 400
 }
 
 // CertificateStatus constants
 const (
-	StatusActive   = "active"
-	StatusRevoked  = "revoked"
-	StatusExpired  = "expired"
-	StatusPending  = "pending"
-	StatusFailed   = "failed"
+        StatusActive   = "active"
+        StatusRevoked  = "revoked"
+        StatusExpired  = "expired"
+        StatusPending  = "pending"
+        StatusFailed   = "failed"
 )
 
 // RevocationReason constants
 const (
-	ReasonUnspecified          = "unspecified"
-	ReasonKeyCompromise        = "keyCompromise"
-	ReasonCACompromise         = "caCompromise"
-	ReasonAffiliationChanged   = "affiliationChanged"
-	ReasonSuperseded           = "superseded"
-	ReasonCessationOfOperation = "cessationOfOperation"
-	ReasonCertificateHold      = "certificateHold"
-	ReasonRemoveFromCRL        = "removeFromCRL"
-	ReasonPrivilegeWithdrawn   = "privilegeWithdrawn"
-	ReasonAACompromise         = "aaCompromise"
+        ReasonUnspecified          = "unspecified"
+        ReasonKeyCompromise        = "keyCompromise"
+        ReasonCACompromise         = "caCompromise"
+        ReasonAffiliationChanged   = "affiliationChanged"
+        ReasonSuperseded           = "superseded"
+        ReasonCessationOfOperation = "cessationOfOperation"
+        ReasonCertificateHold      = "certificateHold"
+        ReasonRemoveFromCRL        = "removeFromCRL"
+        ReasonPrivilegeWithdrawn   = "privilegeWithdrawn"
+        ReasonAACompromise         = "aaCompromise"
 )
