@@ -23,7 +23,7 @@ func TestPolicySelector_GetAvailablePolicies(t *testing.T) {
         }
 
         selector := NewPolicySelector(client)
-        policies := selector.getAvailablePolicies()
+        policies := selector.GetAvailablePolicies()
 
         if len(policies) == 0 {
                 t.Error("Expected at least one policy, got none")

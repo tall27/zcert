@@ -30,7 +30,7 @@ func NewPolicySelector(client *api.Client) *PolicySelector {
 
 // SelectPolicy presents an interactive policy selection menu
 func (ps *PolicySelector) SelectPolicy() (string, error) {
-        policies := ps.getAvailablePolicies()
+        policies := ps.GetAvailablePolicies()
 
         if len(policies) == 0 {
                 return "", fmt.Errorf("no policies available")
@@ -39,8 +39,8 @@ func (ps *PolicySelector) SelectPolicy() (string, error) {
         return ps.presentPolicyMenu(policies)
 }
 
-// getAvailablePolicies returns the list of available policies
-func (ps *PolicySelector) getAvailablePolicies() []Policy {
+// GetAvailablePolicies returns the list of available policies (exported for testing)
+func (ps *PolicySelector) GetAvailablePolicies() []Policy {
         // Return known working policies for ZTPKI dev environment
         // These are verified working policy IDs from the ZTPKI development server
         return []Policy{
