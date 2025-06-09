@@ -1,7 +1,6 @@
 package policy
 
 import (
-        "bytes"
         "strings"
         "testing"
 
@@ -106,8 +105,8 @@ func TestPolicySelector_ValidatePolicy(t *testing.T) {
         }
 }
 
-// TestPolicySelector_PresentPolicyMenuInput tests the menu presentation without interactive input
-func TestPolicySelector_PresentPolicyMenuInput(t *testing.T) {
+// TestPolicySelector_BasicFunctionality tests core functionality without interactive components
+func TestPolicySelector_BasicFunctionality(t *testing.T) {
         cfg := &config.Config{
                 BaseURL: "https://ztpki-dev.venafi.com/api/v2",
                 HawkID:  "test-id",
@@ -120,59 +119,23 @@ func TestPolicySelector_PresentPolicyMenuInput(t *testing.T) {
         }
 
         selector := NewPolicySelector(client)
-        policies := []Policy{
+        
+        // Test basic selector creation
+        if selector == nil {
+                t.Error("Expected selector to be non-nil")
+        }
+        
+        // Test policy data structure
+        testPolicies := []Policy{
                 {ID: "test-policy-1", Name: "Test Policy 1"},
                 {ID: "test-policy-2", Name: "Test Policy 2"},
         }
-
-        // Test with simulated input "1\ny\n" (select policy 1, confirm)
-        input := "1\ny\n"
-        oldStdin := strings.NewReader(input)
         
-        // Capture output
-        var output bytes.Buffer
+        if len(testPolicies) != 2 {
+                t.Error("Expected 2 test policies")
+        }
         
-        // Mock the reader for testing
-        testCases := []struct {
-                name           string
-                input          string
-                expectedPolicy string
-                expectError    bool
-        }{
-                {
-                        name:           "Valid selection with confirmation",
-                        input:          "1\ny\n",
-                        expectedPolicy: "test-policy-1",
-                        expectError:    false,
-                },
-                {
-                        name:           "Valid selection declined then accepted",
-                        input:          "1\nn\n2\ny\n",
-                        expectedPolicy: "test-policy-2",
-                        expectError:    false,
-                },
-                {
-                        name:        "Quit selection",
-                        input:       "q\n",
-                        expectError: true,
-                },
+        if testPolicies[0].ID != "test-policy-1" || testPolicies[1].ID != "test-policy-2" {
+                t.Error("Policy IDs don't match expected values")
         }
-
-        for _, tc := range testCases {
-                t.Run(tc.name, func(t *testing.T) {
-                        // Note: This is a structural test - we can't easily test the interactive parts
-                        // without more complex mocking, but we can test the policy data structures
-                        if len(policies) != 2 {
-                                t.Error("Expected 2 test policies")
-                        }
-                        
-                        if policies[0].ID != "test-policy-1" || policies[1].ID != "test-policy-2" {
-                                t.Error("Policy IDs don't match expected values")
-                        }
-                })
-        }
-
-        _ = oldStdin
-        _ = output
-        _ = selector
 }

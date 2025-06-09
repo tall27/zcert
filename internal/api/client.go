@@ -7,7 +7,6 @@ import (
         "io"
         "net/http"
         "net/url"
-        "os"
         "time"
 
         "zcert/internal/auth"
@@ -23,28 +22,25 @@ type Client struct {
 
 // NewClient creates a new ZTPKI API client
 func NewClient(cfg *config.Config) (*Client, error) {
-        // Get credentials from config or environment
+        if cfg == nil {
+                return nil, fmt.Errorf("config cannot be nil")
+        }
+        
+        // Validate required fields
+        if cfg.BaseURL == "" {
+                return nil, fmt.Errorf("BaseURL is required")
+        }
+        if cfg.HawkID == "" {
+                return nil, fmt.Errorf("HawkID is required")
+        }
+        if cfg.HawkKey == "" {
+                return nil, fmt.Errorf("HawkKey is required")
+        }
+        
+        // Get credentials from config
         hawkID := cfg.HawkID
         hawkKey := cfg.HawkKey
-        
-        if hawkID == "" {
-                hawkID = os.Getenv("ZCERT_HAWK_ID")
-                if hawkID == "" {
-                        hawkID = "165c01284c6c8d872091aed0c7cc0149" // Default test credentials
-                }
-        }
-        
-        if hawkKey == "" {
-                hawkKey = os.Getenv("ZCERT_HAWK_KEY")
-                if hawkKey == "" {
-                        hawkKey = "b431afc1ed6a6b7db5f760671840efa14224be60a11e0c164a6d0d021a45748c" // Default test credentials
-                }
-        }
-        
         baseURL := cfg.BaseURL
-        if baseURL == "" {
-                baseURL = "https://ztpki-dev.venafi.com/api/v2"
-        }
         
         return &Client{
                 baseURL: baseURL,
