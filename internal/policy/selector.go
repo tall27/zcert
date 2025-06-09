@@ -39,16 +39,26 @@ func (ps *PolicySelector) SelectPolicy() (string, error) {
         return ps.presentPolicyMenu(policies)
 }
 
-// GetAvailablePolicies returns the list of available policies (exported for testing)
+// GetAvailablePolicies returns the list of available policies from ZTPKI API
 func (ps *PolicySelector) GetAvailablePolicies() []Policy {
-        // Return known working policies for ZTPKI dev environment
-        // These are verified working policy IDs from the ZTPKI development server
+        // First try to fetch policies from ZTPKI API
+        apiPolicies, err := ps.client.GetPolicies()
+        if err == nil && len(apiPolicies) > 0 {
+                // Convert API policies to local Policy format
+                var policies []Policy
+                for _, apiPolicy := range apiPolicies {
+                        policies = append(policies, Policy{
+                                ID:   apiPolicy.ID,
+                                Name: apiPolicy.Name,
+                        })
+                }
+                return policies
+        }
+        
+        // Fallback to verified working policy if API call fails
+        fmt.Printf("Warning: Could not fetch policies from ZTPKI API (%v). Using verified policy.\n", err)
         return []Policy{
                 {ID: "5fe6d368-896a-4883-97eb-f87148c90896", Name: "OCP Dev ICA 1 SSL 75 SAN (Verified Working)"},
-                {ID: "web-server-ssl", Name: "Web Server SSL Policy"},
-                {ID: "client-auth", Name: "Client Authentication Policy"},
-                {ID: "code-signing", Name: "Code Signing Policy"},
-                {ID: "email-protection", Name: "Email Protection Policy"},
         }
 }
 
