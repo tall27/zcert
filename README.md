@@ -234,16 +234,16 @@ zcert uses HAWK (HTTP Authentication Web Key) for secure API communication with 
 1. **HAWK ID**: Your authentication identifier
 2. **HAWK Key**: Your secret key for request signing
 
-### Test Credentials
+### Obtaining Credentials
 
-For development and testing with the ZTPKI development environment:
+Contact your ZTPKI administrator to obtain your HAWK authentication credentials:
 
 ```bash
-export ZCERT_HAWK_ID="165c01284c6c8d872091aed0c7cc0149"
-export ZCERT_HAWK_KEY="b431afc1ed6a6b7db5f760671840efa14224be60a11e0c164a6d0d021a45748c"
+export ZCERT_HAWK_ID="your-hawk-id-here"
+export ZCERT_HAWK_KEY="your-hawk-key-here"
 ```
 
-**Note**: These are test credentials for the development environment only.
+**Note**: Use only your authorized credentials for your specific ZTPKI environment.
 
 ## Output Formats
 
