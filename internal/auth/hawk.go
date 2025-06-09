@@ -72,6 +72,19 @@ func (h *HawkAuth) SignRequest(req *http.Request) error {
         
         authHeader += fmt.Sprintf(`, mac="%s"`, mac)
         
+        // Debug output for HAWK authentication troubleshooting
+        if req.Header.Get("X-Debug-HAWK") == "true" {
+                fmt.Printf("HAWK Debug - ID: %s\n", h.ID)
+                fmt.Printf("HAWK Debug - Timestamp: %d\n", timestamp)
+                fmt.Printf("HAWK Debug - Nonce: %s\n", nonce)
+                fmt.Printf("HAWK Debug - Method: %s\n", req.Method)
+                fmt.Printf("HAWK Debug - URL: %s\n", req.URL.String())
+                fmt.Printf("HAWK Debug - Payload Hash: %s\n", payloadHash)
+                fmt.Printf("HAWK Debug - Normalized String:\n%q\n", normalizedString)
+                fmt.Printf("HAWK Debug - MAC: %s\n", mac)
+                fmt.Printf("HAWK Debug - Authorization: %s\n", authHeader)
+        }
+        
         req.Header.Set("Authorization", authHeader)
         
         return nil
