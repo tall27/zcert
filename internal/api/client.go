@@ -147,8 +147,16 @@ func (c *Client) GetPolicies() ([]Policy, error) {
 // SubmitCSR submits a Certificate Signing Request
 func (c *Client) SubmitCSR(csrPEM, policyID string) (string, error) {
         requestBody := CSRSubmissionRequest{
-                CSR:      csrPEM,
-                PolicyID: policyID,
+                CSR:    csrPEM,
+                Policy: policyID,
+                DNComponents: map[string]interface{}{
+                        "CN": "test.example.com",
+                        "O":  "OmniCorp",
+                        "OU": "Cybernetics",
+                        "L":  "Detroit", 
+                        "ST": "Michigan",
+                        "C":  "US",
+                },
         }
         
         resp, err := c.makeRequest("POST", "/csr", requestBody)

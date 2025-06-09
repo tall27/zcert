@@ -32,8 +32,9 @@ type Certificate struct {
 
 // CSRSubmissionRequest represents a request to submit a CSR
 type CSRSubmissionRequest struct {
-        CSR    string `json:"csr"`
-        Policy string `json:"policy"`
+        CSR          string                 `json:"csr"`
+        Policy       string                 `json:"policy"`
+        DNComponents map[string]interface{} `json:"dnComponents"`
 }
 
 // CSRSubmissionResponse represents the response from CSR submission

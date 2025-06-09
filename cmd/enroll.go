@@ -247,7 +247,12 @@ func runEnroll(cmd *cobra.Command, args []string) error {
 
                 template := x509.CertificateRequest{
                         Subject: pkix.Name{
-                                CommonName: cn,
+                                CommonName:         cn,
+                                Organization:       []string{"OmniCorp"},
+                                OrganizationalUnit: []string{"Cybernetics"},
+                                Locality:           []string{"Detroit"},
+                                Province:           []string{"Michigan"},
+                                Country:            []string{"US"},
                         },
                         DNSNames: enrollSANs,
                 }
