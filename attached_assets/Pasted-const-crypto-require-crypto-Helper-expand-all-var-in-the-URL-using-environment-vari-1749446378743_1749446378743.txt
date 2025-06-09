@@ -1,0 +1,90 @@
+const crypto = require('crypto');
+
+// Helper: expand all {{var}} in the URL using environment variables
+function expandEnvVars(str) {
+  return str.replace(/{{(.*?)}}/g, (_, varName) => {
+    const value = bru.getEnvVar(varName.trim());
+    if (value == null) throw new Error(`Environment variable '${varName}' is not set`);
+    return value;
+  });
+}
+
+// Get Hawk credentials from Bruno environment variables
+const hawkId    = bru.getEnvVar("hawk_id");
+const hawkKey   = bru.getEnvVar("hawk_key");
+const algorithm = 'sha256';
+
+// Get method, URL, and body from the Bruno request context
+const method      = req.getMethod();
+let requestUrl    = req.getUrl();
+
+// Expand any environment variables in the URL
+requestUrl = expandEnvVars(requestUrl);
+
+// Parse body if Content-Type is application/json
+let bodyObject = {};
+const contentTypeHeader = req.getHeader('content-type');
+if (contentTypeHeader && contentTypeHeader.toLowerCase().includes('application/json') && req.getBody()) {
+  try {
+    bodyObject = JSON.parse(req.getBody());
+  } catch (e) {
+    bodyObject = {};
+  }
+}
+
+// Timestamp & nonce
+const ts    = Math.floor(Date.now() / 1000).toString();
+const nonce = crypto.randomBytes(6).toString('hex');
+
+// Compute payload hash if needed
+let hash = '';
+let payload = '';
+let contentType = '';
+if (method !== 'GET' && Object.keys(bodyObject).length) {
+  payload     = JSON.stringify(bodyObject);
+  contentType = 'application/json';
+  hash = crypto
+    .createHash(algorithm)
+    .update('hawk.1.payload\n')
+    .update(contentType + '\n')
+    .update(payload + '\n')
+    .digest('base64');
+}
+
+// Parse URL for host, port, and path
+const urlPattern = /^(https?):\/\/([^\/:]+)(?::(\d+))?(\/.*)?$/;
+const match = requestUrl.match(urlPattern);
+if (!match) {
+  throw new Error(`Invalid URL: ${requestUrl}`);
+}
+const protocol     = match[1];
+const host         = match[2];
+const port         = match[3] || (protocol === 'https' ? '443' : '80');
+const resourcePath = match[4] || '/';
+
+// Build normalized string
+const normalized =
+  'hawk.1.header\n' +
+  ts + '\n' +
+  nonce + '\n' +
+  method.toUpperCase() + '\n' +
+  resourcePath + '\n' +
+  host + '\n' +
+  port + '\n' +
+  (hash || '') + '\n' +
+  '\n';
+
+// Compute MAC
+const mac = crypto
+  .createHmac(algorithm, hawkKey)
+  .update(normalized)
+  .digest('base64');
+
+// Build Authorization header
+let authHeader = `Hawk id="${hawkId}", ts="${ts}", nonce="${nonce}", mac="${mac}"`;
+if (hash) {
+  authHeader += `, hash="${hash}"`;
+}
+
+// Set the Hawk Authorization header as an environment variable for this request
+bru.setEnvVar('hawk_auth_header', authHeader);
