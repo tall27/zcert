@@ -202,17 +202,17 @@ func runEnroll(cmd *cobra.Command, args []string) error {
         }
 
         // Get or select policy
-        if policy == "" {
+        if policyID == "" {
                 fmt.Println("No policy specified. Please select a policy from the available options:")
                 policySelector := policyselect.NewPolicySelector(client)
-                policy, err = policySelector.SelectPolicy()
+                policyID, err = policySelector.SelectPolicy()
                 if err != nil {
                         return fmt.Errorf("failed to select policy: %w", err)
                 }
         }
 
         if viper.GetBool("verbose") {
-                fmt.Fprintf(os.Stderr, "Enrolling certificate with CN: %s, Policy: %s\n", cn, policy)
+                fmt.Fprintf(os.Stderr, "Enrolling certificate with CN: %s, Policy: %s\n", cn, policyID)
         }
 
         var csrPEM []byte
@@ -292,7 +292,7 @@ func runEnroll(cmd *cobra.Command, args []string) error {
                 fmt.Fprintln(os.Stderr, "Submitting CSR to ZTPKI...")
         }
 
-        requestID, err := client.SubmitCSR(string(csrPEM), policy)
+        requestID, err := client.SubmitCSR(string(csrPEM), policyID)
         if err != nil {
                 return fmt.Errorf("failed to submit CSR: %w", err)
         }
