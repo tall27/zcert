@@ -4,6 +4,7 @@ import (
         "bufio"
         "fmt"
         "os"
+        "regexp"
         "strconv"
         "strings"
 )
@@ -92,6 +93,9 @@ func LoadProfileConfig(filename string) (*ProfileConfig, error) {
                                 (strings.HasPrefix(value, "'") && strings.HasSuffix(value, "'")) {
                                 value = value[1 : len(value)-1]
                         }
+                        
+                        // Expand environment variables in ${VAR} format
+                        value = expandEnvVars(value)
 
                         // Parse configuration values
                         switch strings.ToLower(key) {
@@ -139,6 +143,19 @@ func LoadProfileConfig(filename string) (*ProfileConfig, error) {
         }
 
         return config, nil
+}
+
+// expandEnvVars expands environment variables in ${VAR} format
+func expandEnvVars(value string) string {
+        re := regexp.MustCompile(`\$\{([^}]+)\}`)
+        return re.ReplaceAllStringFunc(value, func(match string) string {
+                // Extract variable name from ${VAR}
+                varName := match[2 : len(match)-1]
+                if envValue := os.Getenv(varName); envValue != "" {
+                        return envValue
+                }
+                return match // Return original if no env var found
+        })
 }
 
 // GetProfile returns a specific profile by name
