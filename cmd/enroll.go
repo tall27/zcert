@@ -16,6 +16,7 @@ import (
         "zcert/internal/api"
         "zcert/internal/cert"
         "zcert/internal/config"
+        policyselect "zcert/internal/policy"
         "zcert/internal/utils"
 )
 
@@ -187,7 +188,7 @@ func runEnroll(cmd *cobra.Command, args []string) error {
                 // Could add default CN from profile if needed
         }
         
-        policy := finalProfile.PolicyID
+        policyID := finalProfile.PolicyID
         keySize := finalProfile.KeySize
         keyType := finalProfile.KeyType
         format := finalProfile.Format
@@ -202,16 +203,9 @@ func runEnroll(cmd *cobra.Command, args []string) error {
 
         // Get or select policy
         if policy == "" {
-                policies, err := client.GetPolicies()
-                if err != nil {
-                        return fmt.Errorf("failed to retrieve policies: %w", err)
-                }
-
-                if len(policies) == 0 {
-                        return fmt.Errorf("no policies available for certificate enrollment")
-                }
-
-                policy, err = utils.SelectPolicy(policies)
+                fmt.Println("No policy specified. Please select a policy from the available options:")
+                policySelector := policyselect.NewPolicySelector(client)
+                policy, err = policySelector.SelectPolicy()
                 if err != nil {
                         return fmt.Errorf("failed to select policy: %w", err)
                 }

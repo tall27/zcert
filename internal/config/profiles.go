@@ -101,9 +101,9 @@ func LoadProfileConfig(filename string) (*ProfileConfig, error) {
                         switch strings.ToLower(key) {
                         case "url", "base_url":
                                 currentProfile.URL = value
-                        case "key-id", "key_id", "keyid":
+                        case "key-id", "key_id", "keyid", "hawk_id":
                                 currentProfile.KeyID = value
-                        case "secret", "hawk_key":
+                        case "secret", "hawk_key", "hawk-key":
                                 currentProfile.Secret = value
                         case "algo", "algorithm":
                                 currentProfile.Algo = value
