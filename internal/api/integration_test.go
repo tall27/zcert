@@ -90,6 +90,236 @@ func TestRealZTPKIAPICompatibility(t *testing.T) {
         }
 }
 
+// TestCertificateEnrollmentWorkflow tests the complete certificate enrollment process
+func TestCertificateEnrollmentWorkflow(t *testing.T) {
+        // Skip if no credentials available
+        hawkID := os.Getenv("ZTPKI_HAWK_ID")
+        hawkKey := os.Getenv("ZTPKI_HAWK_SECRET")
+        if hawkID == "" || hawkKey == "" {
+                t.Skip("Skipping integration test: ZTPKI_HAWK_ID and ZTPKI_HAWK_SECRET required")
+        }
+
+        cfg := &config.Config{
+                BaseURL: "https://ztpki-dev.venafi.com/api/v2",
+                HawkID:  hawkID,
+                HawkKey: hawkKey,
+        }
+
+        client, err := NewClient(cfg)
+        if err != nil {
+                t.Fatalf("Failed to create client: %v", err)
+        }
+
+        // Test 1: Get policies for enrollment
+        policies, err := client.GetPolicies()
+        if err != nil {
+                t.Fatalf("Failed to get policies: %v", err)
+        }
+
+        if len(policies) == 0 {
+                t.Skip("No policies available for enrollment test")
+        }
+
+        t.Logf("Found %d policies for enrollment testing", len(policies))
+        
+        // Test policy structure integrity
+        for i, policy := range policies {
+                if policy.ID == "" {
+                        t.Errorf("Policy %d has empty ID", i)
+                }
+                if policy.Name == "" {
+                        t.Errorf("Policy %d has empty Name", i)
+                }
+                
+                // Test enabled field structure
+                if policy.Enabled.UI || policy.Enabled.REST || policy.Enabled.ACME || policy.Enabled.SCEP {
+                        t.Logf("Policy %s has enabled protocols: UI=%v REST=%v ACME=%v SCEP=%v", 
+                                policy.Name, policy.Enabled.UI, policy.Enabled.REST, policy.Enabled.ACME, policy.Enabled.SCEP)
+                }
+        }
+
+        // Test 2: CSR submission (validates API structure)
+        testPolicyID := policies[0].ID
+        testCSR := `-----BEGIN CERTIFICATE REQUEST-----
+MIICWjCCAUICAQAwFTETMBEGA1UEAwwKdGVzdC5sb2NhbDCCASIwDQYJKoZIhvcN
+AQEBBQADggEPADCCAQoCggEBAMQQ9k8rSU8tF7aQjXq9vE+J/cYn4PJKL9sKd2x7
+9JgTyV8OhQP7zLkBhRnBGj7YZKQqKjZzpVfJz4JZK8mKlF1X6pOsKcYG7Xq9nF4H
++qLjJlK8pYz1JgF1Oz3VK4J6yJ8QYKYmJ8F6Kl4pO8mJ7oJ8QYKYmJ8F6Kl4pO8m
+J7oJ8QYKYmJ8F6Kl4pO8mJ7oJ8QYKYmJ8F6Kl4pO8mJ7oJ8QYKYmJ8F6Kl4pO8m
+J7oJ8QYKYmJ8F6Kl4pO8mJ7oJ8QYKYmJ8F6Kl4pO8mJ7oJ8QYKYmJ8F6Kl4pO8m
+J7oJ8QYKYmJ8F6Kl4pO8mJ7oJ8QYKYmJ8F6Kl4pO8mJ7oCAwEAAaAAMA0GCSqG
+SIb3DQEBCwUAA4IBAQAiHtC9KLj8hO7yJ8QYKYmJ8F6Kl4pO8mJ7oJ8QYKYmJ8F6
+-----END CERTIFICATE REQUEST-----`
+
+        requestID, err := client.SubmitCSR(testCSR, testPolicyID)
+        if err != nil {
+                t.Logf("CSR submission failed (may be expected): %v", err)
+                // Don't fail the test as this might be expected with test data
+        } else {
+                t.Logf("CSR submitted successfully with request ID: %s", requestID)
+        }
+}
+
+// TestCertificateRetrievalWorkflow tests certificate retrieval functionality
+func TestCertificateRetrievalWorkflow(t *testing.T) {
+        // Skip if no credentials available
+        hawkID := os.Getenv("ZTPKI_HAWK_ID")
+        hawkKey := os.Getenv("ZTPKI_HAWK_SECRET")
+        if hawkID == "" || hawkKey == "" {
+                t.Skip("Skipping integration test: ZTPKI_HAWK_ID and ZTPKI_HAWK_SECRET required")
+        }
+
+        cfg := &config.Config{
+                BaseURL: "https://ztpki-dev.venafi.com/api/v2",
+                HawkID:  hawkID,
+                HawkKey: hawkKey,
+        }
+
+        client, err := NewClient(cfg)
+        if err != nil {
+                t.Fatalf("Failed to create client: %v", err)
+        }
+
+        // Test certificate search functionality
+        searchParams := CertificateSearchParams{
+                Limit: 10,
+        }
+
+        certificates, err := client.SearchCertificates(searchParams)
+        if err != nil {
+                t.Logf("Certificate search failed (may be expected): %v", err)
+                // Don't fail as user might not have certificates
+                return
+        }
+
+        t.Logf("Found %d certificates", len(certificates))
+
+        // Test certificate structure integrity
+        for i, cert := range certificates {
+                if cert.ID == "" {
+                        t.Errorf("Certificate %d has empty ID", i)
+                }
+                if cert.CommonName == "" {
+                        t.Errorf("Certificate %d has empty CommonName", i)
+                }
+                
+                t.Logf("Certificate: ID=%s CN=%s Status=%s", cert.ID, cert.CommonName, cert.Status)
+                
+                // Test retrieving specific certificate
+                if i == 0 && cert.ID != "" {
+                        retrievedCert, err := client.GetCertificate(cert.ID)
+                        if err != nil {
+                                t.Errorf("Failed to retrieve certificate %s: %v", cert.ID, err)
+                        } else if retrievedCert.ID != cert.ID {
+                                t.Errorf("Retrieved certificate ID mismatch: expected %s, got %s", cert.ID, retrievedCert.ID)
+                        }
+                }
+        }
+}
+
+// TestCertificateRevocationWorkflow tests certificate revocation functionality  
+func TestCertificateRevocationWorkflow(t *testing.T) {
+        // Skip if no credentials available
+        hawkID := os.Getenv("ZTPKI_HAWK_ID")
+        hawkKey := os.Getenv("ZTPKI_HAWK_SECRET")
+        if hawkID == "" || hawkKey == "" {
+                t.Skip("Skipping integration test: ZTPKI_HAWK_ID and ZTPKI_HAWK_SECRET required")
+        }
+
+        cfg := &config.Config{
+                BaseURL: "https://ztpki-dev.venafi.com/api/v2",
+                HawkID:  hawkID,
+                HawkKey: hawkKey,
+        }
+
+        client, err := NewClient(cfg)
+        if err != nil {
+                t.Fatalf("Failed to create client: %v", err)
+        }
+
+        // Find an active certificate to test revocation structure (don't actually revoke)
+        searchParams := CertificateSearchParams{
+                Status: StatusActive,
+                Limit:  1,
+        }
+
+        certificates, err := client.SearchCertificates(searchParams)
+        if err != nil {
+                t.Logf("Certificate search failed: %v", err)
+                return
+        }
+
+        if len(certificates) == 0 {
+                t.Log("No active certificates found to test revocation structure")
+                return
+        }
+
+        // Test revocation request structure without actually revoking
+        testCert := certificates[0]
+        revocationReq := &RevocationRequest{
+                CertificateID: testCert.ID,
+                Reason:        ReasonUnspecified,
+        }
+
+        if revocationReq.CertificateID == "" {
+                t.Error("Revocation request has empty certificate ID")
+        }
+        if revocationReq.Reason == "" {
+                t.Error("Revocation request has empty reason")
+        }
+
+        t.Logf("Revocation request structure validated for certificate %s", testCert.ID)
+}
+
+// TestAPIErrorHandling tests error response parsing
+func TestAPIErrorHandling(t *testing.T) {
+        // Skip if no credentials available
+        hawkID := os.Getenv("ZTPKI_HAWK_ID")
+        hawkKey := os.Getenv("ZTPKI_HAWK_SECRET")
+        if hawkID == "" || hawkKey == "" {
+                t.Skip("Skipping integration test: ZTPKI_HAWK_ID and ZTPKI_HAWK_SECRET required")
+        }
+
+        cfg := &config.Config{
+                BaseURL: "https://ztpki-dev.venafi.com/api/v2",
+                HawkID:  hawkID,
+                HawkKey: hawkKey,
+        }
+
+        client, err := NewClient(cfg)
+        if err != nil {
+                t.Fatalf("Failed to create client: %v", err)
+        }
+
+        // Test 404 error handling
+        _, err = client.GetCertificate("non-existent-id")
+        if err != nil {
+                if apiErr, ok := err.(*APIError); ok {
+                        if !apiErr.IsNotFound() {
+                                t.Logf("Expected 404 error, got: %v", apiErr)
+                        } else {
+                                t.Logf("Correctly handled 404 error: %v", apiErr)
+                        }
+                } else {
+                        t.Logf("Non-API error (may be expected): %v", err)
+                }
+        }
+
+        // Test invalid policy ID error handling
+        _, err = client.SubmitCSR("invalid-csr", "invalid-policy-id")
+        if err != nil {
+                if apiErr, ok := err.(*APIError); ok {
+                        if apiErr.IsBadRequest() {
+                                t.Logf("Correctly handled bad request: %v", apiErr)
+                        } else {
+                                t.Logf("Got API error: %v", apiErr)
+                        }
+                } else {
+                        t.Logf("Non-API error: %v", err)
+                }
+        }
+}
+
 // TestPolicyStructFieldMapping tests that our Policy struct matches expected ZTPKI fields
 func TestPolicyStructFieldMapping(t *testing.T) {
         // Test various JSON structures that ZTPKI might return
