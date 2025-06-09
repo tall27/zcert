@@ -91,7 +91,8 @@ func init() {
         // Key generation options
         enrollCmd.Flags().IntVar(&enrollKeySize, "key-size", 2048, "RSA key size in bits")
         enrollCmd.Flags().StringVar(&enrollKeyType, "key-type", "rsa", "Key type (rsa, ecdsa)")
-        enrollCmd.Flags().StringVar(&enrollCSRMode, "csr", "local", "CSR generation mode (local)")
+        enrollCmd.Flags().StringVar(&enrollCSRMode, "csr", "local", "CSR generation mode (local, file)")
+        enrollCmd.Flags().String("csr-file", "", "Path to CSR file when using --csr file mode")
         
         // Output options
         enrollCmd.Flags().StringVar(&enrollFormat, "format", "pem", "Output format (pem, p12, jks)")
@@ -218,42 +219,72 @@ func runEnroll(cmd *cobra.Command, args []string) error {
                 fmt.Fprintf(os.Stderr, "Enrolling certificate with CN: %s, Policy: %s\n", cn, policy)
         }
 
-        // Generate private key
-        if viper.GetBool("verbose") {
-                fmt.Fprintln(os.Stderr, "Generating private key...")
-        }
-
+        var csrPEM []byte
         var privateKey interface{}
-        if keyType == "rsa" {
-                privateKey, err = rsa.GenerateKey(rand.Reader, keySize)
+
+        // Handle CSR generation mode
+        csrMode := cmd.Flag("csr").Value.String()
+        
+        if csrMode == "local" {
+                // Generate private key locally
+                if viper.GetBool("verbose") {
+                        fmt.Fprintln(os.Stderr, "Generating private key...")
+                }
+
+                if keyType == "rsa" {
+                        privateKey, err = rsa.GenerateKey(rand.Reader, keySize)
+                        if err != nil {
+                                return fmt.Errorf("failed to generate RSA private key: %w", err)
+                        }
+                } else {
+                        return fmt.Errorf("unsupported key type: %s", keyType)
+                }
+
+                // Create CSR
+                if viper.GetBool("verbose") {
+                        fmt.Fprintln(os.Stderr, "Creating Certificate Signing Request...")
+                }
+
+                template := x509.CertificateRequest{
+                        Subject: pkix.Name{
+                                CommonName: cn,
+                        },
+                        DNSNames: enrollSANs,
+                }
+
+                csrBytes, err := x509.CreateCertificateRequest(rand.Reader, &template, privateKey)
                 if err != nil {
-                        return fmt.Errorf("failed to generate RSA private key: %w", err)
+                        return fmt.Errorf("failed to create CSR: %w", err)
+                }
+
+                csrPEM = pem.EncodeToMemory(&pem.Block{
+                        Type:  "CERTIFICATE REQUEST",
+                        Bytes: csrBytes,
+                })
+        } else if csrMode == "file" {
+                // Read CSR from file
+                csrFile := cmd.Flag("csr-file").Value.String()
+                if csrFile == "" {
+                        return fmt.Errorf("CSR file path required when using --csr file mode. Use --csr-file flag")
+                }
+
+                if viper.GetBool("verbose") {
+                        fmt.Fprintf(os.Stderr, "Reading CSR from file: %s\n", csrFile)
+                }
+
+                csrPEM, err = os.ReadFile(csrFile)
+                if err != nil {
+                        return fmt.Errorf("failed to read CSR file: %w", err)
+                }
+
+                // Validate CSR format
+                block, _ := pem.Decode(csrPEM)
+                if block == nil || block.Type != "CERTIFICATE REQUEST" {
+                        return fmt.Errorf("invalid CSR file format. Expected PEM-encoded CERTIFICATE REQUEST")
                 }
         } else {
-                return fmt.Errorf("unsupported key type: %s", keyType)
+                return fmt.Errorf("invalid CSR mode: %s. Use 'local' or 'file'", csrMode)
         }
-
-        // Create CSR
-        if viper.GetBool("verbose") {
-                fmt.Fprintln(os.Stderr, "Creating Certificate Signing Request...")
-        }
-
-        template := x509.CertificateRequest{
-                Subject: pkix.Name{
-                        CommonName: cn,
-                },
-                DNSNames: enrollSANs,
-        }
-
-        csrBytes, err := x509.CreateCertificateRequest(rand.Reader, &template, privateKey)
-        if err != nil {
-                return fmt.Errorf("failed to create CSR: %w", err)
-        }
-
-        csrPEM := pem.EncodeToMemory(&pem.Block{
-                Type:  "CERTIFICATE REQUEST",
-                Bytes: csrBytes,
-        })
 
         // Submit CSR to ZTPKI
         if viper.GetBool("verbose") {

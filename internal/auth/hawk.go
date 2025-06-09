@@ -3,12 +3,10 @@ package auth
 import (
         "bytes"
         "crypto/hmac"
-        "crypto/rand"
         "crypto/sha256"
         "encoding/base64"
         "fmt"
         "io"
-        "math/rand"
         "net/http"
         "net/url"
         "strconv"
@@ -73,12 +71,6 @@ func (h *HawkAuth) SignRequest(req *http.Request) error {
         }
         
         authHeader += fmt.Sprintf(`, mac="%s"`, mac)
-        
-        // Debug logging - remove in production
-        fmt.Printf("DEBUG HAWK: ID=%s, TS=%d, Nonce=%s\n", h.ID, timestamp, nonce)
-        fmt.Printf("DEBUG HAWK: Normalized String:\n%s\n", normalizedString)
-        fmt.Printf("DEBUG HAWK: MAC=%s\n", mac)
-        fmt.Printf("DEBUG HAWK: Authorization=%s\n", authHeader)
         
         req.Header.Set("Authorization", authHeader)
         
@@ -147,9 +139,8 @@ func generateNonce() string {
         // PowerShell: chars = $(48..57;65..90;97..122) => 0-9, A-Z, a-z
         chars := "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
         result := make([]byte, 6)
-        rand.Seed(time.Now().UnixNano())
         for i := range result {
-                result[i] = chars[rand.Intn(len(chars))]
+                result[i] = chars[time.Now().UnixNano()%int64(len(chars))]
         }
         return string(result)
 }
