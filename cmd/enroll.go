@@ -62,7 +62,7 @@ Examples:
   zcert -config zcert.cnf -profile prod --cn "prod.example.com"
   
   # Command-line authentication (all parameters required)
-  zcert enroll --cn "example.com" --url "https://api.ztpki.venafi.com" --key-id "your-key-id" --secret "your-secret"
+  zcert enroll --cn "example.com" --url "https://ztpki-dev.venafi.com/api/v2" --key-id "your-key-id" --secret "your-secret"
   
   # Generate example configuration file
   zcert config --example
