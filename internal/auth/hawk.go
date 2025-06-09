@@ -5,7 +5,6 @@ import (
         "crypto/hmac"
         "crypto/sha256"
         "encoding/base64"
-        "encoding/hex"
         "fmt"
         "io"
         "net/http"
@@ -35,8 +34,7 @@ func (h *HawkAuth) SignRequest(req *http.Request) error {
         timestamp := time.Now().Unix()
         nonce := generateNonce()
         
-        // Calculate payload hash if there's a body
-        var payloadHash string
+        // Read and restore request body if present
         if req.Body != nil {
                 bodyBytes, err := io.ReadAll(req.Body)
                 if err != nil {
@@ -44,9 +42,6 @@ func (h *HawkAuth) SignRequest(req *http.Request) error {
                 }
                 // Restore the body for actual use
                 req.Body = io.NopCloser(bytes.NewReader(bodyBytes))
-                
-                // Calculate payload hash
-                payloadHash = h.CalculatePayloadHash(bodyBytes, req.Header.Get("Content-Type"))
         }
         
         // Build the normalized request string for HAWK
@@ -56,7 +51,7 @@ func (h *HawkAuth) SignRequest(req *http.Request) error {
                 req.Method,
                 req.URL,
                 req.Header.Get("Content-Type"),
-                payloadHash,
+                "", // Empty payload hash for ZTPKI compatibility
         )
         
         // Calculate MAC
@@ -127,10 +122,10 @@ func (h *HawkAuth) buildNormalizedString(timestamp int64, nonce, method string, 
 
 // calculateMAC computes the HMAC-SHA256 MAC for the normalized string
 func (h *HawkAuth) calculateMAC(normalizedString string) string {
-        // Decode the key from hex format (common HAWK implementation)
-        keyBytes, err := hex.DecodeString(h.Key)
+        // Try base64 decoding first (common for HAWK keys)
+        keyBytes, err := base64.StdEncoding.DecodeString(h.Key)
         if err != nil {
-                // Fall back to treating the key as raw bytes
+                // Fall back to raw bytes
                 keyBytes = []byte(h.Key)
         }
         

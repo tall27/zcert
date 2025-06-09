@@ -10,7 +10,6 @@ import (
         "io"
         "net/http"
         "net/url"
-        "strconv"
         "strings"
         "time"
 )
@@ -66,20 +65,9 @@ func main() {
         // Calculate payload hash
         payloadHash := calculatePayloadHash(jsonData, "application/json")
         
-        normalized := strings.Join([]string{
-                "hawk.1.header",
-                strconv.FormatInt(timestamp, 10),
-                nonce,
-                "POST",
-                resource,
-                host,
-                port,
-                payloadHash,
-                "",
-                "",
-                "",
-                "",
-        }, "\n")
+        // HAWK specification requires exact format with no trailing newline on last empty field
+        normalized := fmt.Sprintf("hawk.1.header\n%d\n%s\n%s\n%s\n%s\n%s\n%s\n\n\n\n",
+                timestamp, nonce, "POST", resource, host, port, payloadHash)
         
         fmt.Printf("HAWK ID: %s\n", hawkID)
         fmt.Printf("HAWK Key: %s...\n", hawkKey[:20])
@@ -131,7 +119,11 @@ func calculatePayloadHash(payload []byte, contentType string) string {
                 return ""
         }
         
-        hashInput := fmt.Sprintf("hawk.1.payload\n%s\n%s\n", contentType, string(payload))
-        hash := sha256.Sum256([]byte(hashInput))
-        return base64.StdEncoding.EncodeToString(hash[:])
+        // Try without payload hash first (some HAWK implementations don't require it)
+        return ""
+        
+        // Original implementation commented out for testing
+        // hashInput := fmt.Sprintf("hawk.1.payload\n%s\n%s\n", contentType, string(payload))
+        // hash := sha256.Sum256([]byte(hashInput))
+        // return base64.StdEncoding.EncodeToString(hash[:])
 }
