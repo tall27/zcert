@@ -17,7 +17,6 @@ import (
         "zcert/internal/cert"
         "zcert/internal/config"
         policyselect "zcert/internal/policy"
-        "zcert/internal/utils"
 )
 
 var (
@@ -193,12 +192,31 @@ func runEnroll(cmd *cobra.Command, args []string) error {
         keyType := finalProfile.KeyType
         format := finalProfile.Format
 
-        // Interactive prompts for missing required information
-        if cn == "" {
-                cn, err = utils.PromptString("Enter Common Name (CN) for the certificate", "")
-                if err != nil {
-                        return fmt.Errorf("failed to get common name: %w", err)
+        // Handle CSR generation mode first to determine if CN is needed
+        csrMode := cmd.Flag("csr").Value.String()
+        
+        // Validate required CN parameter (only for local CSR generation)
+        if csrMode == "local" && cn == "" {
+                return fmt.Errorf("Common Name (CN) is required for local CSR generation (use --cn flag or config file)")
+        }
+        
+        // Validate key generation parameters
+        if keyType == "rsa" {
+                if keySize < 2048 {
+                        return fmt.Errorf("RSA key size must be at least 2048 bits for security")
                 }
+                if keySize != 2048 && keySize != 3072 && keySize != 4096 {
+                        return fmt.Errorf("RSA key size must be 2048, 3072, or 4096 bits")
+                }
+        } else if keyType == "ecdsa" {
+                return fmt.Errorf("ECDSA key type is not yet supported")
+        } else if keyType != "rsa" {
+                return fmt.Errorf("unsupported key type: %s (supported: rsa)", keyType)
+        }
+        
+        // Validate output format
+        if format != "pem" && format != "p12" && format != "jks" {
+                return fmt.Errorf("unsupported output format: %s (supported: pem, p12, jks)", format)
         }
 
         // Get or select policy
@@ -218,8 +236,7 @@ func runEnroll(cmd *cobra.Command, args []string) error {
         var csrPEM []byte
         var privateKey interface{}
 
-        // Handle CSR generation mode
-        csrMode := cmd.Flag("csr").Value.String()
+        // Handle CSR generation based on mode determined above
         
         if csrMode == "local" {
                 // Generate private key locally
