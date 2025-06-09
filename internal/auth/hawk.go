@@ -5,6 +5,7 @@ import (
         "crypto/hmac"
         "crypto/sha256"
         "encoding/base64"
+        "encoding/hex"
         "fmt"
         "io"
         "net/http"
@@ -61,7 +62,7 @@ func (h *HawkAuth) SignRequest(req *http.Request) error {
         // Calculate MAC
         mac := h.calculateMAC(normalizedString)
         
-        // Build Authorization header
+        // Build Authorization header with proper HAWK format
         authHeader := fmt.Sprintf(`Hawk id="%s", ts="%d", nonce="%s", mac="%s"`,
                 h.ID, timestamp, nonce, mac)
         
@@ -126,7 +127,14 @@ func (h *HawkAuth) buildNormalizedString(timestamp int64, nonce, method string, 
 
 // calculateMAC computes the HMAC-SHA256 MAC for the normalized string
 func (h *HawkAuth) calculateMAC(normalizedString string) string {
-        mac := hmac.New(sha256.New, []byte(h.Key))
+        // Decode the key from hex format (common HAWK implementation)
+        keyBytes, err := hex.DecodeString(h.Key)
+        if err != nil {
+                // Fall back to treating the key as raw bytes
+                keyBytes = []byte(h.Key)
+        }
+        
+        mac := hmac.New(sha256.New, keyBytes)
         mac.Write([]byte(normalizedString))
         return base64.StdEncoding.EncodeToString(mac.Sum(nil))
 }
