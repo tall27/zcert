@@ -6,8 +6,8 @@
 [Default]
 # Default profile used when no -profile is specified
 url = https://ztpki-dev.venafi.com/api/v2
-key-id = your-default-key-id
-secret = your-default-secret
+key-id = 165c01284c6c8d872091aed0c7cc0149
+secret = b431afc1ed6a6b7db5f78f0f4b431afc1ed6a6b7db5f78f0f4b431afc1ed6a6b7db5f78f0f4b431afc1ed6a6b7db5f78f0f
 algo = sha256
 format = pem
 policy = WebServer

@@ -3,11 +3,12 @@ package auth
 import (
         "bytes"
         "crypto/hmac"
+        "crypto/rand"
         "crypto/sha256"
         "encoding/base64"
+        "encoding/hex"
         "fmt"
         "io"
-        "math/rand"
         "net/http"
         "net/url"
         "strconv"
@@ -73,6 +74,12 @@ func (h *HawkAuth) SignRequest(req *http.Request) error {
         
         authHeader += fmt.Sprintf(`, mac="%s"`, mac)
         
+        // Debug logging - remove in production
+        fmt.Printf("DEBUG HAWK: ID=%s, TS=%d, Nonce=%s\n", h.ID, timestamp, nonce)
+        fmt.Printf("DEBUG HAWK: Normalized String:\n%s\n", normalizedString)
+        fmt.Printf("DEBUG HAWK: MAC=%s\n", mac)
+        fmt.Printf("DEBUG HAWK: Authorization=%s\n", authHeader)
+        
         req.Header.Set("Authorization", authHeader)
         
         return nil
@@ -110,19 +117,17 @@ func (h *HawkAuth) buildNormalizedString(timestamp int64, nonce, method string, 
         
         // Use the provided payload hash, or empty if none
         hash := payloadHash
-        ext := ""
         
-        normalized := strings.Join([]string{
-                "hawk.1.header",
-                strconv.FormatInt(timestamp, 10),
-                nonce,
-                strings.ToUpper(method),
-                resource,
-                host,
-                port,
-                hash,
-                ext,
-        }, "\n") + "\n" // Add final newline to match Python implementation
+        // Build normalized string exactly like JavaScript implementation
+        normalized := "hawk.1.header\n" +
+                strconv.FormatInt(timestamp, 10) + "\n" +
+                nonce + "\n" +
+                strings.ToUpper(method) + "\n" +
+                resource + "\n" +
+                host + "\n" +
+                port + "\n" +
+                hash + "\n" +
+                "\n" // Final empty line
         
         return normalized
 }
@@ -137,15 +142,12 @@ func (h *HawkAuth) calculateMAC(normalizedString string) string {
         return base64.StdEncoding.EncodeToString(mac.Sum(nil))
 }
 
-// generateNonce creates a unique nonce for the request (matching Python implementation)
+// generateNonce creates a unique nonce for the request (matching JavaScript implementation)
 func generateNonce() string {
-        chars := "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
-        result := make([]byte, 6)
-        rand.Seed(time.Now().UnixNano())
-        for i := range result {
-                result[i] = chars[rand.Intn(len(chars))]
-        }
-        return string(result)
+        // Use crypto.randomBytes(6).toString('hex') equivalent
+        bytes := make([]byte, 6)
+        rand.Read(bytes)
+        return hex.EncodeToString(bytes)
 }
 
 // ValidateServerResponse validates the Server-Authorization header (if present)
@@ -177,13 +179,13 @@ func (h *HawkAuth) CalculatePayloadHash(payload []byte, contentType string) stri
         // content-type\n
         // payload\n
         
-        // Build payload string according to HAWK spec (matching Python implementation):
-        // "hawk.1.payload\n{lowercase_content_type}\n{payload}\n"
-        mainContentType := strings.Split(contentType, ",")[0]
-        mainContentType = strings.ToLower(strings.TrimSpace(mainContentType))
+        // Build payload hash exactly like JavaScript implementation
+        // crypto.createHash(algorithm).update('hawk.1.payload\n').update(contentType + '\n').update(payload + '\n').digest('base64')
+        hasher := sha256.New()
+        hasher.Write([]byte("hawk.1.payload\n"))
+        hasher.Write([]byte(contentType + "\n"))
+        hasher.Write(payload)
+        hasher.Write([]byte("\n"))
         
-        hashInput := fmt.Sprintf("hawk.1.payload\n%s\n%s\n", mainContentType, string(payload))
-        
-        hash := sha256.Sum256([]byte(hashInput))
-        return base64.StdEncoding.EncodeToString(hash[:])
+        return base64.StdEncoding.EncodeToString(hasher.Sum(nil))
 }
