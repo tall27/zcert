@@ -138,10 +138,7 @@ func (ps *PolicySelector) presentPolicyMenu(policies []Policy) (string, error) {
 
 // GetPolicyByID retrieves policy information by ID
 func (ps *PolicySelector) GetPolicyByID(policyID string) (*Policy, error) {
-        policies, err := ps.fetchPolicies()
-        if err != nil {
-                return nil, err
-        }
+        policies := ps.GetAvailablePolicies()
 
         for _, policy := range policies {
                 if policy.ID == policyID {

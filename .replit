@@ -4,7 +4,7 @@ modules = ["go", "python-3.11"]
 channel = "stable-24_05"
 
 [workflows]
-runButton = "zcert-cli"
+runButton = "Project"
 
 [[workflows.workflow]]
 name = "Project"
@@ -15,6 +15,10 @@ author = "agent"
 task = "workflow.run"
 args = "zcert-cli"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "test-build"
+
 [[workflows.workflow]]
 name = "zcert-cli"
 author = "agent"
@@ -22,6 +26,14 @@ author = "agent"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "go mod tidy && go build -o zcert main.go && ./zcert --help"
+
+[[workflows.workflow]]
+name = "test-build"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "go build -o zcert main.go"
 
 [deployment]
 run = ["sh", "-c", "go mod tidy && go build -o zcert main.go && ./zcert --help"]
