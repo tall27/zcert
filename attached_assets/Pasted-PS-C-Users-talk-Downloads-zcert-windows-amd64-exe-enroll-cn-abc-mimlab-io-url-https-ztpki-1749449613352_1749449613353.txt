@@ -1,0 +1,35 @@
+PS C:\Users\talk\Downloads> .\zcert-windows-amd64.exe enroll --cn abc.mimlab.io --url "https://ztpki-dev.venafi.com/api/v2" --policy "5fe6d368-896a-4883-97eb-f87148c90896" --hawk-id 165c01284c6c8d872091aed0c7cc0149 --hawk-key b97a01107585f1f037a65fafe334dcda6a42b156e1ae8df0072d203dd36f5c0c
+PS C:\Users\talk\Downloads> .\zcert-windows-amd64.exe enroll --cn abc.mimlab.io --url "https://ztpki-dev.venafi.com/api/v2"  --hawk-id 165c01284c6c8d872091aed0c7cc0149 --hawk-key b97a01107585f1f037a65fafe334dcda6a42b156e1ae8df0072d203dd36f5c0c
+No policy specified. Please select a policy from the available options:
+Fetching available policies...
+Error: failed to select policy: failed to fetch policies: API Error 0: invalid request
+Usage:
+  zcert enroll [flags]
+
+Flags:
+      --algo string           HAWK algorithm (sha1, sha256) (default "sha256")
+      --cn string             Common Name for the certificate
+      --csr string            CSR generation mode (local, file) (default "local")
+      --csr-file string       Path to CSR file when using --csr file mode
+      --file string           Output file path
+      --format string         Output format (pem, p12, jks) (default "pem")
+      --hawk-id string        HAWK authentication ID (alias for key-id)
+      --hawk-key string       HAWK authentication key (alias for secret)
+  -h, --help                  help for enroll
+      --key-id string         HAWK authentication key ID
+      --key-size int          RSA key size in bits (default 2048)
+      --key-type string       Key type (rsa, ecdsa) (default "rsa")
+      --no-key-output         Don't output private key to file
+      --p12-password string   Password for PKCS#12 format
+      --policy string         Policy ID or name for certificate issuance
+      --sans strings          Subject Alternative Names (comma-separated)
+      --secret string         HAWK authentication secret
+      --url string            ZTPKI API base URL (e.g., https://ztpki-dev.venafi.com/api/v2)
+
+Global Flags:
+      --config string    profile config file (e.g., zcert.cnf)
+      --profile string   profile name from config file (default: Default)
+  -v, --verbose          verbose output
+
+Error: failed to select policy: failed to fetch policies: API Error 0: invalid request
+PS C:\Users\talk\Downloads>
