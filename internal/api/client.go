@@ -127,15 +127,12 @@ func (c *Client) GetPolicies() ([]Policy, error) {
                 return nil, err
         }
         
-        var result struct {
-                Policies []Policy `json:"policies"`
-        }
-        
-        if err := c.handleResponse(resp, &result); err != nil {
+        var policies []Policy
+        if err := c.handleResponse(resp, &policies); err != nil {
                 return nil, err
         }
         
-        return result.Policies, nil
+        return policies, nil
 }
 
 
