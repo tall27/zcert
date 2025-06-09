@@ -79,8 +79,8 @@ func (c *Client) makeRequest(method, endpoint string, body interface{}) (*http.R
                 req.Header.Set("Content-Type", contentType)
         }
         
-        // Enable HAWK debug for troubleshooting
-        req.Header.Set("X-Debug-HAWK", "true")
+        // Enable HAWK debug for troubleshooting (disabled for production)
+        // req.Header.Set("X-Debug-HAWK", "true")
         req.Header.Set("Accept", "application/json")
         req.Header.Set("User-Agent", "zcert/1.0.0")
         
