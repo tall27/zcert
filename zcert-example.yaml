@@ -5,12 +5,12 @@
 profiles:
   Default:
     base_url: "https://ztpki-dev.venafi.com/api/v2"
-    hawk_id: "165c01284c6c8d872091aed0c7cc0149"
-    hawk_key: "b97a01107585f1f037a65fafe334dcda6a42b156e1ae8df0072d203dd36f5c0c"
+    hawk_id: "your-hawk-id-here"
+    hawk_key: "your-hawk-key-here"
     default_key_size: 2048
     default_key_type: "rsa"
     default_format: "pem"
-    default_policy_id: "5fe6d368-896a-4883-97eb-f87148c90896"
+    default_policy_id: ""
     default_algorithm: "sha256"
     output_directory: "./certificates"
     no_key_output: false
@@ -31,12 +31,12 @@ profiles:
 
   staging:
     base_url: "https://ztpki-staging.venafi.com/api/v2"
-    hawk_id: "165c0128424432112372091aed0c7cc0149"
-    hawk_key: "b97a011123123dedwe12334dcda6a42b156e1ae8df0072d203dd36f5c0c"
+    hawk_id: "your-staging-hawk-id"
+    hawk_key: "your-staging-hawk-key"
     default_key_size: 2048
     default_key_type: "rsa"
     default_format: "p12"
-    default_policy_id: "5fe6d368-896a-4883-97eb-f87148c90896"
+    default_policy_id: ""
     default_algorithm: "sha256"
     output_directory: "./certificates"
     include_chain: true

@@ -30,10 +30,21 @@ func NewPolicySelector(client *api.Client) *PolicySelector {
 
 // SelectPolicy presents an interactive policy selection menu
 func (ps *PolicySelector) SelectPolicy() (string, error) {
-        policies := ps.GetAvailablePolicies()
+        apiPolicies, err := ps.client.GetPolicies()
+        if err != nil {
+                return "", fmt.Errorf("failed to retrieve policies from ZTPKI API: %w", err)
+        }
 
-        if len(policies) == 0 {
-                return "", fmt.Errorf("no policies available")
+        if len(apiPolicies) == 0 {
+                return "", fmt.Errorf("no policies available from ZTPKI")
+        }
+
+        var policies []Policy
+        for _, apiPolicy := range apiPolicies {
+                policies = append(policies, Policy{
+                        ID:   apiPolicy.ID,
+                        Name: apiPolicy.Name,
+                })
         }
 
         return ps.presentPolicyMenu(policies)
@@ -43,7 +54,6 @@ func (ps *PolicySelector) SelectPolicy() (string, error) {
 func (ps *PolicySelector) GetAvailablePolicies() []Policy {
         apiPolicies, err := ps.client.GetPolicies()
         if err != nil {
-                fmt.Printf("Error: Could not fetch policies from ZTPKI API: %v\n", err)
                 return []Policy{}
         }
         
@@ -57,26 +67,7 @@ func (ps *PolicySelector) GetAvailablePolicies() []Policy {
         return policies
 }
 
-// fetchPolicies retrieves available policies from ZTPKI
-func (ps *PolicySelector) fetchPolicies() ([]Policy, error) {
-        // Return known working policies for ZTPKI dev environment
-        // These are verified working policy IDs from the ZTPKI development server
-        policies := []Policy{
-                {ID: "5fe6d368-896a-4883-97eb-f87148c90896", Name: "OCP Dev ICA 1 SSL 75 SAN (Verified Working)"},
-                {ID: "web-server-ssl", Name: "Web Server SSL Policy"},
-                {ID: "client-auth", Name: "Client Authentication Policy"},
-                {ID: "code-signing", Name: "Code Signing Policy"},
-                {ID: "email-protection", Name: "Email Protection Policy"},
-        }
 
-        // Note: ZTPKI API doesn't provide a direct policy enumeration endpoint
-        // In a production environment, you would typically:
-        // 1. Have predefined policy IDs from your ZTPKI configuration
-        // 2. Use a separate policy management API if available
-        // 3. Maintain a configuration file with available policies
-        
-        return policies, nil
-}
 
 // presentPolicyMenu displays the policy selection menu
 func (ps *PolicySelector) presentPolicyMenu(policies []Policy) (string, error) {
