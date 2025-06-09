@@ -85,7 +85,9 @@ func init() {
         // ZTPKI Authentication flags
         enrollCmd.Flags().StringVar(&enrollURL, "url", "", "ZTPKI API base URL (e.g., https://ztpki-dev.venafi.com/api/v2)")
         enrollCmd.Flags().StringVar(&enrollKeyID, "key-id", "", "HAWK authentication key ID")
+        enrollCmd.Flags().StringVar(&enrollKeyID, "hawk-id", "", "HAWK authentication ID (alias for key-id)")
         enrollCmd.Flags().StringVar(&enrollSecret, "secret", "", "HAWK authentication secret")
+        enrollCmd.Flags().StringVar(&enrollSecret, "hawk-key", "", "HAWK authentication key (alias for secret)")
         enrollCmd.Flags().StringVar(&enrollAlgo, "algo", "sha256", "HAWK algorithm (sha1, sha256)")
         
         // Key generation options
