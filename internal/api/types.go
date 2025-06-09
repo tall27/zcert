@@ -5,13 +5,24 @@ import (
         "time"
 )
 
+// PolicyEnabled represents the enabled status for different protocols
+type PolicyEnabled struct {
+        ACME bool `json:"acme"`
+        REST bool `json:"rest"`
+        SCEP bool `json:"scep"`
+        UI   bool `json:"ui"`
+}
+
 // Policy represents a certificate policy/template
 type Policy struct {
-        ID          string `json:"id"`
-        Name        string `json:"name"`
-        Description string `json:"description"`
-        Type        string `json:"type"`
-        Enabled     bool   `json:"enabled"`
+        ID                     string         `json:"id"`
+        Name                   string         `json:"name"`
+        Description            string         `json:"description"`
+        Type                   string         `json:"type"`
+        Enabled                PolicyEnabled  `json:"enabled"`
+        APIId                  int            `json:"apiId"`
+        CertificateAuthorityId string         `json:"certificateAuthorityId"`
+        OrganizationId         string         `json:"organizationId"`
 }
 
 // Certificate represents a certificate from the ZTPKI API
