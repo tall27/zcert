@@ -7,6 +7,7 @@ import (
         "encoding/base64"
         "fmt"
         "io"
+        "math/rand"
         "net/http"
         "net/url"
         "strconv"
@@ -140,8 +141,9 @@ func (h *HawkAuth) calculateMAC(normalizedString string) string {
 func generateNonce() string {
         chars := "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
         result := make([]byte, 6)
+        rand.Seed(time.Now().UnixNano())
         for i := range result {
-                result[i] = chars[time.Now().UnixNano()%int64(len(chars))]
+                result[i] = chars[rand.Intn(len(chars))]
         }
         return string(result)
 }
