@@ -65,9 +65,18 @@ func main() {
         // Calculate payload hash
         payloadHash := calculatePayloadHash(jsonData, "application/json")
         
-        // HAWK specification requires exact format with no trailing newline on last empty field
-        normalized := fmt.Sprintf("hawk.1.header\n%d\n%s\n%s\n%s\n%s\n%s\n%s\n\n\n\n",
-                timestamp, nonce, "POST", resource, host, port, payloadHash)
+        // HAWK specification requires exact format matching Python implementation
+        normalized := strings.Join([]string{
+                "hawk.1.header",
+                fmt.Sprintf("%d", timestamp),
+                nonce,
+                "POST",
+                resource,
+                host,
+                port,
+                payloadHash,
+                "", // ext field
+        }, "\n") + "\n"
         
         fmt.Printf("HAWK ID: %s\n", hawkID)
         fmt.Printf("HAWK Key: %s...\n", hawkKey[:20])
@@ -77,15 +86,9 @@ func main() {
         fmt.Printf("Payload Hash: %s\n", payloadHash)
         fmt.Printf("Normalized string:\n%s\n", normalized)
         
-        // Try base64 decoding the key first (another common HAWK format)
-        keyBytes, err := base64.StdEncoding.DecodeString(hawkKey)
-        if err != nil {
-                // Fall back to raw bytes
-                keyBytes = []byte(hawkKey)
-                fmt.Printf("Using raw key bytes\n")
-        } else {
-                fmt.Printf("Using base64 decoded key\n")
-        }
+        // Use raw key as UTF-8 bytes (matching Python implementation)
+        keyBytes := []byte(hawkKey)
+        fmt.Printf("Using raw key as UTF-8 bytes\n")
         
         mac := hmac.New(sha256.New, keyBytes)
         mac.Write([]byte(normalized))

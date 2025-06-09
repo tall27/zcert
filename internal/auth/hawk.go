@@ -34,7 +34,8 @@ func (h *HawkAuth) SignRequest(req *http.Request) error {
         timestamp := time.Now().Unix()
         nonce := generateNonce()
         
-        // Read and restore request body if present
+        // Calculate payload hash if there's a body
+        var payloadHash string
         if req.Body != nil {
                 bodyBytes, err := io.ReadAll(req.Body)
                 if err != nil {
@@ -42,6 +43,9 @@ func (h *HawkAuth) SignRequest(req *http.Request) error {
                 }
                 // Restore the body for actual use
                 req.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+                
+                // Calculate payload hash
+                payloadHash = h.CalculatePayloadHash(bodyBytes, req.Header.Get("Content-Type"))
         }
         
         // Build the normalized request string for HAWK
@@ -51,15 +55,22 @@ func (h *HawkAuth) SignRequest(req *http.Request) error {
                 req.Method,
                 req.URL,
                 req.Header.Get("Content-Type"),
-                "", // Empty payload hash for ZTPKI compatibility
+                payloadHash,
         )
         
         // Calculate MAC
         mac := h.calculateMAC(normalizedString)
         
         // Build Authorization header with proper HAWK format
-        authHeader := fmt.Sprintf(`Hawk id="%s", ts="%d", nonce="%s", mac="%s"`,
-                h.ID, timestamp, nonce, mac)
+        authHeader := fmt.Sprintf(`Hawk id="%s", ts="%d", nonce="%s"`,
+                h.ID, timestamp, nonce)
+        
+        // Add hash field if payload is present
+        if payloadHash != "" {
+                authHeader += fmt.Sprintf(`, hash="%s"`, payloadHash)
+        }
+        
+        authHeader += fmt.Sprintf(`, mac="%s"`, mac)
         
         req.Header.Set("Authorization", authHeader)
         
@@ -99,8 +110,6 @@ func (h *HawkAuth) buildNormalizedString(timestamp int64, nonce, method string, 
         // Use the provided payload hash, or empty if none
         hash := payloadHash
         ext := ""
-        app := ""
-        dlg := ""
         
         normalized := strings.Join([]string{
                 "hawk.1.header",
@@ -108,36 +117,33 @@ func (h *HawkAuth) buildNormalizedString(timestamp int64, nonce, method string, 
                 nonce,
                 strings.ToUpper(method),
                 resource,
-                strings.ToLower(host),
+                host,
                 port,
                 hash,
                 ext,
-                app,
-                dlg,
-                "", // Final empty line
-        }, "\n")
+        }, "\n") + "\n" // Add final newline to match Python implementation
         
         return normalized
 }
 
 // calculateMAC computes the HMAC-SHA256 MAC for the normalized string
 func (h *HawkAuth) calculateMAC(normalizedString string) string {
-        // Try base64 decoding first (common for HAWK keys)
-        keyBytes, err := base64.StdEncoding.DecodeString(h.Key)
-        if err != nil {
-                // Fall back to raw bytes
-                keyBytes = []byte(h.Key)
-        }
+        // Use raw key as UTF-8 bytes (matching Python implementation)
+        keyBytes := []byte(h.Key)
         
         mac := hmac.New(sha256.New, keyBytes)
         mac.Write([]byte(normalizedString))
         return base64.StdEncoding.EncodeToString(mac.Sum(nil))
 }
 
-// generateNonce creates a unique nonce for the request
+// generateNonce creates a unique nonce for the request (matching Python implementation)
 func generateNonce() string {
-        // Simple nonce generation - in production, this should be more robust
-        return fmt.Sprintf("%d", time.Now().UnixNano())
+        chars := "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+        result := make([]byte, 6)
+        for i := range result {
+                result[i] = chars[time.Now().UnixNano()%int64(len(chars))]
+        }
+        return string(result)
 }
 
 // ValidateServerResponse validates the Server-Authorization header (if present)
@@ -169,7 +175,12 @@ func (h *HawkAuth) CalculatePayloadHash(payload []byte, contentType string) stri
         // content-type\n
         // payload\n
         
-        hashInput := fmt.Sprintf("hawk.1.payload\n%s\n%s\n", contentType, string(payload))
+        // Build payload string according to HAWK spec (matching Python implementation):
+        // "hawk.1.payload\n{lowercase_content_type}\n{payload}\n"
+        mainContentType := strings.Split(contentType, ",")[0]
+        mainContentType = strings.ToLower(strings.TrimSpace(mainContentType))
+        
+        hashInput := fmt.Sprintf("hawk.1.payload\n%s\n%s\n", mainContentType, string(payload))
         
         hash := sha256.Sum256([]byte(hashInput))
         return base64.StdEncoding.EncodeToString(hash[:])
