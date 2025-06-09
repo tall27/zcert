@@ -6,9 +6,9 @@ import (
         "crypto/rand"
         "crypto/sha256"
         "encoding/base64"
-        "encoding/hex"
         "fmt"
         "io"
+        "math/rand"
         "net/http"
         "net/url"
         "strconv"
@@ -142,12 +142,16 @@ func (h *HawkAuth) calculateMAC(normalizedString string) string {
         return base64.StdEncoding.EncodeToString(mac.Sum(nil))
 }
 
-// generateNonce creates a unique nonce for the request (matching JavaScript implementation)
+// generateNonce creates a unique nonce for the request (matching PowerShell implementation)
 func generateNonce() string {
-        // Use crypto.randomBytes(6).toString('hex') equivalent
-        bytes := make([]byte, 6)
-        rand.Read(bytes)
-        return hex.EncodeToString(bytes)
+        // PowerShell: chars = $(48..57;65..90;97..122) => 0-9, A-Z, a-z
+        chars := "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
+        result := make([]byte, 6)
+        rand.Seed(time.Now().UnixNano())
+        for i := range result {
+                result[i] = chars[rand.Intn(len(chars))]
+        }
+        return string(result)
 }
 
 // ValidateServerResponse validates the Server-Authorization header (if present)
