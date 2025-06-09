@@ -47,7 +47,23 @@ retrieval and output formatting.
 
 The tool can generate a private key and Certificate Signing Request (CSR) locally,
 submit it to ZTPKI, poll for certificate issuance, and output the certificate in
-various formats including PEM, PKCS#12, and Java Keystore.`,
+various formats including PEM, PKCS#12, and Java Keystore.
+
+Authentication to ZTPKI requires HAWK credentials:
+  --url        ZTPKI API base URL (e.g., https://api.ztpki.venafi.com)
+  --key-id     Your HAWK authentication key ID
+  --secret     Your HAWK authentication secret
+  --algo       HAWK algorithm (default: sha256)
+
+Examples:
+  # Basic enrollment with command-line auth
+  zcert enroll --cn "example.com" --url "https://api.ztpki.venafi.com" --key-id "your-key-id" --secret "your-secret"
+  
+  # Enrollment with policy and output file
+  zcert enroll --cn "app.company.com" --policy "WebServer" --file "certificate.pem" --url "https://api.ztpki.venafi.com" --key-id "your-key-id" --secret "your-secret"
+  
+  # PKCS#12 output with password
+  zcert enroll --cn "secure.app.com" --format "p12" --p12-password "secret123" --url "https://api.ztpki.venafi.com" --key-id "your-key-id" --secret "your-secret"`,
         RunE: runEnroll,
 }
 
@@ -60,6 +76,12 @@ func init() {
         
         // Policy and authentication
         enrollCmd.Flags().StringVar(&enrollPolicy, "policy", "", "Policy ID or name for certificate issuance")
+        
+        // ZTPKI Authentication flags
+        enrollCmd.Flags().StringVar(&enrollURL, "url", "", "ZTPKI API base URL (e.g., https://api.ztpki.venafi.com)")
+        enrollCmd.Flags().StringVar(&enrollKeyID, "key-id", "", "HAWK authentication key ID")
+        enrollCmd.Flags().StringVar(&enrollSecret, "secret", "", "HAWK authentication secret")
+        enrollCmd.Flags().StringVar(&enrollAlgo, "algo", "sha256", "HAWK algorithm (sha1, sha256)")
         
         // Key generation options
         enrollCmd.Flags().IntVar(&enrollKeySize, "key-size", 2048, "RSA key size in bits")
@@ -78,6 +100,12 @@ func init() {
         viper.BindPFlag("enroll.key_size", enrollCmd.Flags().Lookup("key-size"))
         viper.BindPFlag("enroll.key_type", enrollCmd.Flags().Lookup("key-type"))
         viper.BindPFlag("enroll.format", enrollCmd.Flags().Lookup("format"))
+        
+        // Bind authentication flags
+        viper.BindPFlag("ztpki.url", enrollCmd.Flags().Lookup("url"))
+        viper.BindPFlag("ztpki.key_id", enrollCmd.Flags().Lookup("key-id"))
+        viper.BindPFlag("ztpki.secret", enrollCmd.Flags().Lookup("secret"))
+        viper.BindPFlag("ztpki.algo", enrollCmd.Flags().Lookup("algo"))
 }
 
 func runEnroll(cmd *cobra.Command, args []string) error {
