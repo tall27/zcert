@@ -142,6 +142,8 @@ func (c *Client) GetPolicies() ([]Policy, error) {
         return result.Policies, nil
 }
 
+
+
 // SubmitCSR submits a Certificate Signing Request
 func (c *Client) SubmitCSR(csrPEM, policyID string) (string, error) {
         requestBody := CSRSubmissionRequest{
@@ -246,6 +248,8 @@ func (c *Client) GetCertificateChain(id string) ([]string, error) {
         
         return result.Chain, nil
 }
+
+
 
 // RevokeCertificate revokes a certificate
 func (c *Client) RevokeCertificate(id, reason string) error {
