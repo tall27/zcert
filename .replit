@@ -1,0 +1,51 @@
+modules = ["go", "python-3.11"]
+
+[nix]
+channel = "stable-24_05"
+
+[workflows]
+runButton = "Project"
+
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "zcert-cli"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "test-build"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "zcert-build"
+
+[[workflows.workflow]]
+name = "zcert-cli"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "go mod tidy && go build -o zcert main.go && ./zcert --help"
+
+[[workflows.workflow]]
+name = "test-build"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "go build -o zcert main.go"
+
+[[workflows.workflow]]
+name = "zcert-build"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "go build -o zcert main.go"
+
+[deployment]
+run = ["sh", "-c", "go mod tidy && go build -o zcert main.go && ./zcert --help"]
