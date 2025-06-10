@@ -2,7 +2,9 @@ package api
 
 import (
         "bytes"
+        "crypto/x509"
         "encoding/json"
+        "encoding/pem"
         "fmt"
         "io"
         "net/http"
@@ -139,17 +141,16 @@ func (c *Client) GetPolicies() ([]Policy, error) {
 
 // SubmitCSR submits a Certificate Signing Request
 func (c *Client) SubmitCSR(csrPEM, policyID string) (string, error) {
+        // Extract DN components from CSR
+        dnComponents, err := extractDNFromCSR(csrPEM)
+        if err != nil {
+                return "", fmt.Errorf("failed to extract DN components from CSR: %w", err)
+        }
+        
         requestBody := CSRSubmissionRequest{
-                CSR:    csrPEM,
-                Policy: policyID,
-                DNComponents: map[string]interface{}{
-                        "CN": "test.example.com",
-                        "O":  "OmniCorp",
-                        "OU": "Cybernetics",
-                        "L":  "Detroit", 
-                        "ST": "Michigan",
-                        "C":  "US",
-                },
+                CSR:          csrPEM,
+                Policy:       policyID,
+                DNComponents: dnComponents,
         }
         
         resp, err := c.makeRequest("POST", "/csr", requestBody)
@@ -157,29 +158,171 @@ func (c *Client) SubmitCSR(csrPEM, policyID string) (string, error) {
                 return "", err
         }
         
-        var result CSRSubmissionResponse
-        if err := c.handleResponse(resp, &result); err != nil {
-                return "", err
+        // Read response body to debug the actual structure
+        bodyBytes, err := io.ReadAll(resp.Body)
+        if err != nil {
+                return "", fmt.Errorf("failed to read response body: %w", err)
+        }
+        resp.Body.Close()
+        
+        if resp.StatusCode >= 400 {
+                var apiError APIError
+                if err := json.Unmarshal(bodyBytes, &apiError); err != nil {
+                        return "", fmt.Errorf("API request failed with status %d: %s", resp.StatusCode, string(bodyBytes))
+                }
+                return "", &apiError
         }
         
-        return result.RequestID, nil
+        // Try to parse as a generic map first to see actual field names
+        var rawResult map[string]interface{}
+        if err := json.Unmarshal(bodyBytes, &rawResult); err != nil {
+                return "", fmt.Errorf("failed to unmarshal response: %w", err)
+        }
+        
+        // Look for common field names that might contain the request ID
+        if requestID, ok := rawResult["requestId"].(string); ok && requestID != "" {
+                return requestID, nil
+        }
+        if requestID, ok := rawResult["id"].(string); ok && requestID != "" {
+                return requestID, nil
+        }
+        if requestID, ok := rawResult["certificateId"].(string); ok && requestID != "" {
+                return requestID, nil
+        }
+        if requestID, ok := rawResult["trackingId"].(string); ok && requestID != "" {
+                return requestID, nil
+        }
+        
+        return "", fmt.Errorf("no valid request ID found in response: %s", string(bodyBytes))
 }
 
-// GetCertificate retrieves a certificate by ID
-func (c *Client) GetCertificate(id string) (*Certificate, error) {
-        endpoint := fmt.Sprintf("/certificates/%s", url.PathEscape(id))
+// extractDNFromCSR extracts Distinguished Name components from a PEM-encoded CSR
+func extractDNFromCSR(csrPEM string) (map[string]interface{}, error) {
+        block, _ := pem.Decode([]byte(csrPEM))
+        if block == nil || block.Type != "CERTIFICATE REQUEST" {
+                return nil, fmt.Errorf("invalid PEM format or not a certificate request")
+        }
+        
+        csr, err := x509.ParseCertificateRequest(block.Bytes)
+        if err != nil {
+                return nil, fmt.Errorf("failed to parse certificate request: %w", err)
+        }
+        
+        dnComponents := make(map[string]interface{})
+        
+        // Extract common DN components
+        if csr.Subject.CommonName != "" {
+                dnComponents["CN"] = csr.Subject.CommonName
+        }
+        
+        if len(csr.Subject.Organization) > 0 {
+                dnComponents["O"] = csr.Subject.Organization[0]
+        }
+        
+        if len(csr.Subject.OrganizationalUnit) > 0 {
+                dnComponents["OU"] = csr.Subject.OrganizationalUnit[0]
+        }
+        
+        if len(csr.Subject.Locality) > 0 {
+                dnComponents["L"] = csr.Subject.Locality[0]
+        }
+        
+        if len(csr.Subject.Province) > 0 {
+                dnComponents["ST"] = csr.Subject.Province[0]
+        }
+        
+        if len(csr.Subject.Country) > 0 {
+                dnComponents["C"] = csr.Subject.Country[0]
+        }
+        
+        return dnComponents, nil
+}
+
+// GetCertificate retrieves a certificate by CSR request ID
+func (c *Client) GetCertificate(requestId string) (*Certificate, error) {
+        // First check if the certificate is issued
+        statusEndpoint := fmt.Sprintf("/csr/%s/status", url.PathEscape(requestId))
+        statusResp, err := c.makeRequest("GET", statusEndpoint, nil)
+        if err != nil {
+                return nil, fmt.Errorf("failed to check certificate status: %w", err)
+        }
+        
+        var status CSRStatus
+        if err := c.handleResponse(statusResp, &status); err != nil {
+                return nil, fmt.Errorf("failed to parse certificate status: %w", err)
+        }
+        
+        if status.IssuanceStatus != "ISSUED" {
+                return nil, fmt.Errorf("certificate not yet issued, status: %s", status.IssuanceStatus)
+        }
+        
+        // Retrieve the issued certificate metadata
+        certEndpoint := fmt.Sprintf("/csr/%s/certificate", url.PathEscape(requestId))
+        certResp, err := c.makeRequest("GET", certEndpoint, nil)
+        if err != nil {
+                return nil, fmt.Errorf("failed to retrieve certificate: %w", err)
+        }
+        
+        var certificate Certificate
+        if err := c.handleResponse(certResp, &certificate); err != nil {
+                return nil, fmt.Errorf("failed to parse certificate: %w", err)
+        }
+        
+        // Retrieve the actual PEM certificate data
+        pemEndpoint := fmt.Sprintf("/certificates/%s/pem", url.PathEscape(certificate.ID))
+        pemResp, err := c.makeRequest("GET", pemEndpoint, nil)
+        if err != nil {
+                return nil, fmt.Errorf("failed to retrieve certificate PEM: %w", err)
+        }
+        
+        // Read PEM data as plain text
+        defer pemResp.Body.Close()
+        pemBytes, err := io.ReadAll(pemResp.Body)
+        if err != nil {
+                return nil, fmt.Errorf("failed to read PEM data: %w", err)
+        }
+        
+        if pemResp.StatusCode != 200 {
+                return nil, fmt.Errorf("failed to retrieve PEM data: HTTP %d", pemResp.StatusCode)
+        }
+        
+        certificate.Certificate = string(pemBytes)
+        
+        return &certificate, nil
+}
+
+// GetCSRRequest retrieves a certificate request by ID
+func (c *Client) GetCSRRequest(requestId string) (*CSRRequest, error) {
+        endpoint := fmt.Sprintf("/csr/%s", url.PathEscape(requestId))
         
         resp, err := c.makeRequest("GET", endpoint, nil)
         if err != nil {
                 return nil, err
         }
         
-        var certificate Certificate
-        if err := c.handleResponse(resp, &certificate); err != nil {
+        var csrRequest CSRRequest
+        if err := c.handleResponse(resp, &csrRequest); err != nil {
                 return nil, err
         }
         
-        return &certificate, nil
+        return &csrRequest, nil
+}
+
+// GetCSRStatus retrieves the status of a certificate request
+func (c *Client) GetCSRStatus(requestId string) (*CSRStatus, error) {
+        endpoint := fmt.Sprintf("/csr/%s/status", url.PathEscape(requestId))
+        
+        resp, err := c.makeRequest("GET", endpoint, nil)
+        if err != nil {
+                return nil, err
+        }
+        
+        var status CSRStatus
+        if err := c.handleResponse(resp, &status); err != nil {
+                return nil, err
+        }
+        
+        return &status, nil
 }
 
 // SearchCertificates searches for certificates based on criteria
