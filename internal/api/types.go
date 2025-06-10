@@ -27,18 +27,41 @@ type Policy struct {
 
 // Certificate represents a certificate from the ZTPKI API
 type Certificate struct {
-        ID           string    `json:"id"`
-        CommonName   string    `json:"commonName"`
-        SerialNumber string    `json:"serialNumber"`
-        Status       string    `json:"status"`
-        Issuer       string    `json:"issuer"`
-        Subject      string    `json:"subject"`
-        PolicyID     string    `json:"policyId"`
-        CreatedDate  time.Time `json:"createdDate"`
-        ExpiryDate   time.Time `json:"expiryDate"`
-        Certificate  string    `json:"certificate"` // PEM-encoded certificate
-        Chain        []string  `json:"chain"`       // PEM-encoded certificate chain
-        SANs         []string  `json:"subjectAlternativeNames"`
+        ID                string    `json:"id"`
+        Serial            string    `json:"serial"`
+        CommonName        string    `json:"commonName"`
+        SubjectDN         string    `json:"subjectDN"`
+        IssuerDN          string    `json:"issuerDN"`
+        NotBefore         time.Time `json:"notBefore"`
+        NotAfter          time.Time `json:"notAfter"`
+        SignatureAlgorithm string   `json:"signatureAlgorithm"`
+        RevocationStatus  string    `json:"revocationStatus"`
+        CreatedAt         time.Time `json:"createdAt"`
+        CertRequestId     string    `json:"certRequestId"`
+        Certificate       string    `json:"certificate"` // PEM-encoded certificate
+        Chain             []string  `json:"chain"`       // PEM-encoded certificate chain
+}
+
+// CSRRequest represents a certificate request from ZTPKI
+type CSRRequest struct {
+        ID             string                 `json:"id"`
+        Source         string                 `json:"source"`
+        Fingerprint    string                 `json:"fingerprint"`
+        CommonName     string                 `json:"commonName"`
+        Details        map[string]interface{} `json:"details"`
+        IssuanceStatus string                 `json:"issuanceStatus"`
+        CreatedAt      time.Time              `json:"createdAt"`
+        Policy         map[string]interface{} `json:"policy"`
+        User           map[string]interface{} `json:"user"`
+        CSR            string                 `json:"csr"`
+}
+
+// CSRStatus represents the status of a certificate request
+type CSRStatus struct {
+        ID                string `json:"id"`
+        IssuanceStatus    string `json:"issuanceStatus"`
+        CertificateId     string `json:"certificateId"`
+        RevocationStatus  string `json:"revocationStatus"`
 }
 
 // CSRSubmissionRequest represents a request to submit a CSR
