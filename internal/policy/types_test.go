@@ -177,10 +177,10 @@ func TestPolicy_ValidateValidity(t *testing.T) {
                 wantContains string
         }{
                 {
-                        name:         "nil validity when required",
+                        name:         "nil validity when required - ZTPKI allows defaults",
                         userValidity: nil,
-                        wantIssues:   1,
-                        wantContains: "validity period is required",
+                        wantIssues:   0, // ZTPKI allows missing validity, uses policy defaults
+                        wantContains: "",
                 },
                 {
                         name:         "valid 30 days",
