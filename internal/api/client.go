@@ -395,6 +395,23 @@ func (c *Client) GetCertificateChain(id string) ([]string, error) {
 
 
 
+// GetCertificateInfo retrieves certificate information by certificate ID
+func (c *Client) GetCertificateInfo(certificateID string) (*Certificate, error) {
+        endpoint := fmt.Sprintf("/certificates/%s", url.PathEscape(certificateID))
+        
+        resp, err := c.makeRequest("GET", endpoint, nil)
+        if err != nil {
+                return nil, fmt.Errorf("failed to retrieve certificate info: %w", err)
+        }
+        
+        var certificate Certificate
+        if err := c.handleResponse(resp, &certificate); err != nil {
+                return nil, fmt.Errorf("failed to parse certificate info: %w", err)
+        }
+        
+        return &certificate, nil
+}
+
 // RevokeCertificate revokes a certificate
 func (c *Client) RevokeCertificate(id, reason string) error {
         requestBody := RevocationRequest{
