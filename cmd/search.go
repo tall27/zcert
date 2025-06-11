@@ -156,10 +156,12 @@ func runSearch(cmd *cobra.Command, args []string) error {
                 searchParams.Status = "expired"
         }
 
+        var expiresBefore *time.Time
         if searchExpiring > 0 {
-                // Calculate expiration date threshold
-                expiresBefore := time.Now().AddDate(0, 0, searchExpiring)
-                searchParams.ExpiresBefore = &expiresBefore
+                // Calculate expiration date threshold and set server-side filter
+                expirationThreshold := time.Now().AddDate(0, 0, searchExpiring)
+                searchParams.NotAfter = expirationThreshold.Format("2006-01-02T15:04:05.000Z")
+                expiresBefore = &expirationThreshold
         }
 
         var issuedAfter *time.Time
@@ -209,7 +211,7 @@ func runSearch(cmd *cobra.Command, args []string) error {
         }
 
         // Apply client-side filtering for advanced use cases
-        filtered := applyClientSideFilters(certificates, searchCN, searchSerial, issuedAfter)
+        filtered := applyClientSideFilters(certificates, searchCN, searchSerial, issuedAfter, expiresBefore)
         
         if viper.GetBool("verbose") {
                 fmt.Fprintf(os.Stderr, "After filtering: %d certificates match criteria\n", len(filtered))
@@ -240,7 +242,7 @@ func runSearch(cmd *cobra.Command, args []string) error {
 }
 
 // applyClientSideFilters applies advanced filtering that requires client-side processing
-func applyClientSideFilters(certificates []api.Certificate, commonName, serial string, issuedAfter *time.Time) []api.Certificate {
+func applyClientSideFilters(certificates []api.Certificate, commonName, serial string, issuedAfter, expiresBefore *time.Time) []api.Certificate {
         var filtered []api.Certificate
         
         for _, cert := range certificates {
@@ -266,6 +268,13 @@ func applyClientSideFilters(certificates []api.Certificate, commonName, serial s
                 // Apply recent certificates filter (issued after threshold)
                 if issuedAfter != nil {
                         if cert.CreatedDate.Before(*issuedAfter) {
+                                continue
+                        }
+                }
+                
+                // Apply expiring certificates filter (expires before threshold)
+                if expiresBefore != nil {
+                        if cert.ExpiryDate.After(*expiresBefore) {
                                 continue
                         }
                 }

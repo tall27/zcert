@@ -150,7 +150,9 @@ type CertificateSearchParams struct {
         PolicyID      string     `json:"policyId,omitempty"`
         Status        string     `json:"status,omitempty"`
         Limit         int        `json:"limit,omitempty"`
-        ExpiresBefore *time.Time `json:"expiresBefore,omitempty"`
+        NotAfter      string     `json:"not_after,omitempty"`
+        NotBefore     string     `json:"not_before,omitempty"`
+        ExpiresBefore *time.Time `json:"expiresBefore,omitempty"` // For client-side filtering
 }
 
 // APIError represents an error response from the ZTPKI API
