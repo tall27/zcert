@@ -64,7 +64,22 @@ func init() {
 
 // initConfig reads in config file and ENV variables.
 func initConfig() {
-        // Load profile-based configuration if specified
+        // Auto-detect configuration file if not specified
+        if cfgFile == "" {
+                // Check for common configuration files in current directory
+                commonConfigFiles := []string{"zcert.cnf", ".zcert.cnf", "test-config.cnf"}
+                for _, filename := range commonConfigFiles {
+                        if _, err := os.Stat(filename); err == nil {
+                                cfgFile = filename
+                                if verbose {
+                                        fmt.Fprintf(os.Stderr, "Auto-detected config file: %s\n", cfgFile)
+                                }
+                                break
+                        }
+                }
+        }
+        
+        // Load profile-based configuration if specified or auto-detected
         if cfgFile != "" {
                 var err error
                 profileConfig, err = config.LoadProfileConfig(cfgFile)
