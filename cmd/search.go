@@ -199,8 +199,19 @@ func runSearch(cmd *cobra.Command, args []string) error {
                 return fmt.Errorf("failed to search certificates: %w", err)
         }
 
+        if viper.GetBool("verbose") {
+                fmt.Fprintf(os.Stderr, "Raw API response returned %d certificates\n", len(certificates))
+                for i, cert := range certificates {
+                        fmt.Fprintf(os.Stderr, "Certificate %d: ID=%s, CN=%s, Subject=%s\n", i+1, cert.ID, cert.CommonName, cert.Subject)
+                }
+        }
+
         // Apply client-side filtering for advanced use cases
         filtered := applyClientSideFilters(certificates, searchCN, searchSerial, issuedAfter)
+        
+        if viper.GetBool("verbose") {
+                fmt.Fprintf(os.Stderr, "After filtering: %d certificates match criteria\n", len(filtered))
+        }
         
         if len(filtered) == 0 {
                 fmt.Println("No certificates found matching the specified criteria.")
