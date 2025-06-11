@@ -250,12 +250,40 @@ func (c *Client) GetCertificateRequest(requestID string) (*CertificateRequest, e
 
 // SearchCertificates searches for certificates based on criteria
 func (c *Client) SearchCertificates(params CertificateSearchParams) ([]Certificate, error) {
-        // ZTPKI certificates endpoint - no query parameters to avoid 422 error
+        // ZTPKI uses POST /certificates for search according to the Swagger documentation
         endpoint := "/certificates"
         
-        resp, err := c.makeRequest("GET", endpoint, nil)
+        // Build search request body based on ZTPKI API specification
+        searchRequest := map[string]interface{}{
+                "page": 0,
+                "size": 100,
+        }
+        
+        // Add search filters if provided
+        if params.CommonName != "" {
+                searchRequest["commonName"] = params.CommonName
+        }
+        if params.Serial != "" {
+                searchRequest["serialNumber"] = params.Serial
+        }
+        if params.Issuer != "" {
+                searchRequest["issuer"] = params.Issuer
+        }
+        if params.Status != "" {
+                searchRequest["status"] = params.Status
+        }
+        if params.PolicyID != "" {
+                searchRequest["policyId"] = params.PolicyID
+        }
+        
+        requestBody, err := json.Marshal(searchRequest)
         if err != nil {
-                return nil, fmt.Errorf("failed to fetch certificates: %w", err)
+                return nil, fmt.Errorf("failed to marshal search request: %w", err)
+        }
+        
+        resp, err := c.makeRequest("POST", endpoint, bytes.NewReader(requestBody))
+        if err != nil {
+                return nil, fmt.Errorf("failed to search certificates: %w", err)
         }
         
         // Debug response body
@@ -283,27 +311,27 @@ func (c *Client) SearchCertificates(params CertificateSearchParams) ([]Certifica
                 return certificates, nil
         }
         
-        // Try wrapped response formats
+        // Try wrapped response formats based on typical pagination responses
         var result struct {
-                Certificates []Certificate `json:"certificates"`
+                Content      []Certificate `json:"content"`      // Spring Boot pagination
                 Data         []Certificate `json:"data"`
                 Items        []Certificate `json:"items"`
                 Results      []Certificate `json:"results"`
-                Content      []Certificate `json:"content"`
+                Certificates []Certificate `json:"certificates"`
                 Elements     []Certificate `json:"elements"`
         }
         
         if err := json.Unmarshal(bodyBytes, &result); err == nil {
-                if len(result.Certificates) > 0 {
-                        return result.Certificates, nil
+                if len(result.Content) > 0 {
+                        return result.Content, nil
                 } else if len(result.Data) > 0 {
                         return result.Data, nil
                 } else if len(result.Items) > 0 {
                         return result.Items, nil
                 } else if len(result.Results) > 0 {
                         return result.Results, nil
-                } else if len(result.Content) > 0 {
-                        return result.Content, nil
+                } else if len(result.Certificates) > 0 {
+                        return result.Certificates, nil
                 } else if len(result.Elements) > 0 {
                         return result.Elements, nil
                 }
