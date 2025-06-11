@@ -381,7 +381,8 @@ func getSearchUsageFunc() func(*cobra.Command) error {
                 
                 fmt.Printf("Output Options:\n")
                 fmt.Printf("      --format string     Output format (table, json, csv) (default \"table\")\n")
-                fmt.Printf("      --limit int         Maximum number of results to return (default 50)\n\n")
+                fmt.Printf("      --limit int         Maximum number of results to return (default 50)\n")
+                fmt.Printf("      --wide              Show full column content without truncation\n\n")
                 
                 fmt.Printf("Global Flags:\n")
                 fmt.Printf("      --config string     profile config file (e.g., zcert.cnf)\n")
@@ -437,6 +438,7 @@ Time-Based Filters:
 Output Options:
       --format string     Output format (table, json, csv) (default "table")
       --limit int         Maximum number of results to return (default 50)
+      --wide              Show full column content without truncation
 
 Global Flags:
       --config string     profile config file (e.g., zcert.cnf)
