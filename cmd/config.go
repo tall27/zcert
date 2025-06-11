@@ -31,9 +31,9 @@ func init() {
         configCmd.Flags().StringVar(&configOutput, "output", "", "Output filename (default: zcert.cnf or .zcert.yaml)")
 
         // Set custom help template to include usage examples
-        configCmd.SetHelpTemplate(`{{.Short}}
+        configCmd.SetHelpTemplate(`{{.Short}}{{if .Long}}
 
-{{.Long}}
+{{.Long}}{{end}}
 
 Usage:{{if .Runnable}}
   {{.CommandPath}} [command] [flags]{{end}}{{if .HasAvailableSubCommands}}
