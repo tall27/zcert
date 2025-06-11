@@ -45,7 +45,7 @@ func init() {
         revokeCmd.Flags().StringVar(&revokeSerial, "serial", "", "Certificate serial number")
         
         // ZTPKI Authentication flags
-        revokeCmd.Flags().StringVar(&revokeURL, "url", "", "ZTPKI API base URL (e.g., https://api.ztpki.venafi.com)")
+        revokeCmd.Flags().StringVar(&revokeURL, "url", "", "ZTPKI API base URL (e.g., https://ztpki.venafi.com/api/v2)")
         revokeCmd.Flags().StringVar(&revokeKeyID, "key-id", "", "HAWK authentication key ID")
         revokeCmd.Flags().StringVar(&revokeSecret, "secret", "", "HAWK authentication secret")
         revokeCmd.Flags().StringVar(&revokeAlgo, "algo", "sha256", "HAWK algorithm (sha1, sha256)")
@@ -217,7 +217,7 @@ func runRevoke(cmd *cobra.Command, args []string) error {
 func getRevokeUsageFunc() func(*cobra.Command) error {
         return func(cmd *cobra.Command) error {
                 fmt.Printf("Usage:\n  %s\n\nServer & Authentication:\n", cmd.UseLine())
-                fmt.Printf("      --url string        ZTPKI API base URL (e.g., https://api.ztpki.venafi.com)\n")
+                fmt.Printf("      --url string        ZTPKI API base URL (e.g., https://ztpki.venafi.com/api/v2)\n")
                 fmt.Printf("      --key-id string     HAWK authentication key ID\n")
                 fmt.Printf("      --secret string     HAWK authentication secret\n")
                 fmt.Printf("      --algo string       HAWK algorithm (sha1, sha256) (default \"sha256\")\n\n")
@@ -259,7 +259,7 @@ Usage:
   zcert revoke [flags]
 
 Server & Authentication:
-      --url string        ZTPKI API base URL (e.g., https://api.ztpki.venafi.com)
+      --url string        ZTPKI API base URL (e.g., https://ztpki.venafi.com/api/v2)
       --key-id string     HAWK authentication key ID
       --secret string     HAWK authentication secret
       --algo string       HAWK algorithm (sha1, sha256) (default "sha256")

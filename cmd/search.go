@@ -57,7 +57,7 @@ func init() {
         searchCmd.Flags().StringVar(&searchStatus, "status", "", "Search by certificate status (active, revoked, expired)")
         
         // ZTPKI Authentication flags
-        searchCmd.Flags().StringVar(&searchURL, "url", "", "ZTPKI API base URL (e.g., https://api.ztpki.venafi.com)")
+        searchCmd.Flags().StringVar(&searchURL, "url", "", "ZTPKI API base URL (e.g., https://ztpki.venafi.com/api/v2)")
         searchCmd.Flags().StringVar(&searchKeyID, "key-id", "", "HAWK authentication key ID")
         searchCmd.Flags().StringVar(&searchSecret, "secret", "", "HAWK authentication secret")
         searchCmd.Flags().StringVar(&searchAlgo, "algo", "sha256", "HAWK algorithm (sha1, sha256)")
@@ -277,7 +277,7 @@ func truncateString(s string, maxLen int) string {
 func getSearchUsageFunc() func(*cobra.Command) error {
         return func(cmd *cobra.Command) error {
                 fmt.Printf("Usage:\n  %s\n\nServer & Authentication:\n", cmd.UseLine())
-                fmt.Printf("      --url string        ZTPKI API base URL (e.g., https://api.ztpki.venafi.com)\n")
+                fmt.Printf("      --url string        ZTPKI API base URL (e.g., https://ztpki.venafi.com/api/v2)\n")
                 fmt.Printf("      --key-id string     HAWK authentication key ID\n")
                 fmt.Printf("      --secret string     HAWK authentication secret\n")
                 fmt.Printf("      --algo string       HAWK algorithm (sha1, sha256) (default \"sha256\")\n\n")
@@ -324,7 +324,7 @@ Usage:
   zcert search [flags]
 
 Server & Authentication:
-      --url string        ZTPKI API base URL (e.g., https://api.ztpki.venafi.com)
+      --url string        ZTPKI API base URL (e.g., https://ztpki.venafi.com/api/v2)
       --key-id string     HAWK authentication key ID
       --secret string     HAWK authentication secret
       --algo string       HAWK algorithm (sha1, sha256) (default "sha256")
