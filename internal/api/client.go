@@ -250,37 +250,37 @@ func (c *Client) GetCertificateRequest(requestID string) (*CertificateRequest, e
 
 // SearchCertificates searches for certificates based on criteria
 func (c *Client) SearchCertificates(params CertificateSearchParams) ([]Certificate, error) {
-        // Build query parameters
-        queryParams := url.Values{}
+        // Use POST method with search criteria in request body for ZTPKI search endpoint
+        searchRequest := map[string]interface{}{
+                "limit": params.Limit,
+        }
         
+        // Add search criteria to request body
         if params.CommonName != "" {
-                queryParams.Set("cn", params.CommonName)
+                searchRequest["commonName"] = params.CommonName
         }
         if params.Serial != "" {
-                queryParams.Set("serial", params.Serial)
+                searchRequest["serial"] = params.Serial
         }
         if params.Issuer != "" {
-                queryParams.Set("issuer", params.Issuer)
+                searchRequest["issuer"] = params.Issuer
         }
         if params.PolicyID != "" {
-                queryParams.Set("policy", params.PolicyID)
+                searchRequest["policyId"] = params.PolicyID
         }
         if params.Status != "" {
-                queryParams.Set("status", params.Status)
-        }
-        if params.Limit > 0 {
-                queryParams.Set("limit", fmt.Sprintf("%d", params.Limit))
+                searchRequest["status"] = params.Status
         }
         if params.ExpiresBefore != nil {
-                queryParams.Set("expires_before", params.ExpiresBefore.Format(time.RFC3339))
+                searchRequest["expiresBefore"] = params.ExpiresBefore.Format(time.RFC3339)
         }
         
-        endpoint := "/certificates"
-        if len(queryParams) > 0 {
-                endpoint += "?" + queryParams.Encode()
+        // Set default limit if not specified
+        if params.Limit <= 0 {
+                searchRequest["limit"] = 50
         }
         
-        resp, err := c.makeRequest("GET", endpoint, nil)
+        resp, err := c.makeRequest("GET", "/certificates", nil)
         if err != nil {
                 return nil, err
         }
