@@ -22,8 +22,8 @@ var (
         retrieveChain    bool
         // ZTPKI Authentication
         retrieveURL      string
-        retrieveKeyID    string
-        retrieveSecret   string
+        retrieveHawkID   string
+        retrieveHawkKey  string
         retrieveAlgo     string
 )
 
@@ -51,8 +51,8 @@ func init() {
         
         // ZTPKI Authentication flags
         retrieveCmd.Flags().StringVar(&retrieveURL, "url", "", "ZTPKI API base URL (e.g., https://ztpki.venafi.com/api/v2)")
-        retrieveCmd.Flags().StringVar(&retrieveKeyID, "key-id", "", "HAWK authentication key ID")
-        retrieveCmd.Flags().StringVar(&retrieveSecret, "secret", "", "HAWK authentication secret")
+        retrieveCmd.Flags().StringVar(&retrieveHawkID, "hawk-id", "", "HAWK authentication ID")
+        retrieveCmd.Flags().StringVar(&retrieveHawkKey, "hawk-key", "", "HAWK authentication key")
         retrieveCmd.Flags().StringVar(&retrieveAlgo, "algo", "sha256", "HAWK algorithm (sha1, sha256)")
         
         // Output options
@@ -79,7 +79,7 @@ func runRetrieve(cmd *cobra.Command, args []string) error {
                 // Merge profile with command-line flags (flags take precedence)
                 finalProfile = config.MergeProfileWithFlags(
                         profile,
-                        retrieveURL, retrieveKeyID, retrieveSecret, retrieveAlgo,
+                        retrieveURL, retrieveHawkID, retrieveHawkKey, retrieveAlgo,
                         retrieveFormat, retrievePolicy, retrieveP12Pass,
                         0, "", // keysize, keytype not needed for retrieve
                 )
@@ -87,8 +87,8 @@ func runRetrieve(cmd *cobra.Command, args []string) error {
                 // No profile config, use command-line flags
                 finalProfile = &config.Profile{
                         URL:      retrieveURL,
-                        KeyID:    retrieveKeyID,
-                        Secret:   retrieveSecret,
+                        KeyID:    retrieveHawkID,
+                        Secret:   retrieveHawkKey,
                         Algo:     retrieveAlgo,
                         Format:   retrieveFormat,
                         PolicyID: retrievePolicy,
