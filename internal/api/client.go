@@ -250,9 +250,64 @@ func (c *Client) GetCertificateRequest(requestID string) (*CertificateRequest, e
 
 // SearchCertificates searches for certificates based on criteria
 func (c *Client) SearchCertificates(params CertificateSearchParams) ([]Certificate, error) {
-        // Since ZTPKI doesn't provide a working search endpoint in the current API,
-        // we'll return an informative message about the search functionality
-        // This allows the CLI to work and provides a foundation for when the API supports search
+        // ZTPKI certificates endpoint - no query parameters to avoid 422 error
+        endpoint := "/certificates"
+        
+        resp, err := c.makeRequest("GET", endpoint, nil)
+        if err != nil {
+                return nil, fmt.Errorf("failed to fetch certificates: %w", err)
+        }
+        
+        // Debug response body
+        bodyBytes, _ := io.ReadAll(resp.Body)
+        resp.Body.Close()
+        
+        if len(bodyBytes) == 0 {
+                return []Certificate{}, nil
+        }
+        
+        // Debug: print raw response for troubleshooting
+        fmt.Printf("Debug: API Response Status: %d\n", resp.StatusCode)
+        fmt.Printf("Debug: Response Body: %s\n", string(bodyBytes))
+        
+        // If we get an error response, return empty list
+        if resp.StatusCode != 200 {
+                return []Certificate{}, nil
+        }
+        
+        // Try different response structures that ZTPKI might use
+        var certificates []Certificate
+        
+        // First try direct array response
+        if err := json.Unmarshal(bodyBytes, &certificates); err == nil && len(certificates) > 0 {
+                return certificates, nil
+        }
+        
+        // Try wrapped response formats
+        var result struct {
+                Certificates []Certificate `json:"certificates"`
+                Data         []Certificate `json:"data"`
+                Items        []Certificate `json:"items"`
+                Results      []Certificate `json:"results"`
+                Content      []Certificate `json:"content"`
+                Elements     []Certificate `json:"elements"`
+        }
+        
+        if err := json.Unmarshal(bodyBytes, &result); err == nil {
+                if len(result.Certificates) > 0 {
+                        return result.Certificates, nil
+                } else if len(result.Data) > 0 {
+                        return result.Data, nil
+                } else if len(result.Items) > 0 {
+                        return result.Items, nil
+                } else if len(result.Results) > 0 {
+                        return result.Results, nil
+                } else if len(result.Content) > 0 {
+                        return result.Content, nil
+                } else if len(result.Elements) > 0 {
+                        return result.Elements, nil
+                }
+        }
         
         return []Certificate{}, nil
 }
