@@ -361,17 +361,38 @@ func (c *Client) GetCertificateChain(id string) ([]string, error) {
 
 // RevokeCertificate revokes a certificate
 func (c *Client) RevokeCertificate(id, reason string) error {
-        requestBody := RevocationRequest{
-                CertificateID: id,
-                Reason:        reason,
+        // ZTPKI revoke endpoint format - try both possible formats
+        endpoint := fmt.Sprintf("/certificates/%s/revoke", url.PathEscape(id))
+        
+        // Try with minimal request body first
+        requestBody := map[string]string{
+                "reason": reason,
         }
         
-        resp, err := c.makeRequest("POST", "/certificates/revoke", requestBody)
+        requestBodyBytes, err := json.Marshal(requestBody)
+        if err != nil {
+                return fmt.Errorf("failed to marshal revocation request: %w", err)
+        }
+        
+        fmt.Printf("Debug: Revoke endpoint: %s\n", endpoint)
+        fmt.Printf("Debug: Request body: %s\n", string(requestBodyBytes))
+        
+        resp, err := c.makeRequest("POST", endpoint, bytes.NewReader(requestBodyBytes))
         if err != nil {
                 return err
         }
         
-        return c.handleResponse(resp, nil)
+        // Debug response
+        bodyBytes, _ := io.ReadAll(resp.Body)
+        resp.Body.Close()
+        fmt.Printf("Debug: Revoke response status: %d\n", resp.StatusCode)
+        fmt.Printf("Debug: Revoke response body: %s\n", string(bodyBytes))
+        
+        if resp.StatusCode != 200 && resp.StatusCode != 204 {
+                return fmt.Errorf("revocation failed: status %d, body: %s", resp.StatusCode, string(bodyBytes))
+        }
+        
+        return nil
 }
 
 // extractCNFromCSR extracts the Common Name from a PEM-encoded CSR
