@@ -31,6 +31,21 @@ func init() {
         completionCmd.Flags().StringVar(&completionShell, "shell", "", "Shell type (bash, zsh, fish, powershell)")
         completionCmd.Flags().BoolVar(&setupScript, "setup", false, "Generate setup script for Replit environment")
         
+        // Set custom help template for completion command
+        completionCmd.SetHelpTemplate(`{{.Short}}
+
+{{.Long}}
+
+Usage:
+  {{.UseLine}}
+
+Flags:
+{{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}{{if .HasAvailableInheritedFlags}}
+
+Global Flags:
+{{.InheritedFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}
+`)
+        
         // Show help when no flags are provided
         completionCmd.RunE = func(cmd *cobra.Command, args []string) error {
                 if !setupScript && completionShell == "" {
