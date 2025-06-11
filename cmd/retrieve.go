@@ -50,7 +50,7 @@ func init() {
         retrieveCmd.Flags().StringVar(&retrievePolicy, "policy", "", "Policy ID or name to filter by")
         
         // ZTPKI Authentication flags
-        retrieveCmd.Flags().StringVar(&retrieveURL, "url", "", "ZTPKI API base URL (e.g., https://api.ztpki.venafi.com)")
+        retrieveCmd.Flags().StringVar(&retrieveURL, "url", "", "ZTPKI API base URL (e.g., https://ztpki.venafi.com/api/v2)")
         retrieveCmd.Flags().StringVar(&retrieveKeyID, "key-id", "", "HAWK authentication key ID")
         retrieveCmd.Flags().StringVar(&retrieveSecret, "secret", "", "HAWK authentication secret")
         retrieveCmd.Flags().StringVar(&retrieveAlgo, "algo", "sha256", "HAWK algorithm (sha1, sha256)")
@@ -220,7 +220,7 @@ func runRetrieve(cmd *cobra.Command, args []string) error {
 func getRetrieveUsageFunc() func(*cobra.Command) error {
         return func(cmd *cobra.Command) error {
                 fmt.Printf("Usage:\n  %s\n\nServer & Authentication:\n", cmd.UseLine())
-                fmt.Printf("      --url string        ZTPKI API base URL (e.g., https://api.ztpki.venafi.com)\n")
+                fmt.Printf("      --url string        ZTPKI API base URL (e.g., https://ztpki.venafi.com/api/v2)\n")
                 fmt.Printf("      --key-id string     HAWK authentication key ID\n")
                 fmt.Printf("      --secret string     HAWK authentication secret\n")
                 fmt.Printf("      --algo string       HAWK algorithm (sha1, sha256) (default \"sha256\")\n\n")
@@ -266,7 +266,7 @@ Usage:
   zcert retrieve [flags]
 
 Server & Authentication:
-      --url string        ZTPKI API base URL (e.g., https://api.ztpki.venafi.com)
+      --url string        ZTPKI API base URL (e.g., https://ztpki.venafi.com/api/v2)
       --key-id string     HAWK authentication key ID
       --secret string     HAWK authentication secret
       --algo string       HAWK algorithm (sha1, sha256) (default "sha256")
