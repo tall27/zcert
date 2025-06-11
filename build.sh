@@ -25,5 +25,10 @@ echo
 # Build the binary
 go build -ldflags "${LDFLAGS}" -o zcert main.go
 
+# Test the version output
+echo
+echo "Testing version output:"
+./zcert --version
+
 echo "Build completed: zcert"
 echo "Run './zcert --version' to see version information"
