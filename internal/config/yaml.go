@@ -156,7 +156,7 @@ profiles:
     include_chain: true
 
   production:
-    base_url: "https://ztpki-prod.cyberark.com/api/v2"
+    base_url: "https://ztpki-prod.venafi.com/api/v2"
     hawk_id: "your-prod-hawk-id"
     hawk_key: "your-prod-hawk-key"
     default_key_size: 4096
@@ -168,7 +168,7 @@ profiles:
     include_chain: true
 
   p12:
-    base_url: "https://ztpki-dev.cyberark.com/api/v2"
+    base_url: "https://ztpki-dev.venafi.com/api/v2"
     hawk_id: "your-hawk-id-here"
     hawk_key: "your-hawk-key-here"
     default_key_size: 2048
