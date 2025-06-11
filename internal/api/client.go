@@ -77,8 +77,6 @@ func (c *Client) makeRequest(method, endpoint string, body interface{}) (*http.R
                 req.Header.Set("Content-Type", contentType)
         }
         
-        // Enable HAWK debug for troubleshooting (disabled for production)
-        // req.Header.Set("X-Debug-HAWK", "true")
         req.Header.Set("Accept", "application/json")
         req.Header.Set("User-Agent", "zcert/1.0.0")
         
@@ -86,6 +84,10 @@ func (c *Client) makeRequest(method, endpoint string, body interface{}) (*http.R
         if err := c.hawkAuth.SignRequest(req); err != nil {
                 return nil, fmt.Errorf("failed to sign request with HAWK: %w", err)
         }
+        
+        // Debug: Log request details (remove in production)
+        fmt.Printf("Debug: Making %s request to %s\n", method, url)
+        fmt.Printf("Debug: Authorization header: %s\n", req.Header.Get("Authorization"))
         
         resp, err := c.httpClient.Do(req)
         if err != nil {
@@ -104,6 +106,15 @@ func (c *Client) handleResponse(resp *http.Response, target interface{}) error {
                 return fmt.Errorf("failed to read response body: %w", err)
         }
         
+        // Check for HTML response (authentication redirect or error page)
+        if len(bodyBytes) > 0 && bodyBytes[0] == '<' {
+                return fmt.Errorf("received HTML response instead of JSON (status %d). This usually indicates:\n"+
+                        "1. Invalid HAWK credentials (hawk-id or hawk-key)\n"+
+                        "2. Authentication failure or redirect to login page\n"+
+                        "3. Incorrect API endpoint URL\n"+
+                        "Response preview: %.200s...", resp.StatusCode, string(bodyBytes))
+        }
+        
         if resp.StatusCode >= 400 {
                 var apiError APIError
                 if err := json.Unmarshal(bodyBytes, &apiError); err != nil {
@@ -115,7 +126,7 @@ func (c *Client) handleResponse(resp *http.Response, target interface{}) error {
         
         if target != nil {
                 if err := json.Unmarshal(bodyBytes, target); err != nil {
-                        return fmt.Errorf("failed to unmarshal response: %w", err)
+                        return fmt.Errorf("failed to unmarshal response: %w\nResponse body: %s", err, string(bodyBytes))
                 }
         }
         
