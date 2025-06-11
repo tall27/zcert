@@ -255,25 +255,22 @@ func (c *Client) SearchCertificates(params CertificateSearchParams) ([]Certifica
         
         // Build search request body based on ZTPKI API specification
         searchRequest := map[string]interface{}{
-                "page": 0,
-                "size": 100,
+                "limit":  100,
+                "offset": 0,
         }
         
         // Add search filters if provided
         if params.CommonName != "" {
-                searchRequest["commonName"] = params.CommonName
+                searchRequest["common_name"] = params.CommonName
         }
         if params.Serial != "" {
-                searchRequest["serialNumber"] = params.Serial
-        }
-        if params.Issuer != "" {
-                searchRequest["issuer"] = params.Issuer
+                searchRequest["serial"] = params.Serial
         }
         if params.Status != "" {
                 searchRequest["status"] = params.Status
         }
         if params.PolicyID != "" {
-                searchRequest["policyId"] = params.PolicyID
+                searchRequest["policy"] = params.PolicyID
         }
         
         requestBody, err := json.Marshal(searchRequest)
