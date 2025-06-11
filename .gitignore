@@ -36,6 +36,9 @@ Thumbs.db
 # Build output
 zcert
 zcert.exe
+zcert-*
+dist/
+build/
 
 # Certificate files (for testing)
 *.pem
@@ -48,6 +51,20 @@ zcert.exe
 # Configuration files with secrets
 .zcert.yaml
 config.yaml
+zcert.cnf
+test-config.cnf
+*.cnf.orig
 
 # Log files
 *.log
+
+# Temporary and test files
+*-completion.sh
+test-completion.*
+new-setup-completion.sh
+setup-completion.sh
+
+# Archives and releases
+*.tar.gz
+*.zip
+*.tar.xz
