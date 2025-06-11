@@ -242,7 +242,7 @@ chain = true
 no-key-output = false
 `
 
-        return os.WriteFile(filename, []byte(content), 0644)
+        return os.WriteFile(filename, []byte(content), 0600) // Restrict to owner only
 }
 
 // MergeProfileWithFlags merges profile settings with command-line flags

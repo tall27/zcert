@@ -3,6 +3,7 @@ package auth
 import (
         "bytes"
         "crypto/hmac"
+        "crypto/rand"
         "crypto/sha256"
         "encoding/base64"
         "fmt"
@@ -72,18 +73,7 @@ func (h *HawkAuth) SignRequest(req *http.Request) error {
         
         authHeader += fmt.Sprintf(`, mac="%s"`, mac)
         
-        // Debug output for HAWK authentication troubleshooting
-        if req.Header.Get("X-Debug-HAWK") == "true" {
-                fmt.Printf("HAWK Debug - ID: %s\n", h.ID)
-                fmt.Printf("HAWK Debug - Timestamp: %d\n", timestamp)
-                fmt.Printf("HAWK Debug - Nonce: %s\n", nonce)
-                fmt.Printf("HAWK Debug - Method: %s\n", req.Method)
-                fmt.Printf("HAWK Debug - URL: %s\n", req.URL.String())
-                fmt.Printf("HAWK Debug - Payload Hash: %s\n", payloadHash)
-                fmt.Printf("HAWK Debug - Normalized String:\n%q\n", normalizedString)
-                fmt.Printf("HAWK Debug - MAC: %s\n", mac)
-                fmt.Printf("HAWK Debug - Authorization: %s\n", authHeader)
-        }
+        // Production build - debug output removed for security
         
         req.Header.Set("Authorization", authHeader)
         
@@ -147,13 +137,23 @@ func (h *HawkAuth) calculateMAC(normalizedString string) string {
         return base64.StdEncoding.EncodeToString(mac.Sum(nil))
 }
 
-// generateNonce creates a unique nonce for the request (matching PowerShell implementation)
+// generateNonce creates a cryptographically secure unique nonce for the request
 func generateNonce() string {
-        // PowerShell: chars = $(48..57;65..90;97..122) => 0-9, A-Z, a-z
         chars := "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
-        result := make([]byte, 6)
+        result := make([]byte, 8) // Increased from 6 to 8 for better security
+        randomBytes := make([]byte, 8)
+        
+        // Use cryptographically secure random number generator
+        if _, err := rand.Read(randomBytes); err != nil {
+                // Fallback to time-based if crypto/rand fails (should never happen)
+                for i := range result {
+                        result[i] = chars[time.Now().UnixNano()%int64(len(chars))]
+                }
+                return string(result)
+        }
+        
         for i := range result {
-                result[i] = chars[time.Now().UnixNano()%int64(len(chars))]
+                result[i] = chars[randomBytes[i]%byte(len(chars))]
         }
         return string(result)
 }

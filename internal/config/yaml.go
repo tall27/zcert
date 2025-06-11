@@ -180,7 +180,7 @@ profiles:
     include_chain: true
 `
 
-        return os.WriteFile(filename, []byte(content), 0644)
+        return os.WriteFile(filename, []byte(content), 0600) // Restrict to owner only
 }
 
 // LoadConfig loads configuration from either YAML or CNF format based on file extension
