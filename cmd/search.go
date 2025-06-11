@@ -206,7 +206,7 @@ func runSearch(cmd *cobra.Command, args []string) error {
         }
 
         // Apply client-side filtering for advanced use cases
-        filtered := applyClientSideFilters(certificates, searchCN, searchSerial, issuedAfter, expiresBefore)
+        filtered := applyClientSideFilters(certificates, searchCN, searchSerial, searchStatus, issuedAfter, expiresBefore)
         
         if viper.GetBool("verbose") {
                 fmt.Fprintf(os.Stderr, "After filtering: %d certificates match criteria\n", len(filtered))
@@ -237,7 +237,7 @@ func runSearch(cmd *cobra.Command, args []string) error {
 }
 
 // applyClientSideFilters applies advanced filtering that requires client-side processing
-func applyClientSideFilters(certificates []api.Certificate, commonName, serial string, issuedAfter, expiresBefore *time.Time) []api.Certificate {
+func applyClientSideFilters(certificates []api.Certificate, commonName, serial, status string, issuedAfter, expiresBefore *time.Time) []api.Certificate {
         var filtered []api.Certificate
         
         for _, cert := range certificates {
@@ -257,6 +257,33 @@ func applyClientSideFilters(certificates []api.Certificate, commonName, serial s
                 if serial != "" {
                         if !strings.Contains(cert.SerialNumber, serial) {
                                 continue
+                        }
+                }
+                
+                // Apply status filtering (exact match, case-insensitive)
+                if status != "" {
+                        certStatus := strings.ToLower(cert.Status)
+                        requestedStatus := strings.ToLower(status)
+                        
+                        // Handle different status representations
+                        switch requestedStatus {
+                        case "active", "valid":
+                                if certStatus != "valid" {
+                                        continue
+                                }
+                        case "revoked":
+                                if certStatus != "revoked" {
+                                        continue
+                                }
+                        case "expired":
+                                if certStatus != "expired" {
+                                        continue
+                                }
+                        default:
+                                // Exact match for any other status
+                                if certStatus != requestedStatus {
+                                        continue
+                                }
                         }
                 }
                 
