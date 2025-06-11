@@ -221,8 +221,8 @@ func getRetrieveUsageFunc() func(*cobra.Command) error {
         return func(cmd *cobra.Command) error {
                 fmt.Printf("Usage:\n  %s\n\nServer & Authentication:\n", cmd.UseLine())
                 fmt.Printf("      --url string        ZTPKI API base URL (e.g., https://ztpki.venafi.com/api/v2)\n")
-                fmt.Printf("      --key-id string     HAWK authentication key ID\n")
-                fmt.Printf("      --secret string     HAWK authentication secret\n")
+                fmt.Printf("      --hawk-id string    HAWK authentication ID\n")
+                fmt.Printf("      --hawk-key string   HAWK authentication key\n")
                 fmt.Printf("      --algo string       HAWK algorithm (sha1, sha256) (default \"sha256\")\n\n")
                 
                 fmt.Printf("Certificate Identification:\n")
@@ -267,8 +267,8 @@ Usage:
 
 Server & Authentication:
       --url string        ZTPKI API base URL (e.g., https://ztpki.venafi.com/api/v2)
-      --key-id string     HAWK authentication key ID
-      --secret string     HAWK authentication secret
+      --hawk-id string    HAWK authentication ID
+      --hawk-key string   HAWK authentication key
       --algo string       HAWK algorithm (sha1, sha256) (default "sha256")
 
 Certificate Identification:
