@@ -6,10 +6,11 @@
 [Default]
 # Default profile used when no -profile is specified
 url = https://ztpki-dev.venafi.com/api/v2
-key-id = your-default-key-id
-secret = your-default-secret
+key-id = ${ZTPKI_HAWK_ID}
+secret = ${ZTPKI_HAWK_SECRET} 
+algo = sha256
 format = pem
-policy = WebServer
+policy = ${ZTPKI_POLICY_ID}
 key-size = 2048
 key-type = rsa
 chain = true
@@ -19,6 +20,7 @@ chain = true
 url = https://ztpki-dev.venafi.com/api/v2
 key-id = your-p12-key-id
 secret = your-p12-secret
+algo = sha256
 format = p12
 policy = WebServer
 p12-password = secretpass123
