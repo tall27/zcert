@@ -18,21 +18,9 @@ var (
 // configCmd represents the config command
 var configCmd = &cobra.Command{
         Use:   "config",
-        Short: "Show configuration help and optionally generate config files",
-        Long: `Show configuration help and examples for zcert.
-
-Use flags to generate example configuration files:
-  --cnf   Generate profile-based configuration file (zcert.cnf)
-  --yaml  Generate YAML-based configuration file
-
-The profile configuration supports multiple named profiles with different
-ZTPKI settings for various environments or certificate types.
-
-Example usage with profile configuration:
-  zcert config --cnf                           # Generate zcert.cnf
-  zcert --config zcert.cnf enroll --cn "test.com"
-  zcert --config zcert.cnf --profile prod enroll --cn "prod.com"`,
-        RunE: runConfig,
+        Short: "Generate example configuration files",
+        Long:  `Generate example configuration files for zcert.`,
+        RunE:  runConfig,
 }
 
 func init() {
@@ -47,27 +35,11 @@ func runConfig(cmd *cobra.Command, args []string) error {
         // If no flags are specified, show help and examples
         if !configCnf && !configYaml {
                 cmd.Help()
-                fmt.Println("\nConfiguration File Examples:")
-                fmt.Println("=============================")
                 fmt.Println()
-                fmt.Println("Profile Configuration (zcert.cnf):")
-                fmt.Println("  # Default profile")
-                fmt.Println("  hawk_id = your-hawk-id")
-                fmt.Println("  hawk_secret = your-hawk-secret")
-                fmt.Println("  url = https://ztpki.venafi.com/api/v2")
-                fmt.Println("  policy_id = your-policy-id")
-                fmt.Println()
-                fmt.Println("  # Production profile")
-                fmt.Println("  [prod]")
-                fmt.Println("  hawk_id = prod-hawk-id")
-                fmt.Println("  hawk_secret = prod-hawk-secret")
-                fmt.Println("  url = https://ztpki.venafi.com/api/v2")
-                fmt.Println("  policy_id = prod-policy-id")
-                fmt.Println()
-                fmt.Println("Usage with profile configuration:")
-                fmt.Println("  zcert --config zcert.cnf enroll --cn \"example.com\"")
-                fmt.Println("  zcert --config zcert.cnf --profile prod enroll --cn \"prod.example.com\"")
-                fmt.Println("  zcert --config zcert.cnf search --expiring 30")
+                fmt.Println("Usage Examples:")
+                fmt.Println("  zcert config --cnf                                                  # Generate zcert.cnf")
+                fmt.Println("  zcert --config zcert.cnf enroll --cn \"test.com\"                   # Engage the default profile")
+                fmt.Println("  zcert --config zcert.cnf --profile prod enroll --cn \"prod.com\"    # Use specific profile")
                 fmt.Println()
                 return nil
         }
