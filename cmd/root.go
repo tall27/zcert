@@ -76,6 +76,15 @@ func initConfig() {
                         }
                 }
                 
+                // Set viper values from profile
+                viper.Set("base_url", currentProfile.URL)
+                viper.Set("hawk_id", currentProfile.KeyID)
+                viper.Set("hawk_key", currentProfile.Secret)
+                viper.Set("default_policy_id", currentProfile.PolicyID)
+                viper.Set("default_format", currentProfile.Format)
+                viper.Set("default_key_size", currentProfile.KeySize)
+                viper.Set("default_key_type", currentProfile.KeyType)
+                
                 if verbose {
                         fmt.Fprintf(os.Stderr, "Using profile config: %s, profile: %s\n", cfgFile, currentProfile.Name)
                 }
