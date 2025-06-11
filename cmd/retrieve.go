@@ -24,7 +24,7 @@ var (
         retrieveURL      string
         retrieveHawkID   string
         retrieveHawkKey  string
-        retrieveAlgo     string
+
 )
 
 // retrieveCmd represents the retrieve command
@@ -53,7 +53,7 @@ func init() {
         retrieveCmd.Flags().StringVar(&retrieveURL, "url", "", "ZTPKI API base URL (e.g., https://ztpki.venafi.com/api/v2)")
         retrieveCmd.Flags().StringVar(&retrieveHawkID, "hawk-id", "", "HAWK authentication ID")
         retrieveCmd.Flags().StringVar(&retrieveHawkKey, "hawk-key", "", "HAWK authentication key")
-        retrieveCmd.Flags().StringVar(&retrieveAlgo, "algo", "sha256", "HAWK algorithm (sha1, sha256)")
+
         
         // Output options
         retrieveCmd.Flags().StringVar(&retrieveFormat, "format", "pem", "Output format (pem, p12, jks)")
@@ -79,7 +79,7 @@ func runRetrieve(cmd *cobra.Command, args []string) error {
                 // Merge profile with command-line flags (flags take precedence)
                 finalProfile = config.MergeProfileWithFlags(
                         profile,
-                        retrieveURL, retrieveHawkID, retrieveHawkKey, retrieveAlgo,
+                        retrieveURL, retrieveHawkID, retrieveHawkKey, "",
                         retrieveFormat, retrievePolicy, retrieveP12Pass,
                         0, "", // keysize, keytype not needed for retrieve
                 )
@@ -89,15 +89,10 @@ func runRetrieve(cmd *cobra.Command, args []string) error {
                         URL:      retrieveURL,
                         KeyID:    retrieveHawkID,
                         Secret:   retrieveHawkKey,
-                        Algo:     retrieveAlgo,
+                        Algo:     "sha256", // Always use sha256
                         Format:   retrieveFormat,
                         PolicyID: retrievePolicy,
                         P12Pass:  retrieveP12Pass,
-                }
-                
-                // Set defaults if not provided
-                if finalProfile.Algo == "" {
-                        finalProfile.Algo = "sha256"
                 }
                 if finalProfile.Format == "" {
                         finalProfile.Format = "pem"

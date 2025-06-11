@@ -29,7 +29,7 @@ var (
         searchURL      string
         searchHawkID   string
         searchHawkKey  string
-        searchAlgo     string
+
 )
 
 // searchCmd represents the search command
@@ -69,7 +69,7 @@ func init() {
         searchCmd.Flags().StringVar(&searchURL, "url", "", "ZTPKI API base URL (e.g., https://ztpki.venafi.com/api/v2)")
         searchCmd.Flags().StringVar(&searchHawkID, "hawk-id", "", "HAWK authentication ID")
         searchCmd.Flags().StringVar(&searchHawkKey, "hawk-key", "", "HAWK authentication key")
-        searchCmd.Flags().StringVar(&searchAlgo, "algo", "sha256", "HAWK algorithm (sha1, sha256)")
+
         
         // Output options
         searchCmd.Flags().IntVar(&searchLimit, "limit", 50, "Maximum number of results to return")
@@ -99,7 +99,7 @@ func runSearch(cmd *cobra.Command, args []string) error {
                 // Merge profile with command-line flags (flags take precedence)
                 finalProfile = config.MergeProfileWithFlags(
                         profile,
-                        searchURL, searchHawkID, searchHawkKey, searchAlgo,
+                        searchURL, searchHawkID, searchHawkKey, "",
                         "", "", "", // format, policy, p12password not needed for search
                         0, "", // keysize, keytype not needed for search
                 )
@@ -109,12 +109,7 @@ func runSearch(cmd *cobra.Command, args []string) error {
                         URL:    searchURL,
                         KeyID:  searchHawkID,
                         Secret: searchHawkKey,
-                        Algo:   searchAlgo,
-                }
-                
-                // Set defaults if not provided
-                if finalProfile.Algo == "" {
-                        finalProfile.Algo = "sha256"
+                        Algo:   "sha256", // Always use sha256
                 }
         }
 

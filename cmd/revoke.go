@@ -21,7 +21,7 @@ var (
         revokeURL      string
         revokeHawkID   string
         revokeHawkKey  string
-        revokeAlgo     string
+
 )
 
 // revokeCmd represents the revoke command
