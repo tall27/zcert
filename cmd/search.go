@@ -168,7 +168,7 @@ func outputTable(certificates []api.Certificate) error {
                 // Truncate long values for table display
                 id := truncateString(cert.ID, 12)
                 cn := truncateString(cert.CommonName, 25)
-                serial := truncateString(cert.SerialNumber, 16)
+                serial := truncateString(cert.Serial, 16)
                 status := cert.Status
                 issuer := truncateString(cert.Issuer, 20)
                 expires := cert.ExpiryDate.Format("2006-01-02")

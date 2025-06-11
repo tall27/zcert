@@ -109,7 +109,7 @@ func runRevoke(cmd *cobra.Command, args []string) error {
                         fmt.Fprintf(os.Stderr, "Error: Multiple certificates found (%d):\n", len(certificates))
                         for i, cert := range certificates {
                                 fmt.Fprintf(os.Stderr, "  [%d] ID: %s, CN: %s, Serial: %s\n", 
-                                        i+1, cert.ID, cert.CommonName, cert.SerialNumber)
+                                        i+1, cert.ID, cert.CommonName, cert.Serial)
                         }
                         return fmt.Errorf("multiple certificates found, use --id to specify which one to revoke")
                 }
@@ -125,9 +125,9 @@ func runRevoke(cmd *cobra.Command, args []string) error {
         fmt.Fprintf(os.Stderr, "Certificate to revoke:\n")
         fmt.Fprintf(os.Stderr, "  ID: %s\n", certificate.ID)
         fmt.Fprintf(os.Stderr, "  Common Name: %s\n", certificate.CommonName)
-        fmt.Fprintf(os.Stderr, "  Serial Number: %s\n", certificate.SerialNumber)
-        fmt.Fprintf(os.Stderr, "  Issuer: %s\n", certificate.Issuer)
-        fmt.Fprintf(os.Stderr, "  Expires: %s\n", certificate.ExpiryDate)
+        fmt.Fprintf(os.Stderr, "  Serial Number: %s\n", certificate.Serial)
+        fmt.Fprintf(os.Stderr, "  Issuer: %s\n", certificate.IssuerDN)
+        fmt.Fprintf(os.Stderr, "  Expires: %s\n", certificate.NotAfter)
 
         // Confirmation prompt unless --force is used
         if !revokeForce {

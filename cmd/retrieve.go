@@ -121,7 +121,7 @@ func runRetrieve(cmd *cobra.Command, args []string) error {
                         fmt.Fprintf(os.Stderr, "Warning: Multiple certificates found (%d), using the first one:\n", len(certificates))
                         for i, cert := range certificates {
                                 fmt.Fprintf(os.Stderr, "  [%d] ID: %s, CN: %s, Serial: %s\n", 
-                                        i+1, cert.ID, cert.CommonName, cert.SerialNumber)
+                                        i+1, cert.ID, cert.CommonName, cert.Serial)
                         }
                         fmt.Fprintln(os.Stderr, "Use --id to specify a particular certificate.")
                 }
@@ -135,7 +135,7 @@ func runRetrieve(cmd *cobra.Command, args []string) error {
 
         if viper.GetBool("verbose") {
                 fmt.Fprintf(os.Stderr, "Certificate found: CN=%s, Serial=%s, Expires=%s\n", 
-                        certificate.CommonName, certificate.SerialNumber, certificate.ExpiryDate)
+                        certificate.CommonName, certificate.Serial, certificate.NotAfter)
         }
 
         // Get certificate chain if requested
