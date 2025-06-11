@@ -3,6 +3,11 @@ url = https://ztpki-dev.venafi.com/api/v2
 hawk_id = 165c01284c6c8d872091aed0c7cc0149
 hawk_key = b97a01107585f1f037a65fafe334dcda6a42b156e1ae8df0072d203dd36f5c0c
 policy = 5fe6d368-896a-4883-97eb-f87148c90896
+format = pem
+policy = 5fe6d368-896a-4883-97eb-f87148c90896
+key-size = 2048
+key-type = rsa
+chain = true
 
 [Production]
 url = https://ztpki.prod.example

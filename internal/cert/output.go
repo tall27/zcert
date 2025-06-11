@@ -68,6 +68,16 @@ func (o *Outputter) outputPEM(cert *api.Certificate, privateKey interface{}, inc
 
         if o.outfile == "" {
                 // Output to stdout
+                // Output private key first if requested and available
+                if includeKey && privateKey != nil {
+                        keyPEM, err := EncodePrivateKeyToPEM(privateKey)
+                        if err != nil {
+                                return fmt.Errorf("failed to encode private key: %w", err)
+                        }
+                        fmt.Print(string(keyPEM))
+                }
+                
+                // Output certificate
                 fmt.Print(certPEM)
                 
                 // Include chain if available
