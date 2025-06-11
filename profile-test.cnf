@@ -1,0 +1,9 @@
+[Default]
+url = https://test-default.com
+hawk-id = default-id
+hawk-api = default-api
+
+[test]  
+url = https://test-test.com
+hawk-id = test-id
+hawk-api = test-api

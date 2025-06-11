@@ -139,10 +139,25 @@ func LoadProfileConfig(filename string) (*ProfileConfig, error) {
 
         // Ensure we have a default profile
         if config.Default == nil && len(config.Profiles) > 0 {
-                // Use the first profile as default if no [Default] section exists
-                for _, profile := range config.Profiles {
-                        config.Default = profile
-                        break
+                // First try to find a profile named "Default" (case-insensitive)
+                for name, profile := range config.Profiles {
+                        if strings.EqualFold(name, "default") {
+                                config.Default = profile
+                                break
+                        }
+                }
+                
+                // If still no default, use the first profile alphabetically for consistency
+                if config.Default == nil {
+                        var firstProfile *Profile
+                        var firstName string
+                        for name, profile := range config.Profiles {
+                                if firstName == "" || name < firstName {
+                                        firstName = name
+                                        firstProfile = profile
+                                }
+                        }
+                        config.Default = firstProfile
                 }
         }
 

@@ -1,0 +1,22 @@
+# Test configuration to verify profile selection
+[Default]
+url = https://ztpki-staging.venafi.com/api/v2
+hawk-id = default-hawk-id
+hawk-api = default-hawk-api
+format = pem
+policy = default-policy-id
+key-size = 2048
+key-type = rsa
+validity = 365
+chain = true
+
+[test]
+url = https://ztpki-staging.venafi.com/api/v2
+hawk-id = test-hawk-id
+hawk-api = test-hawk-api
+format = pem
+policy = test-policy-id
+key-size = 2048
+key-type = rsa
+validity = 90
+chain = false
