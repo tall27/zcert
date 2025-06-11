@@ -19,7 +19,7 @@ var (
 var configCmd = &cobra.Command{
         Use:   "config",
         Short: "Generate example configuration files",
-        Long:  `Generate example configuration files for zcert.`,
+        Long:  ``,
         RunE:  runConfig,
 }
 

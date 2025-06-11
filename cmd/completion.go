@@ -10,9 +10,7 @@ import (
 var completionCmd = &cobra.Command{
         Use:   "completion",
         Short: "Generate shell completion scripts",
-        Long: `Generate shell completion scripts for zcert to enable tab completion for commands and flags.
-
-Examples:
+        Long: `Examples:
   zcert config completion --shell bash > zcert-completion.bash
   zcert config completion --shell zsh > _zcert
   zcert config completion --setup > setup-completion.sh
