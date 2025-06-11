@@ -18,7 +18,6 @@ Examples:
   zcert config completion --setup > setup-completion.sh
   
 Supported shells: bash, zsh, fish, powershell`,
-        RunE: runCompletion,
 }
 
 var (
@@ -32,12 +31,12 @@ func init() {
         completionCmd.Flags().StringVar(&completionShell, "shell", "", "Shell type (bash, zsh, fish, powershell)")
         completionCmd.Flags().BoolVar(&setupScript, "setup", false, "Generate setup script for Replit environment")
         
-        // Make shell required only when not using setup
-        completionCmd.PreRunE = func(cmd *cobra.Command, args []string) error {
+        // Show help when no flags are provided
+        completionCmd.RunE = func(cmd *cobra.Command, args []string) error {
                 if !setupScript && completionShell == "" {
-                        return fmt.Errorf("--shell is required (unless using --setup)")
+                        return cmd.Help()
                 }
-                return nil
+                return runCompletion(cmd, args)
         }
 }
 
