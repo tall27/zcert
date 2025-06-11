@@ -272,6 +272,12 @@ func (c *Client) SearchCertificates(params CertificateSearchParams) ([]Certifica
         if params.PolicyID != "" {
                 searchRequest["policy"] = params.PolicyID
         }
+        if params.NotAfter != "" {
+                searchRequest["not_after"] = params.NotAfter
+        }
+        if params.NotBefore != "" {
+                searchRequest["not_before"] = params.NotBefore
+        }
         
         requestBody, err := json.Marshal(searchRequest)
         if err != nil {
