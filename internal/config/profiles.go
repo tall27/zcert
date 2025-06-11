@@ -119,6 +119,10 @@ func LoadProfileConfig(filename string) (*ProfileConfig, error) {
                                 }
                         case "key-type", "key_type", "keytype":
                                 currentProfile.KeyType = value
+                        case "validity", "validity_days":
+                                if days, err := strconv.Atoi(value); err == nil {
+                                        currentProfile.Validity = days
+                                }
                         case "output-dir", "output_dir", "outdir":
                                 currentProfile.OutDir = value
                         case "no-key-output", "no_key_output", "nokeyout":
