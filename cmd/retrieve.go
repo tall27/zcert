@@ -109,10 +109,10 @@ func runRetrieve(cmd *cobra.Command, args []string) error {
                 return fmt.Errorf("ZTPKI URL is required (use --url flag or config file)")
         }
         if finalProfile.KeyID == "" {
-                return fmt.Errorf("HAWK key ID is required (use --key-id flag or config file)")
+                return fmt.Errorf("HAWK ID is required (use --hawk-id flag or config file)")
         }
         if finalProfile.Secret == "" {
-                return fmt.Errorf("HAWK secret is required (use --secret flag or config file)")
+                return fmt.Errorf("HAWK key is required (use --hawk-key flag or config file)")
         }
 
         // Create API client with profile settings
