@@ -195,9 +195,10 @@ func (p *Policy) ValidateValidity(userValidity *ValidityPeriod) []string {
         var issues []string
 
         if userValidity == nil {
-                // When no validity is specified, we'll use the policy's maximum validity
-                // This allows the API to automatically use the template maximum
-                // No compatibility issues when validity is not specified
+                // Check if validity is required by policy
+                if p.Details.Validity.Required {
+                        issues = append(issues, "validity period is required by policy")
+                }
                 return issues
         }
 
@@ -232,6 +233,7 @@ func (p *Policy) ValidateValidity(userValidity *ValidityPeriod) []string {
 // ValidateDNComponents checks DN components against policy requirements
 func (p *Policy) ValidateDNComponents(userArgs *UserArgs) []string {
         var issues []string
+        var ouProcessed bool
 
         for _, dnComp := range p.Details.DNComponents {
                 switch dnComp.Tag {
@@ -242,21 +244,24 @@ func (p *Policy) ValidateDNComponents(userArgs *UserArgs) []string {
                                 issues = append(issues, p.validateDNField(fmt.Sprintf("O[%d]", i), org, dnComp)...)
                         }
                 case "OU":
-                        ouSlots := p.getOUSlots()
-                        if len(userArgs.OrgUnit) > len(ouSlots) {
-                                issues = append(issues, fmt.Sprintf("policy allows max %d OU values, you provided %d", len(ouSlots), len(userArgs.OrgUnit)))
-                        } else {
-                                for i, ou := range userArgs.OrgUnit {
-                                        if i < len(ouSlots) {
-                                                issues = append(issues, p.validateDNField(fmt.Sprintf("OU[%d]", i), ou, ouSlots[i])...)
+                        if !ouProcessed {
+                                ouSlots := p.getOUSlots()
+                                if len(userArgs.OrgUnit) > len(ouSlots) {
+                                        issues = append(issues, fmt.Sprintf("policy allows max %d OU values, you provided %d", len(ouSlots), len(userArgs.OrgUnit)))
+                                } else {
+                                        for i, ou := range userArgs.OrgUnit {
+                                                if i < len(ouSlots) {
+                                                        issues = append(issues, p.validateDNField(fmt.Sprintf("OU[%d]", i), ou, ouSlots[i])...)
+                                                }
+                                        }
+                                        // Check for required OUs not provided
+                                        for i := len(userArgs.OrgUnit); i < len(ouSlots); i++ {
+                                                if ouSlots[i].Required && ouSlots[i].DefaultValue == "" {
+                                                        issues = append(issues, fmt.Sprintf("OU slot %d is required but not provided", i+1))
+                                                }
                                         }
                                 }
-                                // Check for required OUs not provided
-                                for i := len(userArgs.OrgUnit); i < len(ouSlots); i++ {
-                                        if ouSlots[i].Required && ouSlots[i].DefaultValue == "" {
-                                                issues = append(issues, fmt.Sprintf("OU slot %d is required but not provided", i+1))
-                                        }
-                                }
+                                ouProcessed = true
                         }
                 case "L":
                         issues = append(issues, p.validateDNField("L", userArgs.Locality, dnComp)...)
