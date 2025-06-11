@@ -195,8 +195,10 @@ func (p *Policy) ValidateValidity(userValidity *ValidityPeriod) []string {
         var issues []string
 
         if userValidity == nil {
-                // When no validity is specified, allow ZTPKI to use policy defaults
-                // Most policies allow this and will apply their default/maximum validity
+                // Check if validity is explicitly required by policy
+                if p.Details.Validity.Required {
+                        issues = append(issues, "validity period is required by policy")
+                }
                 return issues
         }
 

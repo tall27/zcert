@@ -203,7 +203,7 @@ func (ps *PolicySelector) fetchAllPolicies() ([]Policy, error) {
                                         Days:     policyDetails.Details.Validity.Days,
                                         Months:   policyDetails.Details.Validity.Months,
                                         Years:    policyDetails.Details.Validity.Years,
-                                        Required: policyDetails.Details.Validity.Required,
+                                        Required: false, // ZTPKI policies typically use defaults, not require explicit validity
                                 },
                                 // Basic DN requirements - CN is always required
                                 DNComponents: []DNComponent{
