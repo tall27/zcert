@@ -368,8 +368,7 @@ func getSearchUsageFunc() func(*cobra.Command) error {
                 fmt.Printf("Usage:\n  %s\n\nServer & Authentication:\n", cmd.UseLine())
                 fmt.Printf("      --url string        ZTPKI API base URL (e.g., https://ztpki.venafi.com/api/v2)\n")
                 fmt.Printf("      --hawk-id string    HAWK authentication ID\n")
-                fmt.Printf("      --hawk-key string   HAWK authentication key\n")
-                fmt.Printf("      --algo string       HAWK algorithm (sha1, sha256) (default \"sha256\")\n\n")
+                fmt.Printf("      --hawk-key string   HAWK authentication key\n\n")
                 
                 fmt.Printf("Search Criteria:\n")
                 fmt.Printf("      --cn string         Search by Common Name (substring matching supported)\n")
@@ -425,7 +424,6 @@ Server & Authentication:
       --url string        ZTPKI API base URL (e.g., https://ztpki.venafi.com/api/v2)
       --hawk-id string    HAWK authentication ID
       --hawk-key string   HAWK authentication key
-      --algo string       HAWK algorithm (sha1, sha256) (default "sha256")
 
 Search Criteria:
       --cn string         Search by Common Name (substring matching supported)

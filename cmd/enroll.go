@@ -155,7 +155,7 @@ func runEnroll(cmd *cobra.Command, args []string) error {
                 // Merge profile with command-line flags (flags take precedence)
                 finalProfile = config.MergeProfileWithFlags(
                         profile,
-                        enrollURL, enrollHawkID, enrollHawkKey, "",
+                        enrollURL, enrollHawkID, enrollHawkKey,
                         enrollFormat, enrollPolicy, enrollP12Pass,
                         enrollKeySize, enrollKeyType,
                 )
