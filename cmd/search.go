@@ -23,6 +23,7 @@ var (
         searchFormat   string
         searchExpired  bool
         searchExpiring int
+        searchRecent   int
         // ZTPKI Authentication
         searchURL      string
         searchHawkID   string
@@ -69,6 +70,7 @@ func init() {
         // Special filters
         searchCmd.Flags().BoolVar(&searchExpired, "expired", false, "Show only expired certificates")
         searchCmd.Flags().IntVar(&searchExpiring, "expiring", 0, "Show certificates expiring within N days")
+        searchCmd.Flags().IntVar(&searchRecent, "recent", 0, "Show certificates issued within N days")
 
         // Set custom help and usage functions to group flags consistently
         searchCmd.SetHelpFunc(getSearchHelpFunc())
@@ -151,6 +153,13 @@ func runSearch(cmd *cobra.Command, args []string) error {
                 searchParams.ExpiresBefore = &expiresBefore
         }
 
+        var issuedAfter *time.Time
+        if searchRecent > 0 {
+                // Calculate recent issuance threshold
+                recentThreshold := time.Now().AddDate(0, 0, -searchRecent)
+                issuedAfter = &recentThreshold
+        }
+
         if viper.GetBool("verbose") {
                 fmt.Fprintln(os.Stderr, "Searching certificates with criteria:")
                 if searchCN != "" {
@@ -171,6 +180,9 @@ func runSearch(cmd *cobra.Command, args []string) error {
                 if searchExpiring > 0 {
                         fmt.Fprintf(os.Stderr, "  Expiring within: %d days\n", searchExpiring)
                 }
+                if searchRecent > 0 {
+                        fmt.Fprintf(os.Stderr, "  Recent certificates within: %d days\n", searchRecent)
+                }
                 fmt.Fprintf(os.Stderr, "  Limit: %d\n", searchLimit)
         }
 
@@ -180,10 +192,15 @@ func runSearch(cmd *cobra.Command, args []string) error {
                 return fmt.Errorf("failed to search certificates: %w", err)
         }
 
-        if len(certificates) == 0 {
+        // Apply client-side filtering for advanced use cases
+        filtered := applyClientSideFilters(certificates, searchCN, searchSerial, issuedAfter)
+        
+        if len(filtered) == 0 {
                 fmt.Println("No certificates found matching the specified criteria.")
                 return nil
         }
+
+        certificates = filtered
 
         if viper.GetBool("verbose") {
                 fmt.Fprintf(os.Stderr, "Found %d certificates\n", len(certificates))
@@ -200,6 +217,43 @@ func runSearch(cmd *cobra.Command, args []string) error {
         default:
                 return fmt.Errorf("unsupported output format: %s", searchFormat)
         }
+}
+
+// applyClientSideFilters applies advanced filtering that requires client-side processing
+func applyClientSideFilters(certificates []api.Certificate, commonName, serial string, issuedAfter *time.Time) []api.Certificate {
+        var filtered []api.Certificate
+        
+        for _, cert := range certificates {
+                // Apply Common Name substring matching (case-insensitive)
+                if commonName != "" {
+                        // Extract CN from certificate subject
+                        cnFound := false
+                        if strings.Contains(strings.ToLower(cert.Subject), strings.ToLower(commonName)) {
+                                cnFound = true
+                        }
+                        if !cnFound {
+                                continue
+                        }
+                }
+                
+                // Apply serial number filtering (partial match)
+                if serial != "" {
+                        if !strings.Contains(cert.SerialNumber, serial) {
+                                continue
+                        }
+                }
+                
+                // Apply recent certificates filter (issued after threshold)
+                if issuedAfter != nil {
+                        if cert.CreatedDate.Before(*issuedAfter) {
+                                continue
+                        }
+                }
+                
+                filtered = append(filtered, cert)
+        }
+        
+        return filtered
 }
 
 func outputTable(certificates []api.Certificate) error {

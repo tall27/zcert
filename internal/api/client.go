@@ -250,13 +250,77 @@ func (c *Client) GetCertificateRequest(requestID string) (*CertificateRequest, e
 
 // SearchCertificates searches for certificates based on criteria
 func (c *Client) SearchCertificates(params CertificateSearchParams) ([]Certificate, error) {
-        // ZTPKI doesn't have a dedicated search endpoint, so we'll simulate search
-        // by returning a message that no certificates match the criteria
-        // This provides a working search interface for the CLI
+        // ZTPKI API endpoint for listing certificates with filtering capabilities
+        endpoint := "/certificates"
         
-        // For demonstration purposes, return an empty list with no errors
-        // In a real implementation, this would connect to the actual ZTPKI search API
-        return []Certificate{}, nil
+        // Build query parameters for the ZTPKI API
+        queryParams := url.Values{}
+        
+        // Add search parameters
+        if params.CommonName != "" {
+                queryParams.Set("subject", params.CommonName)
+        }
+        if params.Serial != "" {
+                queryParams.Set("serialNumber", params.Serial)
+        }
+        if params.Issuer != "" {
+                queryParams.Set("issuer", params.Issuer)
+        }
+        if params.PolicyID != "" {
+                queryParams.Set("policyId", params.PolicyID)
+        }
+        if params.Status != "" {
+                queryParams.Set("status", params.Status)
+        }
+        if params.Limit > 0 {
+                queryParams.Set("limit", fmt.Sprintf("%d", params.Limit))
+        } else {
+                queryParams.Set("limit", "50") // Default limit
+        }
+        if params.ExpiresBefore != nil {
+                queryParams.Set("expiresBefore", params.ExpiresBefore.Format(time.RFC3339))
+        }
+        
+        // Add query parameters to endpoint
+        if len(queryParams) > 0 {
+                endpoint += "?" + queryParams.Encode()
+        }
+        
+        resp, err := c.makeRequest("GET", endpoint, nil)
+        if err != nil {
+                return nil, err
+        }
+        
+        // Try different response formats that ZTPKI might use
+        var certificates []Certificate
+        
+        // First try direct array response
+        if err := c.handleResponse(resp, &certificates); err != nil {
+                // Try wrapped response formats
+                var result struct {
+                        Certificates []Certificate `json:"certificates"`
+                        Data         []Certificate `json:"data"`
+                        Items        []Certificate `json:"items"`
+                        Results      []Certificate `json:"results"`
+                }
+                
+                if err := c.handleResponse(resp, &result); err != nil {
+                        return nil, fmt.Errorf("failed to parse certificate search response: %w", err)
+                }
+                
+                // Use whichever field contains data
+                if len(result.Certificates) > 0 {
+                        certificates = result.Certificates
+                } else if len(result.Data) > 0 {
+                        certificates = result.Data
+                } else if len(result.Items) > 0 {
+                        certificates = result.Items
+                } else if len(result.Results) > 0 {
+                        certificates = result.Results
+                }
+        }
+        
+        return certificates, nil
 }
 
 // GetCertificateChain retrieves the certificate chain for a certificate
