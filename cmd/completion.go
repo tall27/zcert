@@ -16,16 +16,31 @@ Supported shells: bash, zsh, fish, powershell`,
         RunE: runCompletion,
 }
 
-var completionShell string
+var (
+        completionShell string
+        setupScript     bool
+)
 
 func init() {
         configCmd.AddCommand(completionCmd)
         
         completionCmd.Flags().StringVar(&completionShell, "shell", "", "Shell type (bash, zsh, fish, powershell)")
-        completionCmd.MarkFlagRequired("shell")
+        completionCmd.Flags().BoolVar(&setupScript, "setup", false, "Generate setup script for Replit environment")
+        
+        // Make shell required only when not using setup
+        completionCmd.PreRunE = func(cmd *cobra.Command, args []string) error {
+                if !setupScript && completionShell == "" {
+                        return fmt.Errorf("--shell is required (unless using --setup)")
+                }
+                return nil
+        }
 }
 
 func runCompletion(cmd *cobra.Command, args []string) error {
+        if setupScript {
+                return generateSetupScript()
+        }
+        
         switch completionShell {
         case "bash":
                 return generateBashCompletion(cmd)
@@ -126,4 +141,34 @@ func generatePowershellCompletion(cmd *cobra.Command) error {
         fmt.Println("")
         
         return rootCmd.GenPowerShellCompletion(os.Stdout)
+}
+
+func generateSetupScript() error {
+        fmt.Println("#!/bin/bash")
+        fmt.Println("# Setup script for zcert tab completion in Replit environment")
+        fmt.Println("# This script enables bash completion and generates the completion files")
+        fmt.Println("")
+        fmt.Println("echo \"Setting up zcert tab completion...\"")
+        fmt.Println("")
+        fmt.Println("# Check if zcert binary exists")
+        fmt.Println("if [ ! -f \"./zcert\" ]; then")
+        fmt.Println("    echo \"Error: zcert binary not found in current directory\"")
+        fmt.Println("    echo \"Please run: go build -o zcert main.go\"")
+        fmt.Println("    exit 1")
+        fmt.Println("fi")
+        fmt.Println("")
+        fmt.Println("# Enable programmable completion")
+        fmt.Println("shopt -s progcomp")
+        fmt.Println("")
+        fmt.Println("# Generate and load zcert completion")
+        fmt.Println("./zcert config completion --shell bash > zcert-completion.bash")
+        fmt.Println("source zcert-completion.bash")
+        fmt.Println("")
+        fmt.Println("echo \"✓ Tab completion enabled for zcert and ./zcert\"")
+        fmt.Println("echo \"✓ Try typing: zcert <TAB> or ./zcert enroll --<TAB>\"")
+        fmt.Println("echo")
+        fmt.Println("echo \"To enable completion in new shell sessions, run:\"")
+        fmt.Println("echo \"source setup-completion.sh\"")
+        
+        return nil
 }
