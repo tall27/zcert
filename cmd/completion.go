@@ -12,6 +12,11 @@ var completionCmd = &cobra.Command{
         Short: "Generate shell completion scripts",
         Long: `Generate shell completion scripts for zcert to enable tab completion for commands and flags.
 
+Examples:
+  zcert config completion --shell bash > zcert-completion.bash
+  zcert config completion --shell zsh > _zcert
+  zcert config completion --setup > setup-completion.sh
+  
 Supported shells: bash, zsh, fish, powershell`,
         RunE: runCompletion,
 }
