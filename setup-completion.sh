@@ -16,8 +16,8 @@ shopt -s progcomp
 ./zcert config completion --shell bash > zcert-completion.bash
 source zcert-completion.bash
 
-echo "✓ Tab completion enabled for zcert"
-echo "✓ Try typing: zcert <TAB> or zcert enroll --<TAB>"
+echo "✓ Tab completion enabled for zcert and ./zcert"
+echo "✓ Try typing: zcert <TAB> or ./zcert enroll --<TAB>"
 echo
 echo "To enable completion in new shell sessions, run:"
 echo "source setup-completion.sh"

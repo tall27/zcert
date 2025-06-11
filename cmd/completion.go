@@ -61,7 +61,16 @@ func generateBashCompletion(cmd *cobra.Command) error {
         fmt.Println("#    ./setup-completion.sh")
         fmt.Println("")
         
-        return rootCmd.GenBashCompletionV2(os.Stdout, true)
+        err := rootCmd.GenBashCompletionV2(os.Stdout, true)
+        if err != nil {
+                return err
+        }
+        
+        // Add completion for relative path ./zcert
+        fmt.Println("# Enable completion for relative path")
+        fmt.Println("complete -o default -F __start_zcert ./zcert")
+        
+        return nil
 }
 
 func generateZshCompletion(cmd *cobra.Command) error {
