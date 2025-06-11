@@ -10,6 +10,8 @@ import (
         "fmt"
         "net"
         "os"
+        "regexp"
+        "strconv"
         "strings"
         "time"
 
@@ -254,13 +256,23 @@ func runEnroll(cmd *cobra.Command, args []string) error {
         }
         // If validityPeriod is nil, the API will use template maximum validity
 
+        // Convert validity period to policy type for compatibility checking
+        var policyValidityPeriod *policyselect.ValidityPeriod
+        if validityPeriod != nil {
+                policyValidityPeriod = &policyselect.ValidityPeriod{
+                        Days:   validityPeriod.Days,
+                        Months: validityPeriod.Months,
+                        Years:  validityPeriod.Years,
+                }
+        }
+
         // Create user arguments for policy compatibility checking
         userArgs := &policyselect.UserArgs{
                 CN:           cn,
                 SANsDNS:      enrollSANsDNS,
                 SANsIP:       enrollSANsIP,
                 SANsEmail:    enrollSANsEmail,
-                Validity:     validityPeriod,
+                Validity:     policyValidityPeriod,
                 Organization: enrollOrg,
                 OrgUnit:      enrollOrgUnit,
                 Locality:     enrollLocality,
