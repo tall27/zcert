@@ -4,6 +4,7 @@ import (
         "fmt"
         "os"
         "runtime"
+        "strings"
 
         "github.com/spf13/cobra"
         "github.com/spf13/viper"
@@ -27,13 +28,10 @@ var (
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
         Use:   "zcert",
-        Short: "A CLI certificate management tool for Venafi Zero Touch PKI",
+        Short: "A CLI certificate management tool for CyberArk Zero Touch PKI",
         Long: `zcert is a command-line certificate management tool that interacts with 
-Venafi's Zero Touch PKI (ZTPKI) service to perform certificate lifecycle operations 
-including enrollment, retrieval, and revocation via the ZTPKI REST API.
-
-This tool mirrors the functionality and user experience of vcert but is specifically 
-tailored for the ZTPKI platform and its HAWK authentication method.`,
+CyberArk's Zero Touch PKI (ZTPKI) service to perform certificate lifecycle operations 
+including enrollment, retrieval, and revocation via the ZTPKI REST API.`,
         Version: "", // Will be set dynamically
 }
 
@@ -48,8 +46,12 @@ func Execute() error {
 func init() {
         cobra.OnInitialize(initConfig)
         
-        // Disable auto-generated completion command
+        // Disable auto-generated completion and help commands
         rootCmd.CompletionOptions.DisableDefaultCmd = true
+        rootCmd.SetHelpCommand(&cobra.Command{
+                Use:    "no-help",
+                Hidden: true,
+        })
 
         // Global flags
         rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "profile config file (e.g., zcert.cnf)")
@@ -137,12 +139,32 @@ func SetVersion(ver, commit, buildTimeArg, goVer string) {
 
 // getVersionTemplate returns a detailed version template
 func getVersionTemplate() string {
-        return fmt.Sprintf(`zcert version %s
-Git commit: %s
-Build time: %s
-Go version: %s
-Platform: %s
-`, version, gitCommit, buildTime, goVersion, getPlatform())
+        // Convert build time to vcert-style timestamp format (YYYYMMDD.HHMMSS)
+        timestamp := convertToVcertTimestamp(buildTime)
+        return fmt.Sprintf(`zcert
+CyberArk Certificate Utility
+  Version: %s
+  Build Timestamp: %s
+`, version, timestamp)
+}
+
+// convertToVcertTimestamp converts build time to vcert-style format
+func convertToVcertTimestamp(buildTime string) string {
+        // Parse the build time format: 2025-06-11_04:44:50_UTC
+        if buildTime == "unknown" {
+                return "unknown"
+        }
+        
+        // Expected format: 2025-06-11_04:44:50_UTC
+        // Convert to: 20250611.044450
+        parts := strings.Split(buildTime, "_")
+        if len(parts) >= 2 {
+                datePart := strings.ReplaceAll(parts[0], "-", "")
+                timePart := strings.ReplaceAll(parts[1], ":", "")
+                return fmt.Sprintf("%s.%s", datePart, timePart)
+        }
+        
+        return buildTime
 }
 
 // getPlatform returns the current platform information
