@@ -355,3 +355,5 @@ else
 fi
 
 # ex: ts=4 sw=4 et filetype=sh
+# Enable completion for relative path
+complete -o default -F __start_zcert ./zcert
