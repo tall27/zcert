@@ -75,12 +75,17 @@ type Certificate struct {
         ExpiryDate       time.Time `json:"notAfter"`
         Certificate      string    `json:"pem"`         // PEM-encoded certificate
         Chain            []string  `json:"chain"`       // PEM-encoded certificate chain
-        SANs             []string  `json:"subjectAlternativeNames"`
+        SANs             []string  `json:"SANs"`
         
         // Additional ZTPKI fields
         Policy struct {
                 Name string `json:"name"`
         } `json:"policy"`
+        
+        // Extended ZTPKI response fields
+        Imported   bool `json:"imported"`
+        Discovered bool `json:"discovered"`
+        SelfSigned bool `json:"selfSigned"`
 }
 
 // CSRSubmissionRequest represents a request to submit a CSR (ZTPKI API schema)
