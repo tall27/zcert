@@ -284,6 +284,8 @@ func (c *Client) SearchCertificates(params CertificateSearchParams) ([]Certifica
                 return nil, fmt.Errorf("failed to marshal search request: %w", err)
         }
         
+
+        
         resp, err := c.makeRequest("POST", endpoint, bytes.NewReader(requestBody))
         if err != nil {
                 return nil, fmt.Errorf("failed to search certificates: %w", err)
