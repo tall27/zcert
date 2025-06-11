@@ -64,18 +64,23 @@ type SANConstraint struct {
 
 // Certificate represents a certificate from the ZTPKI API
 type Certificate struct {
-        ID           string    `json:"id"`
-        CommonName   string    `json:"commonName"`
-        SerialNumber string    `json:"serialNumber"`
-        Status       string    `json:"status"`
-        Issuer       string    `json:"issuer"`
-        Subject      string    `json:"subject"`
-        PolicyID     string    `json:"policyId"`
-        CreatedDate  time.Time `json:"createdDate"`
-        ExpiryDate   time.Time `json:"expiryDate"`
-        Certificate  string    `json:"pem"`         // PEM-encoded certificate
-        Chain        []string  `json:"chain"`       // PEM-encoded certificate chain
-        SANs         []string  `json:"subjectAlternativeNames"`
+        ID               string    `json:"id"`
+        CommonName       string    `json:"commonName"`
+        SerialNumber     string    `json:"serial"`
+        Status           string    `json:"revocationStatus"`
+        Issuer           string    `json:"issuerDN"`
+        Subject          string    `json:"subjectDN"`
+        PolicyID         string    `json:"policyId"`
+        CreatedDate      time.Time `json:"notBefore"`
+        ExpiryDate       time.Time `json:"notAfter"`
+        Certificate      string    `json:"pem"`         // PEM-encoded certificate
+        Chain            []string  `json:"chain"`       // PEM-encoded certificate chain
+        SANs             []string  `json:"subjectAlternativeNames"`
+        
+        // Additional ZTPKI fields
+        Policy struct {
+                Name string `json:"name"`
+        } `json:"policy"`
 }
 
 // CSRSubmissionRequest represents a request to submit a CSR (ZTPKI API schema)
