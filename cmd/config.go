@@ -42,9 +42,9 @@ Available Commands:{{range .Commands}}{{if (or .IsAvailableCommand (eq .Name "he
   {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{end}}
 
 Examples:
-  zcert config --cnf                                                # Generate zcert.cnf
-  zcert enroll --config zcert.cnf --cn "cert.test.com"                   # Engage the default profile
-  zcert enroll --config zcert.cnf --profile prod --cn "cert.prod.com"    # Use specific profile
+  zcert config --cnf                                                      # Generate zcert.cnf
+  zcert enroll --config zcert.cnf --cn "cert.test.com"                    # Engage the default profile
+  zcert enroll --config zcert.cnf --profile prod --cn "cert.prod.com"     # Use specific profile
 {{if .HasAvailableLocalFlags}}
 
 Flags:
