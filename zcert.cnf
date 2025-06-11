@@ -1,52 +1,41 @@
 # zcert Profile Configuration File
 # This file supports multiple profiles with different ZTPKI settings
 # Use: zcert -config zcert.cnf --cn "mycert.com" 
-#   or zcert -config zcert.cnf -profile p12 --cn "mycert.com"
+#   or zcert -config zcert.cnf -profile test --cn "mycert.com"
 
 [Default]
 # Default profile used when no -profile is specified
-url = https://ztpki-dev.venafi.com/api/v2
-key-id = your-default-key-id
-secret = your-default-secret
+url = https://ztpki.venafi.com/api/v2
+hawk-id = your-default-hawk-id
+hawk-api = your-default-hawk-api
 format = pem
-policy = WebServer
+policy = PolicyID
 key-size = 2048
 key-type = rsa
-chain = true
-
-[p12]
-# Profile for PKCS#12 certificates
-url = https://ztpki-dev.venafi.com/api/v2
-key-id = your-p12-key-id
-secret = your-p12-secret
-format = p12
-policy = WebServer
-p12-password = secretpass123
-key-size = 2048
-key-type = rsa
+validity = 365
 chain = true
 
 [test]
 # Profile for testing environment
-url = https://ztpki-dev.venafi.com/api/v2
-key-id = test-key-id
-secret = test-secret
-algo = sha256
+url = https://ztpki.venafi.com/api/v2
+hawk-id = test-hawk-id
+hawk-api = test-hawk-api
 format = pem
-policy = TestPolicy
+policy = PolicyID
 key-size = 2048
 key-type = rsa
+validity = 90
 chain = false
 
 [prod]
 # Profile for production environment
-url = https://ztpki-dev.venafi.com/api/v2
-key-id = prod-key-id
-secret = prod-secret
-algo = sha256
+url = https://ztpki.venafi.com/api/v2
+hawk-id = prod-hawk-id
+hawk-api = prod-hawk-api
 format = pem
-policy = ProductionWebServer
+policy = PolicyID
 key-size = 4096
 key-type = rsa
+validity = 365
 chain = true
 no-key-output = false
