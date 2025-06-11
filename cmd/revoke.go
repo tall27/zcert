@@ -256,7 +256,6 @@ Server & Authentication:
       --url string        ZTPKI API base URL (e.g., https://ztpki.venafi.com/api/v2)
       --hawk-id string    HAWK authentication ID
       --hawk-key string   HAWK authentication key
-      --algo string       HAWK algorithm (sha1, sha256) (default "sha256")
 
 Certificate Identification:
       --id string         Certificate ID or GUID
