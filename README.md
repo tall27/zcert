@@ -39,7 +39,7 @@ go build -o zcert.exe main.go
 ### Prerequisites
 
 - Go 1.19 or later
-- Access to a Venafi Zero Touch PKI instance
+- Access to a CyberArk Zero Touch PKI instance
 - HAWK authentication credentials
 
 ## Quick Start
@@ -398,7 +398,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 For issues and questions:
 - Open an issue on GitHub
 - Review the troubleshooting section
-- Check the Venafi Zero Touch PKI documentation
+- Check the CyberArk Zero Touch PKI documentation
 
 ## Changelog
 

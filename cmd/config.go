@@ -36,7 +36,7 @@ func init() {
 {{.Long}}
 
 Usage Examples:
-  zcert config --cnf                                                  # Generate zcert.cnf
+  zcert config --cnf                                                # Generate zcert.cnf
   zcert --config zcert.cnf enroll --cn "test.com"                   # Engage the default profile
   zcert --config zcert.cnf --profile prod enroll --cn "prod.com"    # Use specific profile
 
