@@ -85,10 +85,6 @@ func (c *Client) makeRequest(method, endpoint string, body interface{}) (*http.R
                 return nil, fmt.Errorf("failed to sign request with HAWK: %w", err)
         }
         
-        // Debug: Log request details (remove in production)
-        fmt.Printf("Debug: Making %s request to %s\n", method, url)
-        fmt.Printf("Debug: Authorization header: %s\n", req.Header.Get("Authorization"))
-        
         resp, err := c.httpClient.Do(req)
         if err != nil {
                 return nil, fmt.Errorf("failed to execute request: %w", err)
