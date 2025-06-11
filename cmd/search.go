@@ -25,8 +25,8 @@ var (
         searchExpiring int
         // ZTPKI Authentication
         searchURL      string
-        searchKeyID    string
-        searchSecret   string
+        searchHawkID   string
+        searchHawkKey  string
         searchAlgo     string
 )
 
@@ -58,8 +58,8 @@ func init() {
         
         // ZTPKI Authentication flags
         searchCmd.Flags().StringVar(&searchURL, "url", "", "ZTPKI API base URL (e.g., https://ztpki.venafi.com/api/v2)")
-        searchCmd.Flags().StringVar(&searchKeyID, "key-id", "", "HAWK authentication key ID")
-        searchCmd.Flags().StringVar(&searchSecret, "secret", "", "HAWK authentication secret")
+        searchCmd.Flags().StringVar(&searchHawkID, "hawk-id", "", "HAWK authentication ID")
+        searchCmd.Flags().StringVar(&searchHawkKey, "hawk-key", "", "HAWK authentication key")
         searchCmd.Flags().StringVar(&searchAlgo, "algo", "sha256", "HAWK algorithm (sha1, sha256)")
         
         // Output options
@@ -88,7 +88,7 @@ func runSearch(cmd *cobra.Command, args []string) error {
                 // Merge profile with command-line flags (flags take precedence)
                 finalProfile = config.MergeProfileWithFlags(
                         profile,
-                        searchURL, searchKeyID, searchSecret, searchAlgo,
+                        searchURL, searchHawkID, searchHawkKey, searchAlgo,
                         "", "", "", // format, policy, p12password not needed for search
                         0, "", // keysize, keytype not needed for search
                 )
@@ -96,8 +96,8 @@ func runSearch(cmd *cobra.Command, args []string) error {
                 // No profile config, use command-line flags
                 finalProfile = &config.Profile{
                         URL:    searchURL,
-                        KeyID:  searchKeyID,
-                        Secret: searchSecret,
+                        KeyID:  searchHawkID,
+                        Secret: searchHawkKey,
                         Algo:   searchAlgo,
                 }
                 
@@ -112,10 +112,10 @@ func runSearch(cmd *cobra.Command, args []string) error {
                 return fmt.Errorf("ZTPKI URL is required (use --url flag or config file)")
         }
         if finalProfile.KeyID == "" {
-                return fmt.Errorf("HAWK key ID is required (use --key-id flag or config file)")
+                return fmt.Errorf("HAWK ID is required (use --hawk-id flag or config file)")
         }
         if finalProfile.Secret == "" {
-                return fmt.Errorf("HAWK secret is required (use --secret flag or config file)")
+                return fmt.Errorf("HAWK key is required (use --hawk-key flag or config file)")
         }
 
         // Create API client with profile settings
@@ -278,8 +278,8 @@ func getSearchUsageFunc() func(*cobra.Command) error {
         return func(cmd *cobra.Command) error {
                 fmt.Printf("Usage:\n  %s\n\nServer & Authentication:\n", cmd.UseLine())
                 fmt.Printf("      --url string        ZTPKI API base URL (e.g., https://ztpki.venafi.com/api/v2)\n")
-                fmt.Printf("      --key-id string     HAWK authentication key ID\n")
-                fmt.Printf("      --secret string     HAWK authentication secret\n")
+                fmt.Printf("      --hawk-id string    HAWK authentication ID\n")
+                fmt.Printf("      --hawk-key string   HAWK authentication key\n")
                 fmt.Printf("      --algo string       HAWK algorithm (sha1, sha256) (default \"sha256\")\n\n")
                 
                 fmt.Printf("Search Criteria:\n")
