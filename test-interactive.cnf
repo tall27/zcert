@@ -1,8 +1,0 @@
-[Default]
-base_url = https://ztpki-dev.venafi.com/api/v2
-hawk_id = 165c01284c6c8d872091aed0c7cc0149
-hawk_key = b431afc1ed6a6b7db5f760671840efa14224be60a11e0c164a6d0d021a45748c
-default_key_size = 2048
-default_key_type = rsa
-default_format = pem
-# No policy specified to test interactive selection
