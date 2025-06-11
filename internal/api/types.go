@@ -1,6 +1,7 @@
 package api
 
 import (
+        "encoding/json"
         "fmt"
         "time"
 )
@@ -43,6 +44,73 @@ type ValidityConstraints struct {
         Months   []string `json:"months"`
         Years    []string `json:"years"`
         Required bool     `json:"required"`
+}
+
+// FlexibleValidityConstraints is used for JSON unmarshaling to handle mixed types
+type FlexibleValidityConstraints struct {
+        Days     interface{} `json:"days"`
+        Months   interface{} `json:"months"`
+        Years    interface{} `json:"years"`
+        Required bool        `json:"required"`
+}
+
+// UnmarshalJSON provides custom unmarshaling for ValidityConstraints to handle mixed types
+func (vc *ValidityConstraints) UnmarshalJSON(data []byte) error {
+        var flexible FlexibleValidityConstraints
+        if err := json.Unmarshal(data, &flexible); err != nil {
+                return err
+        }
+        
+        vc.Required = flexible.Required
+        vc.Days = convertToStringSlice(flexible.Days)
+        vc.Months = convertToStringSlice(flexible.Months)
+        vc.Years = convertToStringSlice(flexible.Years)
+        
+        return nil
+}
+
+// convertToStringSlice converts various types to []string
+func convertToStringSlice(value interface{}) []string {
+        if value == nil {
+                return []string{}
+        }
+        
+        switch v := value.(type) {
+        case []interface{}:
+                result := make([]string, len(v))
+                for i, item := range v {
+                        result[i] = convertToString(item)
+                }
+                return result
+        case []string:
+                return v
+        case string:
+                if v == "" {
+                        return []string{}
+                }
+                return []string{v}
+        case float64:
+                return []string{fmt.Sprintf("%.0f", v)}
+        case int:
+                return []string{fmt.Sprintf("%d", v)}
+        default:
+                // Convert any other type to string
+                return []string{fmt.Sprintf("%v", v)}
+        }
+}
+
+// convertToString converts various types to string
+func convertToString(value interface{}) string {
+        switch v := value.(type) {
+        case string:
+                return v
+        case float64:
+                return fmt.Sprintf("%.0f", v)
+        case int:
+                return fmt.Sprintf("%d", v)
+        default:
+                return fmt.Sprintf("%v", v)
+        }
 }
 
 // DNConstraint represents DN component rules from ZTPKI policy  
