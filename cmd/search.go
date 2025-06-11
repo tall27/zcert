@@ -99,7 +99,7 @@ func runSearch(cmd *cobra.Command, args []string) error {
                 // Merge profile with command-line flags (flags take precedence)
                 finalProfile = config.MergeProfileWithFlags(
                         profile,
-                        searchURL, searchHawkID, searchHawkKey, "",
+                        searchURL, searchHawkID, searchHawkKey,
                         "", "", "", // format, policy, p12password not needed for search
                         0, "", // keysize, keytype not needed for search
                 )

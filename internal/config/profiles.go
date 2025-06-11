@@ -105,8 +105,7 @@ func LoadProfileConfig(filename string) (*ProfileConfig, error) {
                                 currentProfile.KeyID = value
                         case "secret", "hawk_key", "hawk-key":
                                 currentProfile.Secret = value
-                        case "algo", "algorithm":
-                                currentProfile.Algo = value
+
                         case "format":
                                 currentProfile.Format = value
                         case "policy", "policy_id", "policyid":
@@ -199,7 +198,6 @@ func CreateExampleProfileConfig(filename string) error {
 url = https://ztpki-dev.venafi.com/api/v2
 key-id = your-default-key-id
 secret = your-default-secret
-algo = sha256
 format = pem
 policy = WebServer
 key-size = 2048
@@ -211,7 +209,6 @@ chain = true
 url = https://ztpki-dev.venafi.com/api/v2
 key-id = your-p12-key-id
 secret = your-p12-secret
-algo = sha256
 format = p12
 policy = WebServer
 p12-password = secretpass123
@@ -250,7 +247,7 @@ no-key-output = false
 
 // MergeProfileWithFlags merges profile settings with command-line flags
 // Command-line flags take precedence over profile settings
-func MergeProfileWithFlags(profile *Profile, flagURL, flagKeyID, flagSecret, flagAlgo, flagFormat, flagPolicy, flagP12Pass string, flagKeySize int, flagKeyType string) *Profile {
+func MergeProfileWithFlags(profile *Profile, flagURL, flagKeyID, flagSecret, flagFormat, flagPolicy, flagP12Pass string, flagKeySize int, flagKeyType string) *Profile {
         if profile == nil {
                 profile = &Profile{
                         Algo:    "sha256",
@@ -273,9 +270,8 @@ func MergeProfileWithFlags(profile *Profile, flagURL, flagKeyID, flagSecret, fla
         if flagSecret != "" {
                 merged.Secret = flagSecret
         }
-        if flagAlgo != "" {
-                merged.Algo = flagAlgo
-        }
+        // Always ensure sha256 is used
+        merged.Algo = "sha256"
         if flagFormat != "" {
                 merged.Format = flagFormat
         }

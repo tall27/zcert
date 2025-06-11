@@ -79,7 +79,7 @@ func runRetrieve(cmd *cobra.Command, args []string) error {
                 // Merge profile with command-line flags (flags take precedence)
                 finalProfile = config.MergeProfileWithFlags(
                         profile,
-                        retrieveURL, retrieveHawkID, retrieveHawkKey, "",
+                        retrieveURL, retrieveHawkID, retrieveHawkKey,
                         retrieveFormat, retrievePolicy, retrieveP12Pass,
                         0, "", // keysize, keytype not needed for retrieve
                 )
