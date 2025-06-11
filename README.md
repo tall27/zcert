@@ -1,12 +1,21 @@
-# zcert - Zero Touch PKI Certificate Management CLI
+# ZCERT - CyberArk Zero Touch PKI CLI Tool
 
-A command-line certificate management tool for Venafi's Zero Touch PKI (ZTPKI) service, designed to mirror the functionality and user experience of vcert but tailored specifically for the ZTPKI platform.
+A security-hardened command-line certificate management tool for CyberArk's Zero Touch PKI (ZTPKI) service, featuring comprehensive certificate lifecycle operations and advanced shell integration.
+
+## 🔒 Security Features
+
+**Production-Ready Security Hardening Completed:**
+- **HAWK Authentication** - Secure API authentication with cryptographically strong nonce generation
+- **Protected Configuration** - Automatic file permission hardening (0600) for sensitive data
+- **Zero Sensitive Data Exposure** - No debug information leakage of authentication credentials
+- **Input Validation** - Comprehensive sanitization and validation throughout
+- **Secure File Handling** - Protected permissions on configuration files containing secrets
 
 ## Overview
 
 zcert provides a comprehensive set of certificate lifecycle operations including enrollment, retrieval, revocation, and management through the ZTPKI REST API. The tool uses HAWK authentication and supports multiple output formats for maximum flexibility.
 
-## Features
+## ✨ Key Features
 
 - **Certificate Enrollment**: Generate private keys, create CSRs, and request certificates
 - **Certificate Retrieval**: Fetch existing certificates by ID, Common Name, or other criteria
