@@ -169,9 +169,9 @@ func outputTable(certificates []api.Certificate) error {
                 id := truncateString(cert.ID, 12)
                 cn := truncateString(cert.CommonName, 25)
                 serial := truncateString(cert.Serial, 16)
-                status := cert.Status
-                issuer := truncateString(cert.Issuer, 20)
-                expires := cert.ExpiryDate.Format("2006-01-02")
+                status := cert.RevocationStatus
+                issuer := truncateString(cert.IssuerDN, 20)
+                expires := cert.NotAfter.Format("2006-01-02")
                 
                 fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n", 
                         id, cn, serial, status, issuer, expires)
@@ -187,11 +187,11 @@ func outputJSON(certificates []api.Certificate) error {
                 fmt.Printf("  {\n")
                 fmt.Printf("    \"id\": \"%s\",\n", cert.ID)
                 fmt.Printf("    \"commonName\": \"%s\",\n", cert.CommonName)
-                fmt.Printf("    \"serialNumber\": \"%s\",\n", cert.SerialNumber)
-                fmt.Printf("    \"status\": \"%s\",\n", cert.Status)
-                fmt.Printf("    \"issuer\": \"%s\",\n", cert.Issuer)
-                fmt.Printf("    \"expiryDate\": \"%s\",\n", cert.ExpiryDate.Format(time.RFC3339))
-                fmt.Printf("    \"policyId\": \"%s\"\n", cert.PolicyID)
+                fmt.Printf("    \"serialNumber\": \"%s\",\n", cert.Serial)
+                fmt.Printf("    \"status\": \"%s\",\n", cert.RevocationStatus)
+                fmt.Printf("    \"issuer\": \"%s\",\n", cert.IssuerDN)
+                fmt.Printf("    \"expiryDate\": \"%s\",\n", cert.NotAfter.Format(time.RFC3339))
+                fmt.Printf("    \"policyId\": \"%s\"\n", cert.ID)
                 if i < len(certificates)-1 {
                         fmt.Printf("  },\n")
                 } else {
@@ -211,11 +211,11 @@ func outputCSV(certificates []api.Certificate) error {
                 fmt.Printf("\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",\"%s\"\n",
                         cert.ID,
                         cert.CommonName,
-                        cert.SerialNumber,
-                        cert.Status,
-                        cert.Issuer,
-                        cert.ExpiryDate.Format("2006-01-02 15:04:05"),
-                        cert.PolicyID)
+                        cert.Serial,
+                        cert.RevocationStatus,
+                        cert.IssuerDN,
+                        cert.NotAfter.Format("2006-01-02 15:04:05"),
+                        cert.ID)
         }
         return nil
 }

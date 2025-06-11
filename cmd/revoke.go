@@ -157,7 +157,7 @@ func runRevoke(cmd *cobra.Command, args []string) error {
         fmt.Printf("Certificate successfully revoked:\n")
         fmt.Printf("  ID: %s\n", certificate.ID)
         fmt.Printf("  Common Name: %s\n", certificate.CommonName)
-        fmt.Printf("  Serial Number: %s\n", certificate.SerialNumber)
+        fmt.Printf("  Serial Number: %s\n", certificate.Serial)
         fmt.Printf("  Revocation Reason: %s\n", revokeReason)
 
         if viper.GetBool("verbose") {
