@@ -35,23 +35,17 @@ func init() {
 
 {{.Long}}
 
-Usage Examples:
+Usage:{{if .Runnable}}
+  {{.CommandPath}} [command] [flags]{{end}}{{if .HasAvailableSubCommands}}
+
+Available Commands:{{range .Commands}}{{if (or .IsAvailableCommand (eq .Name "help"))}}
+  {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{end}}
+
+Examples:
   zcert config --cnf                                                # Generate zcert.cnf
   zcert enroll --config zcert.cnf --cn "cert.test.com"                   # Engage the default profile
   zcert enroll --config zcert.cnf --profile prod --cn "cert.prod.com"    # Use specific profile
-
-Usage:{{if .Runnable}}
-  {{.UseLine}}{{end}}{{if .HasAvailableSubCommands}}
-  {{.CommandPath}} [command]{{end}}{{if gt (len .Aliases) 0}}
-
-Aliases:
-  {{.NameAndAliases}}{{end}}{{if .HasExample}}
-
-Examples:
-{{.Example}}{{end}}{{if .HasAvailableSubCommands}}
-
-Available Commands:{{range .Commands}}{{if (or .IsAvailableCommand (eq .Name "help"))}}
-  {{rpad .Name .NamePadding }} {{.Short}}{{end}}{{end}}{{end}}{{if .HasAvailableLocalFlags}}
+{{if .HasAvailableLocalFlags}}
 
 Flags:
 {{.LocalFlags.FlagUsages | trimTrailingWhitespaces}}{{end}}{{if .HasAvailableInheritedFlags}}
@@ -67,30 +61,9 @@ Use "{{.CommandPath}} [command] --help" for more information about a command.{{e
 }
 
 func runConfig(cmd *cobra.Command, args []string) error {
-        // If no flags are specified, show help with subcommands
+        // If no flags are specified, show help using the custom template
         if !configCnf && !configYaml {
-                fmt.Println("Generate example configuration files for zcert.")
-                fmt.Println()
-                fmt.Println("Usage:")
-                fmt.Println("  zcert config [flags]")
-                fmt.Println("  zcert config [command]")
-                fmt.Println()
-                fmt.Println("Available Commands:")
-                fmt.Println("  completion  Generate shell completion scripts")
-                fmt.Println()
-                fmt.Println("Flags:")
-                fmt.Println("      --cnf             Generate profile-based configuration file (zcert.cnf)")
-                fmt.Println("  -h, --help            help for config")
-                fmt.Println("      --output string   Output filename (default: zcert.cnf or .zcert.yaml)")
-                fmt.Println("      --yaml            Generate YAML-based configuration file")
-                fmt.Println()
-                fmt.Println("Global Flags:")
-                fmt.Println("      --config string    profile config file (e.g., zcert.cnf)")
-                fmt.Println("      --profile string   profile name from config file (default: Default)")
-                fmt.Println("      --verbose          verbose output")
-                fmt.Println()
-                fmt.Println("Use \"zcert config [command] --help\" for more information about a command.")
-                return nil
+                return cmd.Help()
         }
 
         if configCnf {
