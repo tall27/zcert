@@ -6,8 +6,8 @@
 [Default]
 # Default profile used when no -profile is specified
 url = https://ztpki-dev.venafi.com/api/v2
-key-id = 
-secret = 
+key-id = ${ZTPKI_HAWK_ID}
+secret = ${ZTPKI_HAWK_SECRET} 
 algo = sha256
 format = pem
 policy = ${ZTPKI_POLICY_ID}
