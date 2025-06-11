@@ -344,7 +344,7 @@ func getSearchUsageFunc() func(*cobra.Command) error {
                 fmt.Printf("      --algo string       HAWK algorithm (sha1, sha256) (default \"sha256\")\n\n")
                 
                 fmt.Printf("Search Criteria:\n")
-                fmt.Printf("      --cn string         Search by Common Name (supports wildcards)\n")
+                fmt.Printf("      --cn string         Search by Common Name (substring matching supported)\n")
                 fmt.Printf("      --issuer string     Search by certificate issuer\n")
                 fmt.Printf("      --serial string     Search by serial number\n")
                 fmt.Printf("      --policy string     Search by policy ID or name\n")
@@ -352,7 +352,8 @@ func getSearchUsageFunc() func(*cobra.Command) error {
                 
                 fmt.Printf("Time-Based Filters:\n")
                 fmt.Printf("      --expired           Show only expired certificates\n")
-                fmt.Printf("      --expiring int      Show certificates expiring within N days\n\n")
+                fmt.Printf("      --expiring int      Show certificates expiring within N days\n")
+                fmt.Printf("      --recent int        Show certificates issued within N days\n\n")
                 
                 fmt.Printf("Output Options:\n")
                 fmt.Printf("      --format string     Output format (table, json, csv) (default \"table\")\n")
@@ -372,13 +373,20 @@ func getSearchUsageFunc() func(*cobra.Command) error {
 func getSearchHelpFunc() func(*cobra.Command, []string) {
         return func(cmd *cobra.Command, args []string) {
                 fmt.Print(`The search command allows you to find certificates and list them based on various criteria.
-You can search by Common Name, issuer, serial number, policy, or status. The results can be
-displayed in different formats including table, JSON, or CSV.
+You can search by Common Name (with substring matching), issuer, serial number, policy, or status.
+The results can be displayed in different formats including table, JSON, or CSV.
+
+Primary use cases:
+  - Recently issued certificates: --recent 30
+  - Upcoming expiration search: --expiring 30  
+  - Common Name substring matching: --cn "test" (matches test1.mimlab.io)
+  - Serial number search: --serial "ABC123"
 
 Examples:
-  zcert search --cn example.com
-  zcert search --policy "Web Server Policy" --limit 10
-  zcert search --expiring 30  # Certificates expiring in 30 days
+  zcert search --cn test                    # Find certificates with "test" in Common Name
+  zcert search --recent 7                   # Certificates issued in last 7 days
+  zcert search --expiring 30                # Certificates expiring in 30 days
+  zcert search --serial "12345"             # Search by serial number
   zcert search --status active --format json
 
 Usage:
@@ -391,7 +399,7 @@ Server & Authentication:
       --algo string       HAWK algorithm (sha1, sha256) (default "sha256")
 
 Search Criteria:
-      --cn string         Search by Common Name (supports wildcards)
+      --cn string         Search by Common Name (substring matching supported)
       --issuer string     Search by certificate issuer
       --serial string     Search by serial number
       --policy string     Search by policy ID or name
@@ -400,6 +408,7 @@ Search Criteria:
 Time-Based Filters:
       --expired           Show only expired certificates
       --expiring int      Show certificates expiring within N days
+      --recent int        Show certificates issued within N days
 
 Output Options:
       --format string     Output format (table, json, csv) (default "table")
