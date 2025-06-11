@@ -101,7 +101,7 @@ func init() {
         enrollCmd.Flags().StringSliceVar(&enrollSANsIP, "san-ip", []string{}, "IP Subject Alternative Name (repeatable: --san-ip 192.168.1.1 --san-ip 10.0.0.1)")
         enrollCmd.Flags().StringSliceVar(&enrollSANsEmail, "san-email", []string{}, "Email Subject Alternative Name (repeatable)")
         enrollCmd.Flags().StringVar(&enrollPolicy, "policy", "", "Policy ID or name for certificate issuance (optional - will show selection if not specified)")
-        enrollCmd.Flags().StringVar(&enrollValidity, "validity", "", "Certificate validity period (formats: 30d, 6m, 1y, 30d6m, 1y6m)")
+        enrollCmd.Flags().StringVar(&enrollValidity, "validity", "", "Certificate validity period (formats: 30d, 6m, 1y, 30d6m, 1y6m, or plain number for days)")
 
         // Certificate Subject (Distinguished Name)
         enrollCmd.Flags().StringSliceVar(&enrollOrg, "org", []string{"OmniCorp"}, "Organization (O) (repeatable)")
@@ -708,6 +708,16 @@ func parseValidityPeriod(validityStr string) (*api.ValidityPeriod, error) {
         // Initialize result
         validity := &api.ValidityPeriod{}
 
+        // Check if it's a plain number (from config file) - assume days
+        if matched, _ := regexp.MatchString(`^\d+$`, validityStr); matched {
+                days, err := strconv.Atoi(validityStr)
+                if err != nil {
+                        return nil, fmt.Errorf("invalid numeric validity value: %v", err)
+                }
+                validity.Days = days
+                return validity, nil
+        }
+
         // Regular expressions for parsing different components
         dayRe := regexp.MustCompile(`(\d+)d`)
         monthRe := regexp.MustCompile(`(\d+)m`)
@@ -742,7 +752,7 @@ func parseValidityPeriod(validityStr string) (*api.ValidityPeriod, error) {
 
         // Validate that at least one component was parsed
         if validity.Days == 0 && validity.Months == 0 && validity.Years == 0 {
-                return nil, fmt.Errorf("invalid validity format: %s (expected formats: 30d, 6m, 1y, 30d6m, 1y6m)", validityStr)
+                return nil, fmt.Errorf("invalid validity format: %s (expected formats: 30d, 6m, 1y, 30d6m, 1y6m, or plain number for days)", validityStr)
         }
 
         return validity, nil

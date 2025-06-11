@@ -1,7 +1,7 @@
 # zcert Profile Configuration File
 # This file supports multiple profiles with different ZTPKI settings
-# Use: zcert -config zcert.cnf --cn "mycert.com" 
-#   or zcert -config zcert.cnf -profile test --cn "mycert.com"
+# Use: zcert enroll --config zcert.cnf --cn "mycert.com" 
+#   or zcert enroll --config zcert.cnf --profile test --cn "mycert.com"
 
 [Default]
 # Default profile used when no -profile is specified
@@ -12,7 +12,7 @@ format = pem
 policy = PolicyID
 key-size = 2048
 key-type = rsa
-validity = 365
+validity = 365  # Days (can use 365, 30d, 6m, 1y, etc.)
 chain = true
 
 [test]
@@ -24,7 +24,7 @@ format = pem
 policy = PolicyID
 key-size = 2048
 key-type = rsa
-validity = 90
+validity = 90  # Days (can use 90, 90d, 3m, etc.)
 chain = false
 
 [prod]
@@ -36,6 +36,6 @@ format = pem
 policy = PolicyID
 key-size = 4096
 key-type = rsa
-validity = 365
+validity = 365  # Days (can use 365, 365d, 1y, etc.)
 chain = true
 no-key-output = false
