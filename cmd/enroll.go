@@ -608,7 +608,7 @@ Certificate Request:
       --san-dns strings          DNS Subject Alternative Name (repeatable: --san-dns example.com --san-dns *.example.com)
       --san-email strings        Email Subject Alternative Name (repeatable)
       --san-ip strings           IP Subject Alternative Name (repeatable: --san-ip 192.168.1.1 --san-ip 10.0.0.1)
-      --validity string          Certificate validity period (formats: 30d, 6m, 1y, 30d6m, 1y6m)
+      --validity string          Certificate validity period (formats: 30d, 6m, 1y, 30d6m, 1y6m, or plain number for days)
 
 Certificate Subject (Distinguished Name):
       --country string     Country (C) (default "US")
