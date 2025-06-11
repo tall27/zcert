@@ -160,7 +160,14 @@ func (ps *PolicySelector) SelectCompatiblePolicy(userArgs *UserArgs) (string, er
         }
 
         // Validate that selection is compatible
-        if !containsInt(compatibleIndices, selection) {
+        compatible := false
+        for _, idx := range compatibleIndices {
+                if idx == selection {
+                        compatible = true
+                        break
+                }
+        }
+        if !compatible {
                 return "", fmt.Errorf("selected policy is incompatible with your certificate requirements")
         }
 
