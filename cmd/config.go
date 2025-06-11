@@ -1,37 +1,37 @@
 package cmd
 
 import (
-	"fmt"
-	"os"
-	"path/filepath"
+        "fmt"
+        "os"
+        "path/filepath"
 
-	"github.com/spf13/cobra"
-	"zcert/internal/config"
+        "github.com/spf13/cobra"
+        "zcert/internal/config"
 )
 
 var (
-	configCnf    bool
-	configYaml   bool
-	configOutput string
+        configCnf    bool
+        configYaml   bool
+        configOutput string
 )
 
 // configCmd represents the config command
 var configCmd = &cobra.Command{
-	Use:   "config",
-	Short: "Generate example configuration files",
-	Long:  `Generate example configuration files for zcert.`,
-	RunE:  runConfig,
+        Use:   "config",
+        Short: "Generate example configuration files",
+        Long:  `Generate example configuration files for zcert.`,
+        RunE:  runConfig,
 }
 
 func init() {
-	rootCmd.AddCommand(configCmd)
+        rootCmd.AddCommand(configCmd)
 
-	configCmd.Flags().BoolVar(&configCnf, "cnf", false, "Generate profile-based configuration file (zcert.cnf)")
-	configCmd.Flags().BoolVar(&configYaml, "yaml", false, "Generate YAML-based configuration file")
-	configCmd.Flags().StringVar(&configOutput, "output", "", "Output filename (default: zcert.cnf or .zcert.yaml)")
+        configCmd.Flags().BoolVar(&configCnf, "cnf", false, "Generate profile-based configuration file (zcert.cnf)")
+        configCmd.Flags().BoolVar(&configYaml, "yaml", false, "Generate YAML-based configuration file")
+        configCmd.Flags().StringVar(&configOutput, "output", "", "Output filename (default: zcert.cnf or .zcert.yaml)")
 
-	// Set custom help template to include usage examples
-	configCmd.SetHelpTemplate(`{{.Short}}
+        // Set custom help template to include usage examples
+        configCmd.SetHelpTemplate(`{{.Short}}
 
 {{.Long}}
 
@@ -67,88 +67,94 @@ Use "{{.CommandPath}} [command] --help" for more information about a command.{{e
 }
 
 func runConfig(cmd *cobra.Command, args []string) error {
-	// If no flags are specified, show basic help without examples
-	if !configCnf && !configYaml {
-		fmt.Println("Generate example configuration files for zcert.")
-		fmt.Println()
-		fmt.Println("Usage:")
-		fmt.Println("  zcert config [flags]")
-		fmt.Println()
-		fmt.Println("Flags:")
-		fmt.Println("      --cnf             Generate profile-based configuration file (zcert.cnf)")
-		fmt.Println("  -h, --help            help for config")
-		fmt.Println("      --output string   Output filename (default: zcert.cnf or .zcert.yaml)")
-		fmt.Println("      --yaml            Generate YAML-based configuration file")
-		fmt.Println()
-		fmt.Println("Global Flags:")
-		fmt.Println("      --config string    profile config file (e.g., zcert.cnf)")
-		fmt.Println("      --profile string   profile name from config file (default: Default)")
-		fmt.Println("      --verbose          verbose output")
-		return nil
-	}
+        // If no flags are specified, show help with subcommands
+        if !configCnf && !configYaml {
+                fmt.Println("Generate example configuration files for zcert.")
+                fmt.Println()
+                fmt.Println("Usage:")
+                fmt.Println("  zcert config [flags]")
+                fmt.Println("  zcert config [command]")
+                fmt.Println()
+                fmt.Println("Available Commands:")
+                fmt.Println("  completion  Generate shell completion scripts")
+                fmt.Println()
+                fmt.Println("Flags:")
+                fmt.Println("      --cnf             Generate profile-based configuration file (zcert.cnf)")
+                fmt.Println("  -h, --help            help for config")
+                fmt.Println("      --output string   Output filename (default: zcert.cnf or .zcert.yaml)")
+                fmt.Println("      --yaml            Generate YAML-based configuration file")
+                fmt.Println()
+                fmt.Println("Global Flags:")
+                fmt.Println("      --config string    profile config file (e.g., zcert.cnf)")
+                fmt.Println("      --profile string   profile name from config file (default: Default)")
+                fmt.Println("      --verbose          verbose output")
+                fmt.Println()
+                fmt.Println("Use \"zcert config [command] --help\" for more information about a command.")
+                return nil
+        }
 
-	if configCnf {
-		// Generate profile-based configuration
-		filename := configOutput
-		if filename == "" {
-			filename = "zcert.cnf"
-		}
+        if configCnf {
+                // Generate profile-based configuration
+                filename := configOutput
+                if filename == "" {
+                        filename = "zcert.cnf"
+                }
 
-		// Check if file exists
-		if _, err := os.Stat(filename); err == nil {
-			fmt.Printf("File %s already exists. Overwrite? (y/N): ", filename)
-			var response string
-			fmt.Scanln(&response)
-			if response != "y" && response != "Y" {
-				fmt.Println("Configuration file generation cancelled.")
-				return nil
-			}
-		}
+                // Check if file exists
+                if _, err := os.Stat(filename); err == nil {
+                        fmt.Printf("File %s already exists. Overwrite? (y/N): ", filename)
+                        var response string
+                        fmt.Scanln(&response)
+                        if response != "y" && response != "Y" {
+                                fmt.Println("Configuration file generation cancelled.")
+                                return nil
+                        }
+                }
 
-		err := config.CreateExampleProfileConfig(filename)
-		if err != nil {
-			return fmt.Errorf("failed to create example config: %w", err)
-		}
+                err := config.CreateExampleProfileConfig(filename)
+                if err != nil {
+                        return fmt.Errorf("failed to create example config: %w", err)
+                }
 
-		fmt.Printf("Example profile configuration created: %s\n", filename)
-		fmt.Println("\nUsage examples:")
-		fmt.Printf("  zcert --config %s enroll --cn \"example.com\"\n", filename)
-		fmt.Printf("  zcert --config %s --profile prod enroll --cn \"example.com\"\n", filename)
-		fmt.Printf("  zcert --config %s search --expiring 30\n", filename)
+                fmt.Printf("Example profile configuration created: %s\n", filename)
+                fmt.Println("\nUsage examples:")
+                fmt.Printf("  zcert --config %s enroll --cn \"example.com\"\n", filename)
+                fmt.Printf("  zcert --config %s --profile prod enroll --cn \"example.com\"\n", filename)
+                fmt.Printf("  zcert --config %s search --expiring 30\n", filename)
 
-		return nil
-	}
+                return nil
+        }
 
-	if configYaml {
-		// Generate YAML configuration
-		filename := configOutput
-		if filename == "" {
-			home, err := os.UserHomeDir()
-			if err != nil {
-				return fmt.Errorf("failed to get home directory: %w", err)
-			}
-			filename = filepath.Join(home, ".zcert.yaml")
-		}
+        if configYaml {
+                // Generate YAML configuration
+                filename := configOutput
+                if filename == "" {
+                        home, err := os.UserHomeDir()
+                        if err != nil {
+                                return fmt.Errorf("failed to get home directory: %w", err)
+                        }
+                        filename = filepath.Join(home, ".zcert.yaml")
+                }
 
-		// Check if file exists
-		if _, err := os.Stat(filename); err == nil {
-			fmt.Printf("File %s already exists. Overwrite? (y/N): ", filename)
-			var response string
-			fmt.Scanln(&response)
-			if response != "y" && response != "Y" {
-				fmt.Println("Configuration file generation cancelled.")
-				return nil
-			}
-		}
+                // Check if file exists
+                if _, err := os.Stat(filename); err == nil {
+                        fmt.Printf("File %s already exists. Overwrite? (y/N): ", filename)
+                        var response string
+                        fmt.Scanln(&response)
+                        if response != "y" && response != "Y" {
+                                fmt.Println("Configuration file generation cancelled.")
+                                return nil
+                        }
+                }
 
-		err := config.SaveExampleConfig(filename)
-		if err != nil {
-			return fmt.Errorf("failed to create example config: %w", err)
-		}
+                err := config.SaveExampleConfig(filename)
+                if err != nil {
+                        return fmt.Errorf("failed to create example config: %w", err)
+                }
 
-		fmt.Printf("Example YAML configuration created: %s\n", filename)
-		fmt.Println("\nEdit the file and add your ZTPKI credentials.")
-	}
+                fmt.Printf("Example YAML configuration created: %s\n", filename)
+                fmt.Println("\nEdit the file and add your ZTPKI credentials.")
+        }
 
-	return nil
+        return nil
 }
