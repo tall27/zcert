@@ -409,53 +409,7 @@ func runEnroll(cmd *cobra.Command, args []string) error {
         // Poll for certificate request completion
         var certificate *api.Certificate
 
-        // OLD APPROACH: Comment out for testing new immediate polling approach
-        /*
-           maxAttempts := 20
-           pollInterval := 2 * time.Second
-
-           for i := 0; i < maxAttempts; i++ {
-                   if viper.GetBool("verbose") {
-                           fmt.Fprintf(os.Stderr, "Checking certificate status (attempt %d/%d)...\n", i+1, maxAttempts)
-                   }
-
-                   // First, check the request status to get certificate ID
-                   request, err := client.GetCertificateRequest(requestID)
-                   if err != nil {
-                           if viper.GetBool("verbose") {
-                                   fmt.Fprintf(os.Stderr, "Error checking request status: %v\n", err)
-                           }
-                   } else if request != nil {
-                           if viper.GetBool("verbose") {
-                                   fmt.Fprintf(os.Stderr, "Request status: %s, Certificate ID: %s\n", request.Status, request.CertificateID)
-                           }
-
-                           if request.CertificateID != "" {
-                                   // Request completed, now get the actual certificate
-                                   certificate, err = client.GetCertificate(request.CertificateID)
-                                   if err == nil && certificate != nil && certificate.Certificate != "" {
-                                           if viper.GetBool("verbose") {
-                                                   fmt.Fprintf(os.Stderr, "Certificate retrieved successfully! Certificate ID: %s\n", request.CertificateID)
-                                           }
-                                           break
-                                   } else if err != nil {
-                                           if viper.GetBool("verbose") {
-                                                   fmt.Fprintf(os.Stderr, "Error retrieving certificate: %v\n", err)
-                                           }
-                                   }
-                           }
-                   }
-
-                   if i < maxAttempts-1 {
-                           if viper.GetBool("verbose") {
-                                   fmt.Fprintf(os.Stderr, "Certificate not ready yet, waiting %v...\n", pollInterval)
-                           }
-                           time.Sleep(pollInterval)
-                   }
-           }
-        */
-
-        // NEW APPROACH: Immediate polling with 2-second timeout
+        // Immediate polling with 2-second timeout
         if viper.GetBool("verbose") {
                 fmt.Fprintln(os.Stderr, "Starting immediate certificate polling with 2-second timeout...")
         }

@@ -210,7 +210,6 @@ func (ps *PolicySelector) fetchAllPolicies() ([]Policy, error) {
                                         {Tag: "CN", Required: true},
                                 },
                         },
-                        // REMOVED PolicyEnabled validation - as requested
                         Enabled: PolicyEnabled{REST: true, UI: true, ACME: true, SCEP: true},
                 }
                 
