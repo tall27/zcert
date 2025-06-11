@@ -75,26 +75,6 @@ func runCompletion(cmd *cobra.Command, args []string) error {
 }
 
 func generateBashCompletion(cmd *cobra.Command) error {
-        fmt.Println("# Bash completion script for zcert")
-        fmt.Println("# Save this to a file and source it in your shell")
-        fmt.Println("")
-        fmt.Println("# Installation instructions:")
-        fmt.Println("# 1. Generate completion script:")
-        fmt.Println("#    zcert config completion --shell bash > zcert-completion.bash")
-        fmt.Println("# 2. Enable bash completion (if not already enabled):")
-        fmt.Println("#    source /usr/share/bash-completion/bash_completion")
-        fmt.Println("#    shopt -s progcomp")
-        fmt.Println("# 3. Source it in your current session:")
-        fmt.Println("#    source zcert-completion.bash")
-        fmt.Println("# 4. For permanent installation, add to your ~/.bashrc:")
-        fmt.Println("#    echo 'source /path/to/zcert-completion.bash' >> ~/.bashrc")
-        fmt.Println("# 5. Or install system-wide (requires sudo):")
-        fmt.Println("#    sudo cp zcert-completion.bash /etc/bash_completion.d/zcert")
-        fmt.Println("")
-        fmt.Println("# For Replit environments, use the provided setup script:")
-        fmt.Println("#    ./setup-completion.sh")
-        fmt.Println("")
-        
         err := rootCmd.GenBashCompletionV2(os.Stdout, true)
         if err != nil {
                 return err
