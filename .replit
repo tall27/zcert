@@ -2,6 +2,7 @@ modules = ["go-1.21", "bash", "python-3.11"]
 
 [nix]
 channel = "stable-24_05"
+packages = ["jq"]
 
 [workflows]
 runButton = "Project"
