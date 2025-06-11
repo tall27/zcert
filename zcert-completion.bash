@@ -4,81 +4,65 @@
 # Installation instructions:
 # 1. Generate completion script:
 #    zcert config completion --shell bash > zcert-completion.bash
-# 2. Source it in your current session:
+# 2. Enable bash completion (if not already enabled):
+#    source /usr/share/bash-completion/bash_completion
+#    shopt -s progcomp
+# 3. Source it in your current session:
 #    source zcert-completion.bash
-# 3. For permanent installation, add to your ~/.bashrc:
+# 4. For permanent installation, add to your ~/.bashrc:
 #    echo 'source /path/to/zcert-completion.bash' >> ~/.bashrc
-# 4. Or install system-wide (requires sudo):
+# 5. Or install system-wide (requires sudo):
 #    sudo cp zcert-completion.bash /etc/bash_completion.d/zcert
 
-# bash completion for zcert                                -*- shell-script -*-
+# For Replit environments, use the provided setup script:
+#    ./setup-completion.sh
+
+# bash completion V2 for zcert                                -*- shell-script -*-
 
 __zcert_debug()
 {
-    if [[ -n ${BASH_COMP_DEBUG_FILE:-} ]]; then
+    if [[ -n ${BASH_COMP_DEBUG_FILE-} ]]; then
         echo "$*" >> "${BASH_COMP_DEBUG_FILE}"
     fi
 }
 
-# Homebrew on Macs have version 1.3 of bash-completion which doesn't include
-# _init_completion. This is a very minimal version of that function.
+# Macs have bash3 for which the bash-completion package doesn't include
+# _init_completion. This is a minimal version of that function.
 __zcert_init_completion()
 {
     COMPREPLY=()
     _get_comp_words_by_ref "$@" cur prev words cword
 }
 
-__zcert_index_of_word()
-{
-    local w word=$1
-    shift
-    index=0
-    for w in "$@"; do
-        [[ $w = "$word" ]] && return
-        index=$((index+1))
-    done
-    index=-1
-}
-
-__zcert_contains_word()
-{
-    local w word=$1; shift
-    for w in "$@"; do
-        [[ $w = "$word" ]] && return
-    done
-    return 1
-}
-
-__zcert_handle_go_custom_completion()
-{
-    __zcert_debug "${FUNCNAME[0]}: cur is ${cur}, words[*] is ${words[*]}, #words[@] is ${#words[@]}"
-
-    local shellCompDirectiveError=1
-    local shellCompDirectiveNoSpace=2
-    local shellCompDirectiveNoFileComp=4
-    local shellCompDirectiveFilterFileExt=8
-    local shellCompDirectiveFilterDirs=16
-
-    local out requestComp lastParam lastChar comp directive args
+# This function calls the zcert program to obtain the completion
+# results and the directive.  It fills the 'out' and 'directive' vars.
+__zcert_get_completion_results() {
+    local requestComp lastParam lastChar args
 
     # Prepare the command to request completions for the program.
     # Calling ${words[0]} instead of directly zcert allows handling aliases
     args=("${words[@]:1}")
-    # Disable ActiveHelp which is not supported for bash completion v1
-    requestComp="ZCERT_ACTIVE_HELP=0 ${words[0]} __completeNoDesc ${args[*]}"
+    requestComp="${words[0]} __complete ${args[*]}"
 
     lastParam=${words[$((${#words[@]}-1))]}
     lastChar=${lastParam:$((${#lastParam}-1)):1}
-    __zcert_debug "${FUNCNAME[0]}: lastParam ${lastParam}, lastChar ${lastChar}"
+    __zcert_debug "lastParam ${lastParam}, lastChar ${lastChar}"
 
-    if [ -z "${cur}" ] && [ "${lastChar}" != "=" ]; then
+    if [[ -z ${cur} && ${lastChar} != = ]]; then
         # If the last parameter is complete (there is a space following it)
         # We add an extra empty parameter so we can indicate this to the go method.
-        __zcert_debug "${FUNCNAME[0]}: Adding extra empty parameter"
-        requestComp="${requestComp} \"\""
+        __zcert_debug "Adding extra empty parameter"
+        requestComp="${requestComp} ''"
     fi
 
-    __zcert_debug "${FUNCNAME[0]}: calling ${requestComp}"
+    # When completing a flag with an = (e.g., zcert -n=<TAB>)
+    # bash focuses on the part after the =, so we need to remove
+    # the flag part from $cur
+    if [[ ${cur} == -*=* ]]; then
+        cur="${cur#*=}"
+    fi
+
+    __zcert_debug "Calling ${requestComp}"
     # Use eval to handle any environment variables and such
     out=$(eval "${requestComp}" 2>/dev/null)
 
@@ -86,823 +70,282 @@ __zcert_handle_go_custom_completion()
     directive=${out##*:}
     # Remove the directive
     out=${out%:*}
-    if [ "${directive}" = "${out}" ]; then
+    if [[ ${directive} == "${out}" ]]; then
         # There is not directive specified
         directive=0
     fi
-    __zcert_debug "${FUNCNAME[0]}: the completion directive is: ${directive}"
-    __zcert_debug "${FUNCNAME[0]}: the completions are: ${out}"
+    __zcert_debug "The completion directive is: ${directive}"
+    __zcert_debug "The completions are: ${out}"
+}
 
-    if [ $((directive & shellCompDirectiveError)) -ne 0 ]; then
+__zcert_process_completion_results() {
+    local shellCompDirectiveError=1
+    local shellCompDirectiveNoSpace=2
+    local shellCompDirectiveNoFileComp=4
+    local shellCompDirectiveFilterFileExt=8
+    local shellCompDirectiveFilterDirs=16
+    local shellCompDirectiveKeepOrder=32
+
+    if (((directive & shellCompDirectiveError) != 0)); then
         # Error code.  No completion.
-        __zcert_debug "${FUNCNAME[0]}: received error from custom completion go code"
+        __zcert_debug "Received error from custom completion go code"
         return
     else
-        if [ $((directive & shellCompDirectiveNoSpace)) -ne 0 ]; then
-            if [[ $(type -t compopt) = "builtin" ]]; then
-                __zcert_debug "${FUNCNAME[0]}: activating no space"
+        if (((directive & shellCompDirectiveNoSpace) != 0)); then
+            if [[ $(type -t compopt) == builtin ]]; then
+                __zcert_debug "Activating no space"
                 compopt -o nospace
+            else
+                __zcert_debug "No space directive not supported in this version of bash"
             fi
         fi
-        if [ $((directive & shellCompDirectiveNoFileComp)) -ne 0 ]; then
-            if [[ $(type -t compopt) = "builtin" ]]; then
-                __zcert_debug "${FUNCNAME[0]}: activating no file completion"
+        if (((directive & shellCompDirectiveKeepOrder) != 0)); then
+            if [[ $(type -t compopt) == builtin ]]; then
+                # no sort isn't supported for bash less than < 4.4
+                if [[ ${BASH_VERSINFO[0]} -lt 4 || ( ${BASH_VERSINFO[0]} -eq 4 && ${BASH_VERSINFO[1]} -lt 4 ) ]]; then
+                    __zcert_debug "No sort directive not supported in this version of bash"
+                else
+                    __zcert_debug "Activating keep order"
+                    compopt -o nosort
+                fi
+            else
+                __zcert_debug "No sort directive not supported in this version of bash"
+            fi
+        fi
+        if (((directive & shellCompDirectiveNoFileComp) != 0)); then
+            if [[ $(type -t compopt) == builtin ]]; then
+                __zcert_debug "Activating no file completion"
                 compopt +o default
+            else
+                __zcert_debug "No file completion directive not supported in this version of bash"
             fi
         fi
     fi
 
-    if [ $((directive & shellCompDirectiveFilterFileExt)) -ne 0 ]; then
+    # Separate activeHelp from normal completions
+    local completions=()
+    local activeHelp=()
+    __zcert_extract_activeHelp
+
+    if (((directive & shellCompDirectiveFilterFileExt) != 0)); then
         # File extension filtering
         local fullFilter filter filteringCmd
-        # Do not use quotes around the $out variable or else newline
+
+        # Do not use quotes around the $completions variable or else newline
         # characters will be kept.
-        for filter in ${out}; do
+        for filter in ${completions[*]}; do
             fullFilter+="$filter|"
         done
 
         filteringCmd="_filedir $fullFilter"
         __zcert_debug "File filtering command: $filteringCmd"
         $filteringCmd
-    elif [ $((directive & shellCompDirectiveFilterDirs)) -ne 0 ]; then
+    elif (((directive & shellCompDirectiveFilterDirs) != 0)); then
         # File completion for directories only
+
         local subdir
-        # Use printf to strip any trailing newline
-        subdir=$(printf "%s" "${out}")
-        if [ -n "$subdir" ]; then
+        subdir=${completions[0]}
+        if [[ -n $subdir ]]; then
             __zcert_debug "Listing directories in $subdir"
-            __zcert_handle_subdirs_in_dir_flag "$subdir"
+            pushd "$subdir" >/dev/null 2>&1 && _filedir -d && popd >/dev/null 2>&1 || return
         else
             __zcert_debug "Listing directories in ."
             _filedir -d
         fi
     else
-        while IFS='' read -r comp; do
-            COMPREPLY+=("$comp")
-        done < <(compgen -W "${out}" -- "$cur")
+        __zcert_handle_completion_types
+    fi
+
+    __zcert_handle_special_char "$cur" :
+    __zcert_handle_special_char "$cur" =
+
+    # Print the activeHelp statements before we finish
+    if ((${#activeHelp[*]} != 0)); then
+        printf "\n";
+        printf "%s\n" "${activeHelp[@]}"
+        printf "\n"
+
+        # The prompt format is only available from bash 4.4.
+        # We test if it is available before using it.
+        if (x=${PS1@P}) 2> /dev/null; then
+            printf "%s" "${PS1@P}${COMP_LINE[@]}"
+        else
+            # Can't print the prompt.  Just print the
+            # text the user had typed, it is workable enough.
+            printf "%s" "${COMP_LINE[@]}"
+        fi
     fi
 }
 
-__zcert_handle_reply()
-{
-    __zcert_debug "${FUNCNAME[0]}"
-    local comp
-    case $cur in
-        -*)
-            if [[ $(type -t compopt) = "builtin" ]]; then
-                compopt -o nospace
-            fi
-            local allflags
-            if [ ${#must_have_one_flag[@]} -ne 0 ]; then
-                allflags=("${must_have_one_flag[@]}")
-            else
-                allflags=("${flags[*]} ${two_word_flags[*]}")
-            fi
-            while IFS='' read -r comp; do
-                COMPREPLY+=("$comp")
-            done < <(compgen -W "${allflags[*]}" -- "$cur")
-            if [[ $(type -t compopt) = "builtin" ]]; then
-                [[ "${COMPREPLY[0]}" == *= ]] || compopt +o nospace
-            fi
+# Separate activeHelp lines from real completions.
+# Fills the $activeHelp and $completions arrays.
+__zcert_extract_activeHelp() {
+    local activeHelpMarker="_activeHelp_ "
+    local endIndex=${#activeHelpMarker}
 
-            # complete after --flag=abc
-            if [[ $cur == *=* ]]; then
-                if [[ $(type -t compopt) = "builtin" ]]; then
-                    compopt +o nospace
-                fi
-
-                local index flag
-                flag="${cur%=*}"
-                __zcert_index_of_word "${flag}" "${flags_with_completion[@]}"
-                COMPREPLY=()
-                if [[ ${index} -ge 0 ]]; then
-                    PREFIX=""
-                    cur="${cur#*=}"
-                    ${flags_completion[${index}]}
-                    if [ -n "${ZSH_VERSION:-}" ]; then
-                        # zsh completion needs --flag= prefix
-                        eval "COMPREPLY=( \"\${COMPREPLY[@]/#/${flag}=}\" )"
-                    fi
-                fi
-            fi
-
-            if [[ -z "${flag_parsing_disabled}" ]]; then
-                # If flag parsing is enabled, we have completed the flags and can return.
-                # If flag parsing is disabled, we may not know all (or any) of the flags, so we fallthrough
-                # to possibly call handle_go_custom_completion.
-                return 0;
-            fi
-            ;;
-    esac
-
-    # check if we are handling a flag with special work handling
-    local index
-    __zcert_index_of_word "${prev}" "${flags_with_completion[@]}"
-    if [[ ${index} -ge 0 ]]; then
-        ${flags_completion[${index}]}
-        return
-    fi
-
-    # we are parsing a flag and don't have a special handler, no completion
-    if [[ ${cur} != "${words[cword]}" ]]; then
-        return
-    fi
-
-    local completions
-    completions=("${commands[@]}")
-    if [[ ${#must_have_one_noun[@]} -ne 0 ]]; then
-        completions+=("${must_have_one_noun[@]}")
-    elif [[ -n "${has_completion_function}" ]]; then
-        # if a go completion function is provided, defer to that function
-        __zcert_handle_go_custom_completion
-    fi
-    if [[ ${#must_have_one_flag[@]} -ne 0 ]]; then
-        completions+=("${must_have_one_flag[@]}")
-    fi
     while IFS='' read -r comp; do
-        COMPREPLY+=("$comp")
-    done < <(compgen -W "${completions[*]}" -- "$cur")
+        if [[ ${comp:0:endIndex} == $activeHelpMarker ]]; then
+            comp=${comp:endIndex}
+            __zcert_debug "ActiveHelp found: $comp"
+            if [[ -n $comp ]]; then
+                activeHelp+=("$comp")
+            fi
+        else
+            # Not an activeHelp line but a normal completion
+            completions+=("$comp")
+        fi
+    done <<<"${out}"
+}
 
-    if [[ ${#COMPREPLY[@]} -eq 0 && ${#noun_aliases[@]} -gt 0 && ${#must_have_one_noun[@]} -ne 0 ]]; then
+__zcert_handle_completion_types() {
+    __zcert_debug "__zcert_handle_completion_types: COMP_TYPE is $COMP_TYPE"
+
+    case $COMP_TYPE in
+    37|42)
+        # Type: menu-complete/menu-complete-backward and insert-completions
+        # If the user requested inserting one completion at a time, or all
+        # completions at once on the command-line we must remove the descriptions.
+        # https://github.com/spf13/cobra/issues/1508
+        local tab=$'\t' comp
         while IFS='' read -r comp; do
-            COMPREPLY+=("$comp")
-        done < <(compgen -W "${noun_aliases[*]}" -- "$cur")
+            [[ -z $comp ]] && continue
+            # Strip any description
+            comp=${comp%%$tab*}
+            # Only consider the completions that match
+            if [[ $comp == "$cur"* ]]; then
+                COMPREPLY+=("$comp")
+            fi
+        done < <(printf "%s\n" "${completions[@]}")
+        ;;
+
+    *)
+        # Type: complete (normal completion)
+        __zcert_handle_standard_completion_case
+        ;;
+    esac
+}
+
+__zcert_handle_standard_completion_case() {
+    local tab=$'\t' comp
+
+    # Short circuit to optimize if we don't have descriptions
+    if [[ "${completions[*]}" != *$tab* ]]; then
+        IFS=$'\n' read -ra COMPREPLY -d '' < <(compgen -W "${completions[*]}" -- "$cur")
+        return 0
     fi
 
-    if [[ ${#COMPREPLY[@]} -eq 0 ]]; then
-        if declare -F __zcert_custom_func >/dev/null; then
-            # try command name qualified custom func
-            __zcert_custom_func
-        else
-            # otherwise fall back to unqualified for compatibility
-            declare -F __custom_func >/dev/null && __custom_func
+    local longest=0
+    local compline
+    # Look for the longest completion so that we can format things nicely
+    while IFS='' read -r compline; do
+        [[ -z $compline ]] && continue
+        # Strip any description before checking the length
+        comp=${compline%%$tab*}
+        # Only consider the completions that match
+        [[ $comp == "$cur"* ]] || continue
+        COMPREPLY+=("$compline")
+        if ((${#comp}>longest)); then
+            longest=${#comp}
         fi
-    fi
+    done < <(printf "%s\n" "${completions[@]}")
 
-    # available in bash-completion >= 2, not always present on macOS
-    if declare -F __ltrim_colon_completions >/dev/null; then
-        __ltrim_colon_completions "$cur"
-    fi
-
-    # If there is only 1 completion and it is a flag with an = it will be completed
-    # but we don't want a space after the =
-    if [[ "${#COMPREPLY[@]}" -eq "1" ]] && [[ $(type -t compopt) = "builtin" ]] && [[ "${COMPREPLY[0]}" == --*= ]]; then
-       compopt -o nospace
+    # If there is a single completion left, remove the description text
+    if ((${#COMPREPLY[*]} == 1)); then
+        __zcert_debug "COMPREPLY[0]: ${COMPREPLY[0]}"
+        comp="${COMPREPLY[0]%%$tab*}"
+        __zcert_debug "Removed description from single completion, which is now: ${comp}"
+        COMPREPLY[0]=$comp
+    else # Format the descriptions
+        __zcert_format_comp_descriptions $longest
     fi
 }
 
-# The arguments should be in the form "ext1|ext2|extn"
-__zcert_handle_filename_extension_flag()
+__zcert_handle_special_char()
 {
-    local ext="$1"
-    _filedir "@(${ext})"
+    local comp="$1"
+    local char=$2
+    if [[ "$comp" == *${char}* && "$COMP_WORDBREAKS" == *${char}* ]]; then
+        local word=${comp%"${comp##*${char}}"}
+        local idx=${#COMPREPLY[*]}
+        while ((--idx >= 0)); do
+            COMPREPLY[idx]=${COMPREPLY[idx]#"$word"}
+        done
+    fi
 }
 
-__zcert_handle_subdirs_in_dir_flag()
+__zcert_format_comp_descriptions()
 {
-    local dir="$1"
-    pushd "${dir}" >/dev/null 2>&1 && _filedir -d && popd >/dev/null 2>&1 || return
-}
+    local tab=$'\t'
+    local comp desc maxdesclength
+    local longest=$1
 
-__zcert_handle_flag()
-{
-    __zcert_debug "${FUNCNAME[0]}: c is $c words[c] is ${words[c]}"
+    local i ci
+    for ci in ${!COMPREPLY[*]}; do
+        comp=${COMPREPLY[ci]}
+        # Properly format the description string which follows a tab character if there is one
+        if [[ "$comp" == *$tab* ]]; then
+            __zcert_debug "Original comp: $comp"
+            desc=${comp#*$tab}
+            comp=${comp%%$tab*}
 
-    # if a command required a flag, and we found it, unset must_have_one_flag()
-    local flagname=${words[c]}
-    local flagvalue=""
-    # if the word contained an =
-    if [[ ${words[c]} == *"="* ]]; then
-        flagvalue=${flagname#*=} # take in as flagvalue after the =
-        flagname=${flagname%=*} # strip everything after the =
-        flagname="${flagname}=" # but put the = back
-    fi
-    __zcert_debug "${FUNCNAME[0]}: looking for ${flagname}"
-    if __zcert_contains_word "${flagname}" "${must_have_one_flag[@]}"; then
-        must_have_one_flag=()
-    fi
+            # $COLUMNS stores the current shell width.
+            # Remove an extra 4 because we add 2 spaces and 2 parentheses.
+            maxdesclength=$(( COLUMNS - longest - 4 ))
 
-    # if you set a flag which only applies to this command, don't show subcommands
-    if __zcert_contains_word "${flagname}" "${local_nonpersistent_flags[@]}"; then
-      commands=()
-    fi
+            # Make sure we can fit a description of at least 8 characters
+            # if we are to align the descriptions.
+            if ((maxdesclength > 8)); then
+                # Add the proper number of spaces to align the descriptions
+                for ((i = ${#comp} ; i < longest ; i++)); do
+                    comp+=" "
+                done
+            else
+                # Don't pad the descriptions so we can fit more text after the completion
+                maxdesclength=$(( COLUMNS - ${#comp} - 4 ))
+            fi
 
-    # keep flag value with flagname as flaghash
-    # flaghash variable is an associative array which is only supported in bash > 3.
-    if [[ -z "${BASH_VERSION:-}" || "${BASH_VERSINFO[0]:-}" -gt 3 ]]; then
-        if [ -n "${flagvalue}" ] ; then
-            flaghash[${flagname}]=${flagvalue}
-        elif [ -n "${words[ $((c+1)) ]}" ] ; then
-            flaghash[${flagname}]=${words[ $((c+1)) ]}
-        else
-            flaghash[${flagname}]="true" # pad "true" for bool flag
+            # If there is enough space for any description text,
+            # truncate the descriptions that are too long for the shell width
+            if ((maxdesclength > 0)); then
+                if ((${#desc} > maxdesclength)); then
+                    desc=${desc:0:$(( maxdesclength - 1 ))}
+                    desc+="…"
+                fi
+                comp+="  ($desc)"
+            fi
+            COMPREPLY[ci]=$comp
+            __zcert_debug "Final comp: $comp"
         fi
-    fi
-
-    # skip the argument to a two word flag
-    if [[ ${words[c]} != *"="* ]] && __zcert_contains_word "${words[c]}" "${two_word_flags[@]}"; then
-        __zcert_debug "${FUNCNAME[0]}: found a flag ${words[c]}, skip the next argument"
-        c=$((c+1))
-        # if we are looking for a flags value, don't show commands
-        if [[ $c -eq $cword ]]; then
-            commands=()
-        fi
-    fi
-
-    c=$((c+1))
-
-}
-
-__zcert_handle_noun()
-{
-    __zcert_debug "${FUNCNAME[0]}: c is $c words[c] is ${words[c]}"
-
-    if __zcert_contains_word "${words[c]}" "${must_have_one_noun[@]}"; then
-        must_have_one_noun=()
-    elif __zcert_contains_word "${words[c]}" "${noun_aliases[@]}"; then
-        must_have_one_noun=()
-    fi
-
-    nouns+=("${words[c]}")
-    c=$((c+1))
-}
-
-__zcert_handle_command()
-{
-    __zcert_debug "${FUNCNAME[0]}: c is $c words[c] is ${words[c]}"
-
-    local next_command
-    if [[ -n ${last_command} ]]; then
-        next_command="_${last_command}_${words[c]//:/__}"
-    else
-        if [[ $c -eq 0 ]]; then
-            next_command="_zcert_root_command"
-        else
-            next_command="_${words[c]//:/__}"
-        fi
-    fi
-    c=$((c+1))
-    __zcert_debug "${FUNCNAME[0]}: looking for ${next_command}"
-    declare -F "$next_command" >/dev/null && $next_command
-}
-
-__zcert_handle_word()
-{
-    if [[ $c -ge $cword ]]; then
-        __zcert_handle_reply
-        return
-    fi
-    __zcert_debug "${FUNCNAME[0]}: c is $c words[c] is ${words[c]}"
-    if [[ "${words[c]}" == -* ]]; then
-        __zcert_handle_flag
-    elif __zcert_contains_word "${words[c]}" "${commands[@]}"; then
-        __zcert_handle_command
-    elif [[ $c -eq 0 ]]; then
-        __zcert_handle_command
-    elif __zcert_contains_word "${words[c]}" "${command_aliases[@]}"; then
-        # aliashash variable is an associative array which is only supported in bash > 3.
-        if [[ -z "${BASH_VERSION:-}" || "${BASH_VERSINFO[0]:-}" -gt 3 ]]; then
-            words[c]=${aliashash[${words[c]}]}
-            __zcert_handle_command
-        else
-            __zcert_handle_noun
-        fi
-    else
-        __zcert_handle_noun
-    fi
-    __zcert_handle_word
-}
-
-_zcert_config_completion()
-{
-    last_command="zcert_config_completion"
-
-    command_aliases=()
-
-    commands=()
-
-    flags=()
-    two_word_flags=()
-    local_nonpersistent_flags=()
-    flags_with_completion=()
-    flags_completion=()
-
-    flags+=("--help")
-    flags+=("-h")
-    local_nonpersistent_flags+=("--help")
-    local_nonpersistent_flags+=("-h")
-    flags+=("--shell=")
-    two_word_flags+=("--shell")
-    local_nonpersistent_flags+=("--shell")
-    local_nonpersistent_flags+=("--shell=")
-    flags+=("--config=")
-    two_word_flags+=("--config")
-    flags+=("--profile=")
-    two_word_flags+=("--profile")
-    flags+=("--verbose")
-
-    must_have_one_flag=()
-    must_have_one_flag+=("--shell=")
-    must_have_one_noun=()
-    noun_aliases=()
-}
-
-_zcert_config()
-{
-    last_command="zcert_config"
-
-    command_aliases=()
-
-    commands=()
-    commands+=("completion")
-
-    flags=()
-    two_word_flags=()
-    local_nonpersistent_flags=()
-    flags_with_completion=()
-    flags_completion=()
-
-    flags+=("--cnf")
-    local_nonpersistent_flags+=("--cnf")
-    flags+=("--output=")
-    two_word_flags+=("--output")
-    local_nonpersistent_flags+=("--output")
-    local_nonpersistent_flags+=("--output=")
-    flags+=("--yaml")
-    local_nonpersistent_flags+=("--yaml")
-    flags+=("--config=")
-    two_word_flags+=("--config")
-    flags+=("--profile=")
-    two_word_flags+=("--profile")
-    flags+=("--verbose")
-
-    must_have_one_flag=()
-    must_have_one_noun=()
-    noun_aliases=()
-}
-
-_zcert_enroll()
-{
-    last_command="zcert_enroll"
-
-    command_aliases=()
-
-    commands=()
-
-    flags=()
-    two_word_flags=()
-    local_nonpersistent_flags=()
-    flags_with_completion=()
-    flags_completion=()
-
-    flags+=("--bundle-file=")
-    two_word_flags+=("--bundle-file")
-    local_nonpersistent_flags+=("--bundle-file")
-    local_nonpersistent_flags+=("--bundle-file=")
-    flags+=("--cert-file=")
-    two_word_flags+=("--cert-file")
-    local_nonpersistent_flags+=("--cert-file")
-    local_nonpersistent_flags+=("--cert-file=")
-    flags+=("--chain-file=")
-    two_word_flags+=("--chain-file")
-    local_nonpersistent_flags+=("--chain-file")
-    local_nonpersistent_flags+=("--chain-file=")
-    flags+=("--cn=")
-    two_word_flags+=("--cn")
-    local_nonpersistent_flags+=("--cn")
-    local_nonpersistent_flags+=("--cn=")
-    flags+=("--country=")
-    two_word_flags+=("--country")
-    local_nonpersistent_flags+=("--country")
-    local_nonpersistent_flags+=("--country=")
-    flags+=("--csr=")
-    two_word_flags+=("--csr")
-    local_nonpersistent_flags+=("--csr")
-    local_nonpersistent_flags+=("--csr=")
-    flags+=("--csr-file=")
-    two_word_flags+=("--csr-file")
-    local_nonpersistent_flags+=("--csr-file")
-    local_nonpersistent_flags+=("--csr-file=")
-    flags+=("--format=")
-    two_word_flags+=("--format")
-    local_nonpersistent_flags+=("--format")
-    local_nonpersistent_flags+=("--format=")
-    flags+=("--hawk-id=")
-    two_word_flags+=("--hawk-id")
-    local_nonpersistent_flags+=("--hawk-id")
-    local_nonpersistent_flags+=("--hawk-id=")
-    flags+=("--hawk-key=")
-    two_word_flags+=("--hawk-key")
-    local_nonpersistent_flags+=("--hawk-key")
-    local_nonpersistent_flags+=("--hawk-key=")
-    flags+=("--key-curve=")
-    two_word_flags+=("--key-curve")
-    local_nonpersistent_flags+=("--key-curve")
-    local_nonpersistent_flags+=("--key-curve=")
-    flags+=("--key-file=")
-    two_word_flags+=("--key-file")
-    local_nonpersistent_flags+=("--key-file")
-    local_nonpersistent_flags+=("--key-file=")
-    flags+=("--key-password=")
-    two_word_flags+=("--key-password")
-    local_nonpersistent_flags+=("--key-password")
-    local_nonpersistent_flags+=("--key-password=")
-    flags+=("--key-size=")
-    two_word_flags+=("--key-size")
-    local_nonpersistent_flags+=("--key-size")
-    local_nonpersistent_flags+=("--key-size=")
-    flags+=("--key-type=")
-    two_word_flags+=("--key-type")
-    local_nonpersistent_flags+=("--key-type")
-    local_nonpersistent_flags+=("--key-type=")
-    flags+=("--locality=")
-    two_word_flags+=("--locality")
-    local_nonpersistent_flags+=("--locality")
-    local_nonpersistent_flags+=("--locality=")
-    flags+=("--no-key-output")
-    local_nonpersistent_flags+=("--no-key-output")
-    flags+=("--org=")
-    two_word_flags+=("--org")
-    local_nonpersistent_flags+=("--org")
-    local_nonpersistent_flags+=("--org=")
-    flags+=("--ou=")
-    two_word_flags+=("--ou")
-    local_nonpersistent_flags+=("--ou")
-    local_nonpersistent_flags+=("--ou=")
-    flags+=("--p12-password=")
-    two_word_flags+=("--p12-password")
-    local_nonpersistent_flags+=("--p12-password")
-    local_nonpersistent_flags+=("--p12-password=")
-    flags+=("--policy=")
-    two_word_flags+=("--policy")
-    local_nonpersistent_flags+=("--policy")
-    local_nonpersistent_flags+=("--policy=")
-    flags+=("--province=")
-    two_word_flags+=("--province")
-    local_nonpersistent_flags+=("--province")
-    local_nonpersistent_flags+=("--province=")
-    flags+=("--san-dns=")
-    two_word_flags+=("--san-dns")
-    local_nonpersistent_flags+=("--san-dns")
-    local_nonpersistent_flags+=("--san-dns=")
-    flags+=("--san-email=")
-    two_word_flags+=("--san-email")
-    local_nonpersistent_flags+=("--san-email")
-    local_nonpersistent_flags+=("--san-email=")
-    flags+=("--san-ip=")
-    two_word_flags+=("--san-ip")
-    local_nonpersistent_flags+=("--san-ip")
-    local_nonpersistent_flags+=("--san-ip=")
-    flags+=("--url=")
-    two_word_flags+=("--url")
-    local_nonpersistent_flags+=("--url")
-    local_nonpersistent_flags+=("--url=")
-    flags+=("--validity=")
-    two_word_flags+=("--validity")
-    local_nonpersistent_flags+=("--validity")
-    local_nonpersistent_flags+=("--validity=")
-    flags+=("--config=")
-    two_word_flags+=("--config")
-    flags+=("--profile=")
-    two_word_flags+=("--profile")
-    flags+=("--verbose")
-
-    must_have_one_flag=()
-    must_have_one_noun=()
-    noun_aliases=()
-}
-
-_zcert_no-help()
-{
-    last_command="zcert_no-help"
-
-    command_aliases=()
-
-    commands=()
-
-    flags=()
-    two_word_flags=()
-    local_nonpersistent_flags=()
-    flags_with_completion=()
-    flags_completion=()
-
-    flags+=("--config=")
-    two_word_flags+=("--config")
-    flags+=("--profile=")
-    two_word_flags+=("--profile")
-    flags+=("--verbose")
-
-    must_have_one_flag=()
-    must_have_one_noun=()
-    noun_aliases=()
-}
-
-_zcert_renew()
-{
-    last_command="zcert_renew"
-
-    command_aliases=()
-
-    commands=()
-
-    flags=()
-    two_word_flags=()
-    local_nonpersistent_flags=()
-    flags_with_completion=()
-    flags_completion=()
-
-    flags+=("--cn=")
-    two_word_flags+=("--cn")
-    local_nonpersistent_flags+=("--cn")
-    local_nonpersistent_flags+=("--cn=")
-    flags+=("--file=")
-    two_word_flags+=("--file")
-    local_nonpersistent_flags+=("--file")
-    local_nonpersistent_flags+=("--file=")
-    flags+=("--format=")
-    two_word_flags+=("--format")
-    local_nonpersistent_flags+=("--format")
-    local_nonpersistent_flags+=("--format=")
-    flags+=("--id=")
-    two_word_flags+=("--id")
-    local_nonpersistent_flags+=("--id")
-    local_nonpersistent_flags+=("--id=")
-    flags+=("--reuse-key")
-    local_nonpersistent_flags+=("--reuse-key")
-    flags+=("--serial=")
-    two_word_flags+=("--serial")
-    local_nonpersistent_flags+=("--serial")
-    local_nonpersistent_flags+=("--serial=")
-    flags+=("--config=")
-    two_word_flags+=("--config")
-    flags+=("--profile=")
-    two_word_flags+=("--profile")
-    flags+=("--verbose")
-
-    must_have_one_flag=()
-    must_have_one_noun=()
-    noun_aliases=()
-}
-
-_zcert_retrieve()
-{
-    last_command="zcert_retrieve"
-
-    command_aliases=()
-
-    commands=()
-
-    flags=()
-    two_word_flags=()
-    local_nonpersistent_flags=()
-    flags_with_completion=()
-    flags_completion=()
-
-    flags+=("--chain")
-    local_nonpersistent_flags+=("--chain")
-    flags+=("--cn=")
-    two_word_flags+=("--cn")
-    local_nonpersistent_flags+=("--cn")
-    local_nonpersistent_flags+=("--cn=")
-    flags+=("--file=")
-    two_word_flags+=("--file")
-    local_nonpersistent_flags+=("--file")
-    local_nonpersistent_flags+=("--file=")
-    flags+=("--format=")
-    two_word_flags+=("--format")
-    local_nonpersistent_flags+=("--format")
-    local_nonpersistent_flags+=("--format=")
-    flags+=("--hawk-id=")
-    two_word_flags+=("--hawk-id")
-    local_nonpersistent_flags+=("--hawk-id")
-    local_nonpersistent_flags+=("--hawk-id=")
-    flags+=("--hawk-key=")
-    two_word_flags+=("--hawk-key")
-    local_nonpersistent_flags+=("--hawk-key")
-    local_nonpersistent_flags+=("--hawk-key=")
-    flags+=("--id=")
-    two_word_flags+=("--id")
-    local_nonpersistent_flags+=("--id")
-    local_nonpersistent_flags+=("--id=")
-    flags+=("--p12-password=")
-    two_word_flags+=("--p12-password")
-    local_nonpersistent_flags+=("--p12-password")
-    local_nonpersistent_flags+=("--p12-password=")
-    flags+=("--policy=")
-    two_word_flags+=("--policy")
-    local_nonpersistent_flags+=("--policy")
-    local_nonpersistent_flags+=("--policy=")
-    flags+=("--serial=")
-    two_word_flags+=("--serial")
-    local_nonpersistent_flags+=("--serial")
-    local_nonpersistent_flags+=("--serial=")
-    flags+=("--url=")
-    two_word_flags+=("--url")
-    local_nonpersistent_flags+=("--url")
-    local_nonpersistent_flags+=("--url=")
-    flags+=("--config=")
-    two_word_flags+=("--config")
-    flags+=("--profile=")
-    two_word_flags+=("--profile")
-    flags+=("--verbose")
-
-    must_have_one_flag=()
-    must_have_one_noun=()
-    noun_aliases=()
-}
-
-_zcert_revoke()
-{
-    last_command="zcert_revoke"
-
-    command_aliases=()
-
-    commands=()
-
-    flags=()
-    two_word_flags=()
-    local_nonpersistent_flags=()
-    flags_with_completion=()
-    flags_completion=()
-
-    flags+=("--cn=")
-    two_word_flags+=("--cn")
-    local_nonpersistent_flags+=("--cn")
-    local_nonpersistent_flags+=("--cn=")
-    flags+=("--force")
-    local_nonpersistent_flags+=("--force")
-    flags+=("--hawk-id=")
-    two_word_flags+=("--hawk-id")
-    local_nonpersistent_flags+=("--hawk-id")
-    local_nonpersistent_flags+=("--hawk-id=")
-    flags+=("--hawk-key=")
-    two_word_flags+=("--hawk-key")
-    local_nonpersistent_flags+=("--hawk-key")
-    local_nonpersistent_flags+=("--hawk-key=")
-    flags+=("--id=")
-    two_word_flags+=("--id")
-    local_nonpersistent_flags+=("--id")
-    local_nonpersistent_flags+=("--id=")
-    flags+=("--reason=")
-    two_word_flags+=("--reason")
-    local_nonpersistent_flags+=("--reason")
-    local_nonpersistent_flags+=("--reason=")
-    flags+=("--serial=")
-    two_word_flags+=("--serial")
-    local_nonpersistent_flags+=("--serial")
-    local_nonpersistent_flags+=("--serial=")
-    flags+=("--url=")
-    two_word_flags+=("--url")
-    local_nonpersistent_flags+=("--url")
-    local_nonpersistent_flags+=("--url=")
-    flags+=("--config=")
-    two_word_flags+=("--config")
-    flags+=("--profile=")
-    two_word_flags+=("--profile")
-    flags+=("--verbose")
-
-    must_have_one_flag=()
-    must_have_one_noun=()
-    noun_aliases=()
-}
-
-_zcert_search()
-{
-    last_command="zcert_search"
-
-    command_aliases=()
-
-    commands=()
-
-    flags=()
-    two_word_flags=()
-    local_nonpersistent_flags=()
-    flags_with_completion=()
-    flags_completion=()
-
-    flags+=("--cn=")
-    two_word_flags+=("--cn")
-    local_nonpersistent_flags+=("--cn")
-    local_nonpersistent_flags+=("--cn=")
-    flags+=("--expired")
-    local_nonpersistent_flags+=("--expired")
-    flags+=("--expiring=")
-    two_word_flags+=("--expiring")
-    local_nonpersistent_flags+=("--expiring")
-    local_nonpersistent_flags+=("--expiring=")
-    flags+=("--format=")
-    two_word_flags+=("--format")
-    local_nonpersistent_flags+=("--format")
-    local_nonpersistent_flags+=("--format=")
-    flags+=("--hawk-id=")
-    two_word_flags+=("--hawk-id")
-    local_nonpersistent_flags+=("--hawk-id")
-    local_nonpersistent_flags+=("--hawk-id=")
-    flags+=("--hawk-key=")
-    two_word_flags+=("--hawk-key")
-    local_nonpersistent_flags+=("--hawk-key")
-    local_nonpersistent_flags+=("--hawk-key=")
-    flags+=("--issuer=")
-    two_word_flags+=("--issuer")
-    local_nonpersistent_flags+=("--issuer")
-    local_nonpersistent_flags+=("--issuer=")
-    flags+=("--limit=")
-    two_word_flags+=("--limit")
-    local_nonpersistent_flags+=("--limit")
-    local_nonpersistent_flags+=("--limit=")
-    flags+=("--policy=")
-    two_word_flags+=("--policy")
-    local_nonpersistent_flags+=("--policy")
-    local_nonpersistent_flags+=("--policy=")
-    flags+=("--recent=")
-    two_word_flags+=("--recent")
-    local_nonpersistent_flags+=("--recent")
-    local_nonpersistent_flags+=("--recent=")
-    flags+=("--serial=")
-    two_word_flags+=("--serial")
-    local_nonpersistent_flags+=("--serial")
-    local_nonpersistent_flags+=("--serial=")
-    flags+=("--status=")
-    two_word_flags+=("--status")
-    local_nonpersistent_flags+=("--status")
-    local_nonpersistent_flags+=("--status=")
-    flags+=("--url=")
-    two_word_flags+=("--url")
-    local_nonpersistent_flags+=("--url")
-    local_nonpersistent_flags+=("--url=")
-    flags+=("--wide")
-    local_nonpersistent_flags+=("--wide")
-    flags+=("--config=")
-    two_word_flags+=("--config")
-    flags+=("--profile=")
-    two_word_flags+=("--profile")
-    flags+=("--verbose")
-
-    must_have_one_flag=()
-    must_have_one_noun=()
-    noun_aliases=()
-}
-
-_zcert_root_command()
-{
-    last_command="zcert"
-
-    command_aliases=()
-
-    commands=()
-    commands+=("config")
-    commands+=("enroll")
-    commands+=("no-help")
-    commands+=("renew")
-    commands+=("retrieve")
-    commands+=("revoke")
-    commands+=("search")
-
-    flags=()
-    two_word_flags=()
-    local_nonpersistent_flags=()
-    flags_with_completion=()
-    flags_completion=()
-
-    flags+=("--config=")
-    two_word_flags+=("--config")
-    flags+=("--profile=")
-    two_word_flags+=("--profile")
-    flags+=("--verbose")
-
-    must_have_one_flag=()
-    must_have_one_noun=()
-    noun_aliases=()
+    done
 }
 
 __start_zcert()
 {
     local cur prev words cword split
-    declare -A flaghash 2>/dev/null || :
-    declare -A aliashash 2>/dev/null || :
+
+    COMPREPLY=()
+
+    # Call _init_completion from the bash-completion package
+    # to prepare the arguments properly
     if declare -F _init_completion >/dev/null 2>&1; then
-        _init_completion -s || return
+        _init_completion -n =: || return
     else
-        __zcert_init_completion -n "=" || return
+        __zcert_init_completion -n =: || return
     fi
 
-    local c=0
-    local flag_parsing_disabled=
-    local flags=()
-    local two_word_flags=()
-    local local_nonpersistent_flags=()
-    local flags_with_completion=()
-    local flags_completion=()
-    local commands=("zcert")
-    local command_aliases=()
-    local must_have_one_flag=()
-    local must_have_one_noun=()
-    local has_completion_function=""
-    local last_command=""
-    local nouns=()
-    local noun_aliases=()
+    __zcert_debug
+    __zcert_debug "========= starting completion logic =========="
+    __zcert_debug "cur is ${cur}, words[*] is ${words[*]}, #words[@] is ${#words[@]}, cword is $cword"
 
-    __zcert_handle_word
+    # The user could have moved the cursor backwards on the command-line.
+    # We need to trigger completion from the $cword location, so we need
+    # to truncate the command-line ($words) up to the $cword location.
+    words=("${words[@]:0:$cword+1}")
+    __zcert_debug "Truncated words[*]: ${words[*]},"
+
+    local out directive
+    __zcert_get_completion_results
+    __zcert_process_completion_results
 }
 
 if [[ $(type -t compopt) = "builtin" ]]; then
