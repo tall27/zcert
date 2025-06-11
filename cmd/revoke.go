@@ -19,8 +19,8 @@ var (
         revokeForce    bool
         // ZTPKI Authentication
         revokeURL      string
-        revokeKeyID    string
-        revokeSecret   string
+        revokeHawkID   string
+        revokeHawkKey  string
         revokeAlgo     string
 )
 
@@ -46,8 +46,8 @@ func init() {
         
         // ZTPKI Authentication flags
         revokeCmd.Flags().StringVar(&revokeURL, "url", "", "ZTPKI API base URL (e.g., https://ztpki.venafi.com/api/v2)")
-        revokeCmd.Flags().StringVar(&revokeKeyID, "key-id", "", "HAWK authentication key ID")
-        revokeCmd.Flags().StringVar(&revokeSecret, "secret", "", "HAWK authentication secret")
+        revokeCmd.Flags().StringVar(&revokeHawkID, "hawk-id", "", "HAWK authentication ID")
+        revokeCmd.Flags().StringVar(&revokeHawkKey, "hawk-key", "", "HAWK authentication key")
         revokeCmd.Flags().StringVar(&revokeAlgo, "algo", "sha256", "HAWK algorithm (sha1, sha256)")
         
         // Revocation options
@@ -68,7 +68,7 @@ func runRevoke(cmd *cobra.Command, args []string) error {
                 // Merge profile with command-line flags (flags take precedence)
                 finalProfile = config.MergeProfileWithFlags(
                         profile,
-                        revokeURL, revokeKeyID, revokeSecret, revokeAlgo,
+                        revokeURL, revokeHawkID, revokeHawkKey, revokeAlgo,
                         "", "", "", // format, policy, p12password not needed for revoke
                         0, "", // keysize, keytype not needed for revoke
                 )
@@ -76,8 +76,8 @@ func runRevoke(cmd *cobra.Command, args []string) error {
                 // No profile config, use command-line flags
                 finalProfile = &config.Profile{
                         URL:    revokeURL,
-                        KeyID:  revokeKeyID,
-                        Secret: revokeSecret,
+                        KeyID:  revokeHawkID,
+                        Secret: revokeHawkKey,
                         Algo:   revokeAlgo,
                 }
                 
@@ -92,10 +92,10 @@ func runRevoke(cmd *cobra.Command, args []string) error {
                 return fmt.Errorf("ZTPKI URL is required (use --url flag or config file)")
         }
         if finalProfile.KeyID == "" {
-                return fmt.Errorf("HAWK key ID is required (use --key-id flag or config file)")
+                return fmt.Errorf("HAWK ID is required (use --hawk-id flag or config file)")
         }
         if finalProfile.Secret == "" {
-                return fmt.Errorf("HAWK secret is required (use --secret flag or config file)")
+                return fmt.Errorf("HAWK key is required (use --hawk-key flag or config file)")
         }
 
         // Create API client with profile settings
