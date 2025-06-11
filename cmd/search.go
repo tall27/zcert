@@ -21,6 +21,7 @@ var (
         searchStatus   string
         searchLimit    int
         searchFormat   string
+        searchWide     bool
         searchExpired  bool
         searchExpiring int
         searchRecent   int
@@ -73,6 +74,7 @@ func init() {
         // Output options
         searchCmd.Flags().IntVar(&searchLimit, "limit", 50, "Maximum number of results to return")
         searchCmd.Flags().StringVar(&searchFormat, "format", "table", "Output format (table, json, csv)")
+        searchCmd.Flags().BoolVar(&searchWide, "wide", false, "Show full column content without truncation")
         
         // Special filters
         searchCmd.Flags().BoolVar(&searchExpired, "expired", false, "Show only expired certificates")
@@ -227,7 +229,7 @@ func runSearch(cmd *cobra.Command, args []string) error {
         // Output results in the requested format
         switch strings.ToLower(searchFormat) {
         case "table":
-                return outputTable(certificates)
+                return outputTable(certificates, searchWide)
         case "json":
                 return outputJSON(certificates)
         case "csv":
@@ -274,7 +276,7 @@ func applyClientSideFilters(certificates []api.Certificate, commonName, serial s
         return filtered
 }
 
-func outputTable(certificates []api.Certificate) error {
+func outputTable(certificates []api.Certificate, wide bool) error {
         w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
         
         // Header
@@ -283,12 +285,23 @@ func outputTable(certificates []api.Certificate) error {
         
         // Data rows
         for _, cert := range certificates {
-                // Truncate long values for table display
-                id := truncateString(cert.ID, 12)
-                cn := truncateString(cert.CommonName, 25)
-                serial := truncateString(cert.SerialNumber, 16)
+                var id, cn, serial, issuer string
+                
+                if wide {
+                        // Show full values without truncation
+                        id = cert.ID
+                        cn = cert.CommonName
+                        serial = cert.SerialNumber
+                        issuer = cert.Issuer
+                } else {
+                        // Truncate long values for table display
+                        id = truncateString(cert.ID, 12)
+                        cn = truncateString(cert.CommonName, 25)
+                        serial = truncateString(cert.SerialNumber, 16)
+                        issuer = truncateString(cert.Issuer, 20)
+                }
+                
                 status := cert.Status
-                issuer := truncateString(cert.Issuer, 20)
                 expires := cert.ExpiryDate.Format("2006-01-02")
                 
                 fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n", 

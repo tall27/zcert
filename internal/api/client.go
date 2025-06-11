@@ -283,17 +283,13 @@ func (c *Client) SearchCertificates(params CertificateSearchParams) ([]Certifica
                 return nil, fmt.Errorf("failed to search certificates: %w", err)
         }
         
-        // Debug response body
+        // Read response body
         bodyBytes, _ := io.ReadAll(resp.Body)
         resp.Body.Close()
         
         if len(bodyBytes) == 0 {
                 return []Certificate{}, nil
         }
-        
-        // Debug: print raw response for troubleshooting
-        fmt.Printf("Debug: API Response Status: %d\n", resp.StatusCode)
-        fmt.Printf("Debug: Response Body: %s\n", string(bodyBytes))
         
         // If we get an error response, return empty list
         if resp.StatusCode != 200 {
@@ -374,19 +370,14 @@ func (c *Client) RevokeCertificate(id, reason string) error {
                 return fmt.Errorf("failed to marshal revocation request: %w", err)
         }
         
-        fmt.Printf("Debug: Revoke endpoint: %s\n", endpoint)
-        fmt.Printf("Debug: Request body: %s\n", string(requestBodyBytes))
-        
         resp, err := c.makeRequest("POST", endpoint, bytes.NewReader(requestBodyBytes))
         if err != nil {
                 return err
         }
         
-        // Debug response
+        // Read response
         bodyBytes, _ := io.ReadAll(resp.Body)
         resp.Body.Close()
-        fmt.Printf("Debug: Revoke response status: %d\n", resp.StatusCode)
-        fmt.Printf("Debug: Revoke response body: %s\n", string(bodyBytes))
         
         if resp.StatusCode != 200 && resp.StatusCode != 204 {
                 return fmt.Errorf("revocation failed: status %d, body: %s", resp.StatusCode, string(bodyBytes))
