@@ -36,13 +36,20 @@ var searchCmd = &cobra.Command{
         Use:   "search",
         Short: "Search and list certificates",
         Long: `The search command allows you to find certificates and list them based on various criteria.
-You can search by Common Name, issuer, serial number, policy, or status. The results can be
-displayed in different formats including table, JSON, or CSV.
+You can search by Common Name (with substring matching), issuer, serial number, policy, or status.
+The results can be displayed in different formats including table, JSON, or CSV.
+
+Primary use cases:
+  - Recently issued certificates: --recent 30
+  - Upcoming expiration search: --expiring 30  
+  - Common Name substring matching: --cn "test" (matches test1.mimlab.io)
+  - Serial number search: --serial "ABC123"
 
 Examples:
-  zcert search --cn example.com
-  zcert search --policy "Web Server Policy" --limit 10
-  zcert search --expiring 30  # Certificates expiring in 30 days
+  zcert search --cn test                    # Find certificates with "test" in Common Name
+  zcert search --recent 7                   # Certificates issued in last 7 days
+  zcert search --expiring 30                # Certificates expiring in 30 days
+  zcert search --serial "12345"             # Search by serial number
   zcert search --status active --format json`,
         RunE: runSearch,
 }
@@ -51,7 +58,7 @@ func init() {
         rootCmd.AddCommand(searchCmd)
 
         // Search criteria flags
-        searchCmd.Flags().StringVar(&searchCN, "cn", "", "Search by Common Name (supports wildcards)")
+        searchCmd.Flags().StringVar(&searchCN, "cn", "", "Search by Common Name (substring matching supported)")
         searchCmd.Flags().StringVar(&searchIssuer, "issuer", "", "Search by certificate issuer")
         searchCmd.Flags().StringVar(&searchSerial, "serial", "", "Search by serial number")
         searchCmd.Flags().StringVar(&searchPolicy, "policy", "", "Search by policy ID or name")
