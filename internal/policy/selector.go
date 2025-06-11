@@ -305,12 +305,5 @@ func (ps *PolicySelector) ValidatePolicyCompatibility(policyID string, userArgs 
 }
 
 // Helper function to check if a slice contains a value
-func containsInt(slice []int, value int) bool {
-        for _, item := range slice {
-                if item == value {
-                        return true
-                }
-        }
-        return false
-}
+// Removed duplicate function - use internal/utils.ContainsInt instead
 

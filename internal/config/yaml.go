@@ -4,6 +4,7 @@ import (
         "fmt"
         "os"
         "path/filepath"
+        "strings"
         "gopkg.in/yaml.v3"
 )
 
@@ -213,7 +214,7 @@ func LoadConfig(filename string) (*ProfileConfig, error) {
                 content := string(buf[:n])
                 
                 // Check for YAML indicators
-                if contains(content, "profiles:") || contains(content, "base_url:") {
+                if strings.Contains(content, "profiles:") || strings.Contains(content, "base_url:") {
                         return LoadYAMLConfig(filename)
                 }
                 
@@ -222,11 +223,7 @@ func LoadConfig(filename string) (*ProfileConfig, error) {
         }
 }
 
-func contains(s, substr string) bool {
-        return len(s) >= len(substr) && 
-                   (s[:len(substr)] == substr || 
-                    findSubstring(s, substr))
-}
+// Removed duplicate function - use internal/utils.Contains instead
 
 func findSubstring(s, substr string) bool {
         for i := 0; i <= len(s)-len(substr); i++ {
