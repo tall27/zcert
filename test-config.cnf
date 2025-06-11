@@ -1,0 +1,19 @@
+# zcert Test Configuration File
+# Configuration for testing certificate enrollment
+
+[Default]
+# Test profile for 222.test.com certificate enrollment
+url = https://ztpki-dev.venafi.com/api/v2
+key-id = 165c01284c6c8d872091aed0c7cc0149
+secret = ${ZTPKI_HAWK_SECRET}
+algo = sha256
+format = pem
+policy = 5fe6d368-896a-4883-97eb-f87148c90896
+key-size = 2048
+key-type = rsa
+chain = true
+country = US
+province = Michigan
+locality = Detroit
+org = OmniCorp
+ou = Cybernetics
