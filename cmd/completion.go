@@ -30,9 +30,9 @@ func init() {
         completionCmd.Flags().BoolVar(&setupScript, "setup", false, "Generate setup script for Replit environment")
         
         // Set custom help template for completion command
-        completionCmd.SetHelpTemplate(`{{.Short}}
+        completionCmd.SetHelpTemplate(`{{.Short}}{{if .Long}}
 
-{{.Long}}
+{{.Long}}{{end}}
 
 Usage:
   {{.UseLine}}
