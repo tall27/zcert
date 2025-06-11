@@ -46,7 +46,7 @@ author = "agent"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "go build -o zcert main.go"
+args = "./build.sh"
 
 [deployment]
 run = ["sh", "-c", "go mod tidy && go build -o zcert main.go && ./zcert --help"]
