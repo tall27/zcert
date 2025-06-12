@@ -12,10 +12,10 @@ import (
 )
 
 var (
-        retrieveID       string
+        retrievePickupID string
         retrieveCN       string
         retrieveSerial   string
-        retrievePolicy   string
+        retrieveZone     string
         retrieveFormat   string
         retrieveOutfile  string
         retrieveP12Pass  string
@@ -24,7 +24,6 @@ var (
         retrieveURL      string
         retrieveHawkID   string
         retrieveHawkKey  string
-
 )
 
 // retrieveCmd represents the retrieve command
@@ -43,11 +42,31 @@ If a certificate chain is available, it can also be included in the output.`,
 func init() {
         rootCmd.AddCommand(retrieveCmd)
 
-        // Certificate identification flags
-        retrieveCmd.Flags().StringVar(&retrieveID, "id", "", "Certificate ID or GUID")
+        // Certificate identification flags - vcert-aligned
+        retrieveCmd.Flags().StringVar(&retrievePickupID, "pickup-id", "", "Certificate ID or GUID for retrieval")
         retrieveCmd.Flags().StringVar(&retrieveCN, "cn", "", "Common Name of the certificate")
         retrieveCmd.Flags().StringVar(&retrieveSerial, "serial", "", "Certificate serial number")
-        retrieveCmd.Flags().StringVar(&retrievePolicy, "policy", "", "Policy ID or name to filter by")
+        retrieveCmd.Flags().StringVar(&retrieveZone, "zone", "", "Zone/policy to filter by")
+        
+        // Backward compatibility aliases (deprecated, hidden)
+        var deprecatedID, deprecatedPolicy string
+        retrieveCmd.Flags().StringVar(&deprecatedID, "id", "", "")
+        retrieveCmd.Flags().StringVar(&deprecatedPolicy, "policy", "", "")
+        retrieveCmd.Flags().MarkHidden("id")
+        retrieveCmd.Flags().MarkHidden("policy")
+        
+        // Handle backward compatibility with deprecation warnings
+        retrieveCmd.PreRunE = func(cmd *cobra.Command, args []string) error {
+                if cmd.Flags().Changed("id") && !cmd.Flags().Changed("pickup-id") {
+                        retrievePickupID = deprecatedID
+                        fmt.Fprintf(os.Stderr, "Warning: --id is deprecated, use --pickup-id instead\n")
+                }
+                if cmd.Flags().Changed("policy") && !cmd.Flags().Changed("zone") {
+                        retrieveZone = deprecatedPolicy
+                        fmt.Fprintf(os.Stderr, "Warning: --policy is deprecated, use --zone instead\n")
+                }
+                return nil
+        }
         
         // ZTPKI Authentication flags
         retrieveCmd.Flags().StringVar(&retrieveURL, "url", "", "ZTPKI API base URL (e.g., https://ztpki.venafi.com/api/v2)")
@@ -80,7 +99,7 @@ func runRetrieve(cmd *cobra.Command, args []string) error {
                 finalProfile = config.MergeProfileWithFlags(
                         profile,
                         retrieveURL, retrieveHawkID, retrieveHawkKey,
-                        retrieveFormat, retrievePolicy, retrieveP12Pass,
+                        retrieveFormat, retrieveZone, retrieveP12Pass,
                         0, "", // keysize, keytype not needed for retrieve
                 )
         } else {
@@ -91,7 +110,7 @@ func runRetrieve(cmd *cobra.Command, args []string) error {
                         Secret:   retrieveHawkKey,
                         Algo:     "sha256", // Always use sha256
                         Format:   retrieveFormat,
-                        PolicyID: retrievePolicy,
+                        PolicyID: retrieveZone,
                         P12Pass:  retrieveP12Pass,
                 }
                 if finalProfile.Format == "" {
