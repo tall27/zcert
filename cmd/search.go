@@ -18,6 +18,7 @@ var (
         searchIssuer   string
         searchSerial   string
         searchPolicy   string
+        searchPolicyID string
         searchStatus   string
         searchLimit    int
         searchFormat   string
@@ -37,19 +38,21 @@ var searchCmd = &cobra.Command{
         Use:   "search",
         Short: "Search and list certificates",
         Long: `The search command allows you to find certificates and list them based on various criteria.
-You can search by Common Name (with substring matching), issuer, serial number, policy, or status.
+You can search by Common Name (with substring matching), issuer, serial number, policy, policy ID, or status.
 The results can be displayed in different formats including table, JSON, or CSV.
 
 Primary use cases:
   - Recently issued certificates: --recent 30
   - Upcoming expiration search: --expiring 30  
   - Common Name substring matching: --cn "test" (matches test1.mimlab.io)
+  - Policy ID substring matching: --policy-id "f50ed424" (matches f50ed424-ba78-4656-9733-2bb8a3814fc1)
   - Serial number search: --serial "ABC123"
 
 Examples:
   zcert search --cn test                    # Find certificates with "test" in Common Name
   zcert search --recent 7                   # Certificates issued in last 7 days
   zcert search --expiring 30                # Certificates expiring in 30 days
+  zcert search --policy-id "f50ed424"       # Find certificates with policy ID containing "f50ed424"
   zcert search --serial "12345"             # Search by serial number
   zcert search --status active --format json`,
         RunE: runSearch,
@@ -63,6 +66,7 @@ func init() {
         searchCmd.Flags().StringVar(&searchIssuer, "issuer", "", "Search by certificate issuer")
         searchCmd.Flags().StringVar(&searchSerial, "serial", "", "Search by serial number")
         searchCmd.Flags().StringVar(&searchPolicy, "policy", "", "Search by policy ID or name")
+        searchCmd.Flags().StringVar(&searchPolicyID, "policy-id", "", "Search by policy ID (substring matching supported)")
         searchCmd.Flags().StringVar(&searchStatus, "status", "", "Search by certificate status (active, revoked, expired)")
         
         // ZTPKI Authentication flags
@@ -206,7 +210,7 @@ func runSearch(cmd *cobra.Command, args []string) error {
         }
 
         // Apply client-side filtering for advanced use cases
-        filtered := applyClientSideFilters(certificates, searchCN, searchSerial, searchStatus, issuedAfter, expiresBefore)
+        filtered := applyClientSideFilters(certificates, searchCN, searchSerial, searchPolicyID, searchStatus, issuedAfter, expiresBefore)
         
         if viper.GetBool("verbose") {
                 fmt.Fprintf(os.Stderr, "After filtering: %d certificates match criteria\n", len(filtered))
@@ -237,7 +241,7 @@ func runSearch(cmd *cobra.Command, args []string) error {
 }
 
 // applyClientSideFilters applies advanced filtering that requires client-side processing
-func applyClientSideFilters(certificates []api.Certificate, commonName, serial, status string, issuedAfter, expiresBefore *time.Time) []api.Certificate {
+func applyClientSideFilters(certificates []api.Certificate, commonName, serial, policyID, status string, issuedAfter, expiresBefore *time.Time) []api.Certificate {
         var filtered []api.Certificate
         
         for _, cert := range certificates {
@@ -256,6 +260,13 @@ func applyClientSideFilters(certificates []api.Certificate, commonName, serial, 
                 // Apply serial number filtering (partial match)
                 if serial != "" {
                         if !strings.Contains(cert.SerialNumber, serial) {
+                                continue
+                        }
+                }
+                
+                // Apply policy ID substring matching (case-insensitive)
+                if policyID != "" {
+                        if !strings.Contains(strings.ToLower(cert.PolicyID), strings.ToLower(policyID)) {
                                 continue
                         }
                 }

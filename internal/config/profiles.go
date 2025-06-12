@@ -210,8 +210,8 @@ func (pc *ProfileConfig) ListProfiles() []string {
 func CreateExampleProfileConfig(filename string) error {
         content := `# zcert Profile Configuration File
 # This file supports multiple profiles with different ZTPKI settings
-# Use: zcert -config zcert.cnf --cn "mycert.com" 
-#   or zcert -config zcert.cnf -profile test --cn "mycert.com"
+# Use: zcert config -config zcert.cnf --cn "mycert.com" 
+#   or zcert config -config zcert.cnf -profile test --cn "mycert.com"
 
 [Default]
 # Default profile used when no -profile is specified
@@ -222,7 +222,7 @@ format = pem
 policy = PolicyID
 key-size = 2048
 key-type = rsa
-validity = 365
+validity = 90d
 chain = true
 
 [test]
@@ -234,7 +234,7 @@ format = pem
 policy = PolicyID
 key-size = 2048
 key-type = rsa
-validity = 90
+validity = 15
 chain = false
 
 [prod]
