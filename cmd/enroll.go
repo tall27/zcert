@@ -80,7 +80,7 @@ Examples:
   zcert enroll --cn "example.com" --url "https://ztpki.venafi.com/api/v2" --hawk-id "your-id" --hawk-key "your-key"
   
   # With multiple SANs and OUs
-  zcert enroll --cn "api.example.com" --san-dns "example.com" --san-dns "www.example.com" --ou "IT" --ou "Security" --validity "90d"
+  zcert enroll --cn "api.example.com" --san-dns "example.com" --san-dns "www.example.com" --ou "IT" --ou "Security" --valid-days "90d"
   
   # With custom file outputs and encryption
   zcert enroll --cn "secure.example.com" --cert-file "./secure.crt" --key-file "./secure.key" --key-password "secret123"`,
@@ -578,11 +578,11 @@ Server & Authentication:
 
 Certificate Request:
       --cn string                Common Name for the certificate (required)
-      --policy string            Policy ID or name for certificate issuance (optional - will show selection if not specified)
       --san-dns strings          DNS Subject Alternative Name (repeatable: --san-dns example.com --san-dns *.example.com)
       --san-email strings        Email Subject Alternative Name (repeatable)
       --san-ip strings           IP Subject Alternative Name (repeatable: --san-ip 192.168.1.1 --san-ip 10.0.0.1)
-      --validity string          Certificate validity period (formats: 30d, 6m, 1y, 30d6m, 1y6m, or plain number for days)
+      --valid-days string        Certificate validity period (formats: 30d, 6m, 1y, 30d6m, 1y6m, or plain number for days)
+      --zone string              Zone/policy for certificate issuance (optional - will show selection if not specified)
 
 Certificate Subject (Distinguished Name):
       --country string     Country (C) (default "US")
@@ -631,11 +631,11 @@ func getEnrollUsageFunc() func(*cobra.Command) error {
 
                 fmt.Printf("Certificate Request:\n")
                 fmt.Printf("      --cn string                Common Name for the certificate (required)\n")
-                fmt.Printf("      --policy string            Policy ID or name for certificate issuance (optional - will show selection if not specified)\n")
                 fmt.Printf("      --san-dns strings          DNS Subject Alternative Name (repeatable: --san-dns example.com --san-dns *.example.com)\n")
                 fmt.Printf("      --san-email strings        Email Subject Alternative Name (repeatable)\n")
                 fmt.Printf("      --san-ip strings           IP Subject Alternative Name (repeatable: --san-ip 192.168.1.1 --san-ip 10.0.0.1)\n")
-                fmt.Printf("      --validity string          Certificate validity period (formats: 30d, 6m, 1y, 30d6m, 1y6m)\n\n")
+                fmt.Printf("      --valid-days string        Certificate validity period (formats: 30d, 6m, 1y, 30d6m, 1y6m, or plain number for days)\n")
+                fmt.Printf("      --zone string              Zone/policy for certificate issuance (optional - will show selection if not specified)\n\n")
 
                 fmt.Printf("Certificate Subject (Distinguished Name):\n")
                 fmt.Printf("      --country string     Country (C) (default \"US\")\n")
