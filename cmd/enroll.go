@@ -29,8 +29,8 @@ var (
         enrollSANsDNS   []string
         enrollSANsIP    []string
         enrollSANsEmail []string
-        enrollPolicy    string
-        enrollValidity  string
+        enrollZone      string
+        enrollValidDays string
 
         // Certificate Subject (DN Components)
         enrollOrg      []string
@@ -100,8 +100,16 @@ func init() {
         enrollCmd.Flags().StringSliceVar(&enrollSANsDNS, "san-dns", []string{}, "DNS Subject Alternative Name (repeatable: --san-dns example.com --san-dns *.example.com)")
         enrollCmd.Flags().StringSliceVar(&enrollSANsIP, "san-ip", []string{}, "IP Subject Alternative Name (repeatable: --san-ip 192.168.1.1 --san-ip 10.0.0.1)")
         enrollCmd.Flags().StringSliceVar(&enrollSANsEmail, "san-email", []string{}, "Email Subject Alternative Name (repeatable)")
-        enrollCmd.Flags().StringVar(&enrollPolicy, "policy", "", "Policy ID or name for certificate issuance (optional - will show selection if not specified)")
-        enrollCmd.Flags().StringVar(&enrollValidity, "validity", "", "Certificate validity period (formats: 30d, 6m, 1y, 30d6m, 1y6m, or plain number for days)")
+        
+        // Primary flags (vcert-aligned)
+        enrollCmd.Flags().StringVar(&enrollZone, "zone", "", "Zone/policy for certificate issuance (optional - will show selection if not specified)")
+        enrollCmd.Flags().StringVar(&enrollValidDays, "valid-days", "", "Certificate validity period (formats: 30d, 6m, 1y, 30d6m, 1y6m, or plain number for days)")
+        
+        // Backward compatibility aliases
+        enrollCmd.Flags().StringVar(&enrollZone, "policy", "", "Deprecated: use --zone instead")
+        enrollCmd.Flags().StringVar(&enrollValidDays, "validity", "", "Deprecated: use --valid-days instead")
+        enrollCmd.Flags().MarkHidden("policy")
+        enrollCmd.Flags().MarkHidden("validity")
 
         // Certificate Subject (Distinguished Name)
         enrollCmd.Flags().StringSliceVar(&enrollOrg, "org", []string{"OmniCorp"}, "Organization (O) (repeatable)")
@@ -135,7 +143,7 @@ func init() {
 
         // Bind flags to viper for config file support
         viper.BindPFlag("enroll.cn", enrollCmd.Flags().Lookup("cn"))
-        viper.BindPFlag("enroll.policy", enrollCmd.Flags().Lookup("policy"))
+        viper.BindPFlag("enroll.zone", enrollCmd.Flags().Lookup("zone"))
         viper.BindPFlag("enroll.key_size", enrollCmd.Flags().Lookup("key-size"))
         viper.BindPFlag("enroll.key_type", enrollCmd.Flags().Lookup("key-type"))
         viper.BindPFlag("enroll.format", enrollCmd.Flags().Lookup("format"))
@@ -156,7 +164,7 @@ func runEnroll(cmd *cobra.Command, args []string) error {
                 finalProfile = config.MergeProfileWithFlags(
                         profile,
                         enrollURL, enrollHawkID, enrollHawkKey,
-                        enrollFormat, enrollPolicy, enrollP12Pass,
+                        enrollFormat, enrollZone, enrollP12Pass,
                         enrollKeySize, enrollKeyType,
                 )
         } else {
@@ -167,7 +175,7 @@ func runEnroll(cmd *cobra.Command, args []string) error {
                         Secret:   enrollHawkKey,
                         Algo:     "sha256", // Default algorithm
                         Format:   enrollFormat,
-                        PolicyID: enrollPolicy,
+                        PolicyID: enrollZone,
                         P12Pass:  enrollP12Pass,
                         KeySize:  enrollKeySize,
                         KeyType:  enrollKeyType,
@@ -248,8 +256,8 @@ func runEnroll(cmd *cobra.Command, args []string) error {
 
         // Parse validity period if provided, otherwise use template maximum
         var validityPeriod *api.ValidityPeriod
-        if enrollValidity != "" {
-                validityPeriod, err = parseValidityPeriod(enrollValidity)
+        if enrollValidDays != "" {
+                validityPeriod, err = parseValidityPeriod(enrollValidDays)
                 if err != nil {
                         return fmt.Errorf("invalid validity format: %w", err)
                 }
