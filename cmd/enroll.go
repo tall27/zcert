@@ -95,7 +95,7 @@ func init() {
         enrollCmd.Flags().StringVar(&enrollHawkID, "hawk-id", "", "HAWK authentication ID")
         enrollCmd.Flags().StringVar(&enrollHawkKey, "hawk-key", "", "HAWK authentication key")
 
-        // Certificate Request
+        // Certificate Request - vcert-aligned flag names (primary)
         enrollCmd.Flags().StringVar(&enrollCN, "cn", "", "Common Name for the certificate (required)")
         enrollCmd.Flags().StringSliceVar(&enrollSANsDNS, "san-dns", []string{}, "DNS Subject Alternative Name (repeatable: --san-dns example.com --san-dns *.example.com)")
         enrollCmd.Flags().StringSliceVar(&enrollSANsIP, "san-ip", []string{}, "IP Subject Alternative Name (repeatable: --san-ip 192.168.1.1 --san-ip 10.0.0.1)")
@@ -103,16 +103,15 @@ func init() {
         enrollCmd.Flags().StringVar(&enrollValidDays, "valid-days", "", "Certificate validity period (formats: 30d, 6m, 1y, 30d6m, 1y6m, or plain number for days)")
         enrollCmd.Flags().StringVar(&enrollZone, "zone", "", "Zone/policy for certificate issuance (optional - will show selection if not specified)")
         
-        // Backward compatibility aliases (deprecated, hidden)
+        // Hidden backward compatibility aliases
         var deprecatedPolicy, deprecatedValidity string
-        enrollCmd.Flags().StringVar(&deprecatedPolicy, "policy", "", "Deprecated: use --zone instead")
-        enrollCmd.Flags().StringVar(&deprecatedValidity, "validity", "", "Deprecated: use --valid-days instead")
+        enrollCmd.Flags().StringVar(&deprecatedPolicy, "policy", "", "")
+        enrollCmd.Flags().StringVar(&deprecatedValidity, "validity", "", "")
         enrollCmd.Flags().MarkHidden("policy")
         enrollCmd.Flags().MarkHidden("validity")
         
-        // Store deprecated flag values for runtime handling
+        // Handle backward compatibility with deprecation warnings
         enrollCmd.PreRunE = func(cmd *cobra.Command, args []string) error {
-                // Handle backward compatibility
                 if cmd.Flags().Changed("policy") && !cmd.Flags().Changed("zone") {
                         enrollZone = deprecatedPolicy
                         fmt.Fprintf(os.Stderr, "Warning: --policy is deprecated, use --zone instead\n")
