@@ -29,8 +29,8 @@ var (
         enrollSANsDNS   []string
         enrollSANsIP    []string
         enrollSANsEmail []string
-        enrollZone      string
-        enrollValidDays string
+        enrollPolicy    string
+        enrollValidity  string
 
         // Certificate Subject (DN Components)
         enrollOrg      []string
@@ -100,28 +100,8 @@ func init() {
         enrollCmd.Flags().StringSliceVar(&enrollSANsDNS, "san-dns", []string{}, "DNS Subject Alternative Name (repeatable: --san-dns example.com --san-dns *.example.com)")
         enrollCmd.Flags().StringSliceVar(&enrollSANsIP, "san-ip", []string{}, "IP Subject Alternative Name (repeatable: --san-ip 192.168.1.1 --san-ip 10.0.0.1)")
         enrollCmd.Flags().StringSliceVar(&enrollSANsEmail, "san-email", []string{}, "Email Subject Alternative Name (repeatable)")
-        enrollCmd.Flags().StringVar(&enrollValidDays, "valid-days", "", "Certificate validity period (formats: 30d, 6m, 1y, 30d6m, 1y6m, or plain number for days)")
-        enrollCmd.Flags().StringVar(&enrollZone, "zone", "", "Zone/policy for certificate issuance (optional - will show selection if not specified)")
-        
-        // Hidden backward compatibility aliases
-        var deprecatedPolicy, deprecatedValidity string
-        enrollCmd.Flags().StringVar(&deprecatedPolicy, "policy", "", "")
-        enrollCmd.Flags().StringVar(&deprecatedValidity, "validity", "", "")
-        enrollCmd.Flags().MarkHidden("policy")
-        enrollCmd.Flags().MarkHidden("validity")
-        
-        // Handle backward compatibility with deprecation warnings
-        enrollCmd.PreRunE = func(cmd *cobra.Command, args []string) error {
-                if cmd.Flags().Changed("policy") && !cmd.Flags().Changed("zone") {
-                        enrollZone = deprecatedPolicy
-                        fmt.Fprintf(os.Stderr, "Warning: --policy is deprecated, use --zone instead\n")
-                }
-                if cmd.Flags().Changed("validity") && !cmd.Flags().Changed("valid-days") {
-                        enrollValidDays = deprecatedValidity
-                        fmt.Fprintf(os.Stderr, "Warning: --validity is deprecated, use --valid-days instead\n")
-                }
-                return nil
-        }
+        enrollCmd.Flags().StringVar(&enrollPolicy, "policy", "", "Policy ID or name for certificate issuance (optional - will show selection if not specified)")
+        enrollCmd.Flags().StringVar(&enrollValidity, "validity", "", "Certificate validity period (formats: 30d, 6m, 1y, 30d6m, 1y6m, or plain number for days)")
 
         // Certificate Subject (Distinguished Name)
         enrollCmd.Flags().StringSliceVar(&enrollOrg, "org", []string{"OmniCorp"}, "Organization (O) (repeatable)")
@@ -155,7 +135,7 @@ func init() {
 
         // Bind flags to viper for config file support
         viper.BindPFlag("enroll.cn", enrollCmd.Flags().Lookup("cn"))
-        viper.BindPFlag("enroll.zone", enrollCmd.Flags().Lookup("zone"))
+        viper.BindPFlag("enroll.policy", enrollCmd.Flags().Lookup("policy"))
         viper.BindPFlag("enroll.key_size", enrollCmd.Flags().Lookup("key-size"))
         viper.BindPFlag("enroll.key_type", enrollCmd.Flags().Lookup("key-type"))
         viper.BindPFlag("enroll.format", enrollCmd.Flags().Lookup("format"))
