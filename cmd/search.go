@@ -140,6 +140,11 @@ func runSearch(cmd *cobra.Command, args []string) error {
                 return fmt.Errorf("failed to initialize API client: %w", err)
         }
 
+        // Check if --policy-id flag was set but is empty (list all policies)
+        if cmd.Flags().Changed("policy-id") && searchPolicyID == "" {
+                return listAllPolicies(client)
+        }
+
         // Build search parameters
         searchParams := api.CertificateSearchParams{
                 CommonName: searchCN,
@@ -468,6 +473,7 @@ Search Criteria:
       --issuer string     Search by certificate issuer
       --serial string     Search by serial number
       --policy string     Search by policy ID or name
+      --policy-id string  Search by policy ID (substring matching supported, or use without value to list all policies)
       --status string     Search by certificate status (active, revoked, expired)
 
 Time-Based Filters:
@@ -489,5 +495,44 @@ Global Flags:
 Use "zcert search [command] --help" for more information about a command.
 `)
         }
+}
+
+// listAllPolicies fetches and displays all available policies with their names and IDs
+func listAllPolicies(client *api.Client) error {
+        policies, err := client.GetPolicies()
+        if err != nil {
+                return fmt.Errorf("failed to fetch policies: %w", err)
+        }
+
+        if len(policies) == 0 {
+                fmt.Println("No policies found.")
+                return nil
+        }
+
+        // Display policies in table format
+        w := tabwriter.NewWriter(os.Stdout, 0, 8, 1, '\t', 0)
+        fmt.Fprintf(w, "POLICY ID\tPOLICY NAME\tTYPE\tSTATUS\n")
+        fmt.Fprintf(w, "---------\t-----------\t----\t------\n")
+
+        for _, policy := range policies {
+                status := "enabled"
+                if !policy.Enabled.REST && !policy.Enabled.UI {
+                        status = "disabled"
+                } else if !policy.Enabled.REST {
+                        status = "ui-only"
+                } else if !policy.Enabled.UI {
+                        status = "api-only"
+                }
+
+                policyType := policy.Type
+                if policyType == "" {
+                        policyType = "certificate"
+                }
+
+                fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", 
+                        policy.ID, policy.Name, policyType, status)
+        }
+
+        return w.Flush()
 }
 
