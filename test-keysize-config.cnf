@@ -1,0 +1,11 @@
+[Test3072]
+# Test profile with 3072-bit RSA key size
+url = https://ztpki-dev.venafi.com/api/v2
+hawk-id = test-hawk-id
+hawk-key = test-hawk-key
+format = pem
+policy = TestPolicy
+key-size = 3072
+key-type = rsa
+validity = 90d
+chain = true
