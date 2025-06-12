@@ -100,16 +100,29 @@ func init() {
         enrollCmd.Flags().StringSliceVar(&enrollSANsDNS, "san-dns", []string{}, "DNS Subject Alternative Name (repeatable: --san-dns example.com --san-dns *.example.com)")
         enrollCmd.Flags().StringSliceVar(&enrollSANsIP, "san-ip", []string{}, "IP Subject Alternative Name (repeatable: --san-ip 192.168.1.1 --san-ip 10.0.0.1)")
         enrollCmd.Flags().StringSliceVar(&enrollSANsEmail, "san-email", []string{}, "Email Subject Alternative Name (repeatable)")
-        
-        // Primary flags (vcert-aligned)
-        enrollCmd.Flags().StringVar(&enrollZone, "zone", "", "Zone/policy for certificate issuance (optional - will show selection if not specified)")
         enrollCmd.Flags().StringVar(&enrollValidDays, "valid-days", "", "Certificate validity period (formats: 30d, 6m, 1y, 30d6m, 1y6m, or plain number for days)")
+        enrollCmd.Flags().StringVar(&enrollZone, "zone", "", "Zone/policy for certificate issuance (optional - will show selection if not specified)")
         
-        // Backward compatibility aliases
-        enrollCmd.Flags().StringVar(&enrollZone, "policy", "", "Deprecated: use --zone instead")
-        enrollCmd.Flags().StringVar(&enrollValidDays, "validity", "", "Deprecated: use --valid-days instead")
+        // Backward compatibility aliases (deprecated, hidden)
+        var deprecatedPolicy, deprecatedValidity string
+        enrollCmd.Flags().StringVar(&deprecatedPolicy, "policy", "", "Deprecated: use --zone instead")
+        enrollCmd.Flags().StringVar(&deprecatedValidity, "validity", "", "Deprecated: use --valid-days instead")
         enrollCmd.Flags().MarkHidden("policy")
         enrollCmd.Flags().MarkHidden("validity")
+        
+        // Store deprecated flag values for runtime handling
+        enrollCmd.PreRunE = func(cmd *cobra.Command, args []string) error {
+                // Handle backward compatibility
+                if cmd.Flags().Changed("policy") && !cmd.Flags().Changed("zone") {
+                        enrollZone = deprecatedPolicy
+                        fmt.Fprintf(os.Stderr, "Warning: --policy is deprecated, use --zone instead\n")
+                }
+                if cmd.Flags().Changed("validity") && !cmd.Flags().Changed("valid-days") {
+                        enrollValidDays = deprecatedValidity
+                        fmt.Fprintf(os.Stderr, "Warning: --validity is deprecated, use --valid-days instead\n")
+                }
+                return nil
+        }
 
         // Certificate Subject (Distinguished Name)
         enrollCmd.Flags().StringSliceVar(&enrollOrg, "org", []string{"OmniCorp"}, "Organization (O) (repeatable)")
