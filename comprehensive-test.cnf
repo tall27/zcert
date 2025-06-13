@@ -1,0 +1,156 @@
+
+# Comprehensive test configuration for zcert
+# This tests every available configuration option
+
+[Default]
+# Core API settings
+url = https://ztpki-dev.venafi.com/api/v2
+base_url = https://ztpki-dev.venafi.com/api/v2
+hawk-id = test-default-hawk-id
+hawk_id = test-default-hawk-id
+keyid = test-default-hawk-id
+hawk-key = test-default-hawk-key
+hawk-api = test-default-hawk-api
+secret = test-default-secret
+
+# Certificate options
+format = pem
+policy = DefaultPolicyID
+policy_id = DefaultPolicyID
+policyid = DefaultPolicyID
+key-size = 2048
+key_size = 2048
+keysize = 2048
+key-type = rsa
+key_type = rsa
+keytype = rsa
+validity = 365
+validity_days = 365
+
+# Output settings
+chain = true
+include_chain = true
+no-key-output = false
+no_key_output = false
+nokeyout = false
+output-dir = ./certs
+output_dir = ./certs
+outdir = ./certs
+
+# Password settings
+p12-password = testpassword123
+p12_password = testpassword123
+p12pass = testpassword123
+
+[Test2048]
+# Test profile with 2048-bit RSA key
+url = https://ztpki-staging.venafi.com/api/v2
+hawk-id = test-2048-hawk-id
+hawk-key = test-2048-hawk-key
+format = pem
+policy = Test2048Policy
+key-size = 2048
+key-type = rsa
+validity = 90
+chain = true
+no-key-output = false
+
+[Test3072]
+# Test profile with 3072-bit RSA key
+url = https://ztpki-staging.venafi.com/api/v2
+hawk-id = test-3072-hawk-id
+hawk-key = test-3072-hawk-key
+format = pem
+policy = Test3072Policy
+key-size = 3072
+key-type = rsa
+validity = 60
+chain = false
+no-key-output = true
+
+[Test4096]
+# Test profile with 4096-bit RSA key
+url = https://ztpki-staging.venafi.com/api/v2
+hawk-id = test-4096-hawk-id
+hawk-key = test-4096-hawk-key
+format = p12
+policy = Test4096Policy
+key-size = 4096
+key-type = rsa
+validity = 180
+chain = true
+p12-password = secure4096password
+output-dir = ./test4096
+
+[TestEC256]
+# Test profile with EC P-256 key
+url = https://ztpki-staging.venafi.com/api/v2
+hawk-id = test-ec256-hawk-id
+hawk-key = test-ec256-hawk-key
+format = pem
+policy = TestECPolicy
+key-size = 256
+key-type = ec
+validity = 30
+chain = false
+
+[TestValidityFormats]
+# Test different validity formats
+url = https://ztpki-staging.venafi.com/api/v2
+hawk-id = test-validity-hawk-id
+hawk-key = test-validity-hawk-key
+format = pem
+policy = TestValidityPolicy
+key-size = 2048
+key-type = rsa
+validity = 90
+chain = true
+
+[TestEnvVars]
+# Test environment variable expansion
+url = ${ZCERT_TEST_URL}
+hawk-id = ${ZCERT_TEST_HAWK_ID}
+hawk-key = ${ZCERT_TEST_HAWK_KEY}
+format = pem
+policy = ${ZCERT_TEST_POLICY}
+key-size = 2048
+key-type = rsa
+validity = 365
+chain = true
+
+[TestQuotedValues]
+# Test quoted values parsing
+url = "https://ztpki-quoted.venafi.com/api/v2"
+hawk-id = "quoted-hawk-id"
+hawk-key = 'single-quoted-key'
+format = "pem"
+policy = "QuotedPolicy"
+key-size = 2048
+key-type = "rsa"
+validity = 365
+
+[TestCaseInsensitive]
+# Test case-insensitive key parsing
+URL = https://ztpki-case.venafi.com/api/v2
+HAWK-ID = case-insensitive-id
+HAWK-KEY = case-insensitive-key
+FORMAT = pem
+POLICY = CaseInsensitivePolicy
+KEY-SIZE = 2048
+KEY-TYPE = rsa
+VALIDITY = 365
+CHAIN = true
+
+[TestAllFormats]
+# Test all supported formats
+url = https://ztpki-formats.venafi.com/api/v2
+hawk-id = formats-hawk-id
+hawk-key = formats-hawk-key
+format = pem
+policy = FormatsPolicy
+key-size = 2048
+key-type = rsa
+validity = 365
+chain = true
+no-key-output = false
+p12-password = formatstestpass
