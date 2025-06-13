@@ -1,70 +1,43 @@
-# Binaries for programs and plugins
-*.exe
-*.exe~
-*.dll
+# Binaries
+zcert
+zcert.exe
+dist/
+*.tar.gz
+*.zip
+
+# Go build artifacts
+*.o
+*.a
 *.so
-*.dylib
 
-# Test binary, built with `go test -c`
+# Test files
 *.test
+coverage.out
+test-output/
 
-# Output of the go coverage tool, specifically when used with LiteIDE
-*.out
-
-# Dependency directories (remove the comment below to include it)
-# vendor/
-
-# Go workspace file
-go.work
+# Configuration files with secrets
+*.key
+*.pem
+*-real.cnf
+*-prod.cnf
 
 # IDE files
 .vscode/
 .idea/
 *.swp
 *.swo
-*~
 
-# OS generated files
+# OS files
 .DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
 Thumbs.db
 
-# Build output
-zcert
-zcert.exe
-zcert-*
-dist/
-build/
+# Temporary files
+tmp/
+temp/
+*.tmp
+*.bak
 
-# Certificate files (for testing)
-*.pem
-*.crt
-*.key
-*.p12
-*.pfx
-*.jks
-
-# Configuration files with secrets
-.zcert.yaml
-config.yaml
-zcert.cnf
-test-config.cnf
-*.cnf.orig
-
-# Log files
-*.log
-
-# Temporary and test files
-*-completion.sh
-test-completion.*
-new-setup-completion.sh
-setup-completion.sh
-
-# Archives and releases
-*.tar.gz
-*.zip
-*.tar.xz
+# Cleanup test files
+test_*.go
+verify_*.sh
+test-keysize*.cnf
