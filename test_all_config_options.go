@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"./internal/config"
+	"zcert/internal/config"
 )
 
 // TestConfigOption represents a test case for configuration options
