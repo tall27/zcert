@@ -4,10 +4,8 @@ package main
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"reflect"
 	"strings"
-	"testing"
 
 	"zcert/internal/config"
 )
