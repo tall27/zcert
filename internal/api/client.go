@@ -9,6 +9,7 @@ import (
         "io"
         "net/http"
         "net/url"
+        "os"
         "time"
 
         "zcert/internal/auth"
@@ -261,8 +262,13 @@ func (c *Client) SearchCertificates(params CertificateSearchParams) ([]Certifica
         endpoint := "/certificates"
         
         // Build search request body based on ZTPKI API specification
+        limit := params.Limit
+        if limit <= 0 {
+                limit = 100 // Default limit if not specified
+        }
+        
         searchRequest := map[string]interface{}{
-                "limit":  100,
+                "limit":  limit,
                 "offset": 0,
         }
         
@@ -291,7 +297,8 @@ func (c *Client) SearchCertificates(params CertificateSearchParams) ([]Certifica
                 return nil, fmt.Errorf("failed to marshal search request: %w", err)
         }
         
-
+        // Note: ZTPKI server appears to have a maximum limit of 10 certificates per request
+        // If user requests more than 10, we'll need to make multiple paginated requests
         
         resp, err := c.makeRequest("POST", endpoint, bytes.NewReader(requestBody))
         if err != nil {
