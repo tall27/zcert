@@ -25,6 +25,7 @@ var (
         searchExpired  bool
         searchExpiring int
         searchRecent   int
+        listPolicies   bool
         // ZTPKI Authentication
         searchURL      string
         searchHawkID   string
@@ -62,7 +63,8 @@ func init() {
         searchCmd.Flags().StringVar(&searchCN, "cn", "", "Search by Common Name (substring matching supported)")
         searchCmd.Flags().StringVar(&searchIssuer, "issuer", "", "Search by certificate issuer")
         searchCmd.Flags().StringVar(&searchSerial, "serial", "", "Search by serial number")
-        searchCmd.Flags().StringVarP(&searchPolicy, "policy", "p", "", "Search by policy ID or name")
+        searchCmd.Flags().StringVarP(&searchPolicy, "policy", "p", "", "Search by policy ID or name (use -p without value to list all policies)")
+        searchCmd.Flags().BoolVar(&listPolicies, "list-policies", false, "List all available policies")
         searchCmd.Flags().StringVar(&searchStatus, "status", "", "Search by certificate status (active, revoked, expired)")
         
         // ZTPKI Authentication flags
@@ -91,6 +93,13 @@ func init() {
 }
 
 func runSearch(cmd *cobra.Command, args []string) error {
+        // Check if user wants to list all policies
+        // This handles both -p without value and --list-policies
+        policyFlagChanged := cmd.Flags().Changed("policy")
+        if policyFlagChanged && searchPolicy == "" {
+                listPolicies = true
+        }
+        
         // Use profile configuration if available, otherwise use command-line flags
         profile := GetCurrentProfile()
         var finalProfile *config.Profile
@@ -147,6 +156,11 @@ func runSearch(cmd *cobra.Command, args []string) error {
         client, err := api.NewClient(cfg)
         if err != nil {
                 return fmt.Errorf("failed to initialize API client: %w", err)
+        }
+
+        // If user requested to list all policies, do that instead of searching certificates
+        if listPolicies {
+                return listAllPolicies(client)
         }
 
         // Build search parameters
@@ -496,5 +510,46 @@ Global Flags:
 Use "zcert search [command] --help" for more information about a command.
 `)
         }
+}
+
+// listAllPolicies retrieves and displays all available policies from ZTPKI
+func listAllPolicies(client *api.Client) error {
+        if viper.GetBool("verbose") {
+                fmt.Fprintln(os.Stderr, "Retrieving all available policies from ZTPKI...")
+        }
+        
+        policies, err := client.GetPolicies()
+        if err != nil {
+                return fmt.Errorf("failed to retrieve policies: %w", err)
+        }
+        
+        if len(policies) == 0 {
+                fmt.Println("No policies found.")
+                return nil
+        }
+        
+        if viper.GetBool("verbose") {
+                fmt.Fprintf(os.Stderr, "Found %d policies\n", len(policies))
+        }
+        
+        // Display policies in table format
+        w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+        fmt.Fprintln(w, "ID\tNAME\tDESCRIPTION")
+        fmt.Fprintln(w, "----\t----\t-----------")
+        
+        for _, policy := range policies {
+                description := policy.Description
+                if description == "" {
+                        description = "-"
+                }
+                // Truncate long descriptions for table display
+                if len(description) > 50 {
+                        description = description[:47] + "..."
+                }
+                
+                fmt.Fprintf(w, "%s\t%s\t%s\n", policy.ID, policy.Name, description)
+        }
+        
+        return w.Flush()
 }
 
