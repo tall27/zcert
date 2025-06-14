@@ -232,6 +232,11 @@ func runSearch(cmd *cobra.Command, args []string) error {
 
         certificates = filtered
 
+        // Apply final limit after all filtering
+        if searchLimit > 0 && len(certificates) > searchLimit {
+                certificates = certificates[:searchLimit]
+        }
+
         if viper.GetBool("verbose") {
                 fmt.Fprintf(os.Stderr, "Found %d certificates\n", len(certificates))
         }
