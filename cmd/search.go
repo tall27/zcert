@@ -100,6 +100,17 @@ func runSearch(cmd *cobra.Command, args []string) error {
                 listPolicies = true
         }
         
+        // Also check for -p flag in command line args directly
+        for i, arg := range os.Args {
+                if arg == "-p" {
+                        // Check if next argument exists and doesn't start with '-'
+                        if i+1 >= len(os.Args) || strings.HasPrefix(os.Args[i+1], "-") {
+                                listPolicies = true
+                                break
+                        }
+                }
+        }
+        
         // Use profile configuration if available, otherwise use command-line flags
         profile := GetCurrentProfile()
         var finalProfile *config.Profile
