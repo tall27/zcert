@@ -63,8 +63,8 @@ func init() {
         searchCmd.Flags().StringVar(&searchCN, "cn", "", "Search by Common Name (substring matching supported)")
         searchCmd.Flags().StringVar(&searchIssuer, "issuer", "", "Search by certificate issuer")
         searchCmd.Flags().StringVar(&searchSerial, "serial", "", "Search by serial number")
-        searchCmd.Flags().StringVarP(&searchPolicy, "policy", "p", "", "Search by policy ID or name (use -p without value to list all policies)")
-        searchCmd.Flags().BoolVar(&listPolicies, "list-policies", false, "List all available policies")
+        searchCmd.Flags().BoolVarP(&listPolicies, "policies", "p", false, "List all available policies")
+        searchCmd.Flags().StringVar(&searchPolicy, "policy", "", "Search by policy ID or name")
         searchCmd.Flags().StringVar(&searchStatus, "status", "", "Search by certificate status (active, revoked, expired)")
         
         // ZTPKI Authentication flags
@@ -93,22 +93,63 @@ func init() {
 }
 
 func runSearch(cmd *cobra.Command, args []string) error {
-        // Check if user wants to list all policies
-        // This handles both -p without value and --list-policies
-        policyFlagChanged := cmd.Flags().Changed("policy")
-        if policyFlagChanged && searchPolicy == "" {
-                listPolicies = true
-        }
-        
-        // Also check for -p flag in command line args directly
-        for i, arg := range os.Args {
-                if arg == "-p" {
-                        // Check if next argument exists and doesn't start with '-'
-                        if i+1 >= len(os.Args) || strings.HasPrefix(os.Args[i+1], "-") {
-                                listPolicies = true
-                                break
+        // Check if user wants to list all policies using -p flag
+        if listPolicies {
+                // Early return for policy listing
+                profile := GetCurrentProfile()
+                var finalProfile *config.Profile
+                
+                if profile != nil {
+                        finalProfile = config.MergeProfileWithFlags(
+                                profile,
+                                searchURL, searchHawkID, searchHawkKey,
+                                "", "", "", 
+                                0, "", 
+                        )
+                } else {
+                        url := searchURL
+                        if url == "" {
+                                url = os.Getenv("ZTPKI_URL")
+                        }
+                        hawkID := searchHawkID
+                        if hawkID == "" {
+                                hawkID = os.Getenv("ZTPKI_HAWK_ID")
+                        }
+                        hawkKey := searchHawkKey
+                        if hawkKey == "" {
+                                hawkKey = os.Getenv("ZTPKI_HAWK_SECRET")
+                        }
+                        
+                        finalProfile = &config.Profile{
+                                URL:    url,
+                                KeyID:  hawkID,
+                                Secret: hawkKey,
+                                Algo:   "sha256",
                         }
                 }
+                
+                if finalProfile.URL == "" {
+                        return fmt.Errorf("ZTPKI API URL is required. Set ZTPKI_URL environment variable or use --url flag")
+                }
+                if finalProfile.KeyID == "" {
+                        return fmt.Errorf("HAWK ID is required. Set ZTPKI_HAWK_ID environment variable or use --hawk-id flag")
+                }
+                if finalProfile.Secret == "" {
+                        return fmt.Errorf("HAWK secret is required. Set ZTPKI_HAWK_SECRET environment variable or use --hawk-key flag")
+                }
+                
+                cfg := &config.Config{
+                        BaseURL: finalProfile.URL,
+                        HawkID:  finalProfile.KeyID,
+                        HawkKey: finalProfile.Secret,
+                }
+                
+                client, err := api.NewClient(cfg)
+                if err != nil {
+                        return fmt.Errorf("failed to initialize API client: %w", err)
+                }
+                
+                return listAllPolicies(client)
         }
         
         // Use profile configuration if available, otherwise use command-line flags
@@ -167,11 +208,6 @@ func runSearch(cmd *cobra.Command, args []string) error {
         client, err := api.NewClient(cfg)
         if err != nil {
                 return fmt.Errorf("failed to initialize API client: %w", err)
-        }
-
-        // If user requested to list all policies, do that instead of searching certificates
-        if listPolicies {
-                return listAllPolicies(client)
         }
 
         // Build search parameters
