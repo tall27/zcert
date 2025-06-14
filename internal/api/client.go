@@ -9,7 +9,6 @@ import (
         "io"
         "net/http"
         "net/url"
-        "os"
         "time"
 
         "zcert/internal/auth"
@@ -258,18 +257,60 @@ func (c *Client) GetCertificateRequest(requestID string) (*CertificateRequest, e
 
 // SearchCertificates searches for certificates based on criteria
 func (c *Client) SearchCertificates(params CertificateSearchParams) ([]Certificate, error) {
-        // ZTPKI uses POST /certificates for search according to the Swagger documentation
-        endpoint := "/certificates"
-        
-        // Build search request body based on ZTPKI API specification
-        limit := params.Limit
-        if limit <= 0 {
-                limit = 100 // Default limit if not specified
+        userLimit := params.Limit
+        if userLimit <= 0 {
+                userLimit = 100 // Default limit if not specified
         }
         
+        var allCertificates []Certificate
+        const serverMaxLimit = 10 // ZTPKI server's maximum limit per request
+        offset := 0
+        
+        // Make paginated requests until we have enough certificates or no more available
+        for len(allCertificates) < userLimit {
+                requestLimit := serverMaxLimit
+                remaining := userLimit - len(allCertificates)
+                if remaining < serverMaxLimit {
+                        requestLimit = remaining
+                }
+                
+                // Build search request for this page
+                certificates, err := c.searchCertificatesPage(params, requestLimit, offset)
+                if err != nil {
+                        return nil, err
+                }
+                
+                // If no certificates returned, we've reached the end
+                if len(certificates) == 0 {
+                        break
+                }
+                
+                allCertificates = append(allCertificates, certificates...)
+                
+                // If we got less than the server max, we've reached the end
+                if len(certificates) < serverMaxLimit {
+                        break
+                }
+                
+                offset += len(certificates)
+        }
+        
+        // Ensure we don't exceed the user's requested limit
+        if len(allCertificates) > userLimit {
+                allCertificates = allCertificates[:userLimit]
+        }
+        
+        return allCertificates, nil
+}
+
+// searchCertificatesPage performs a single paginated search request
+func (c *Client) searchCertificatesPage(params CertificateSearchParams, limit, offset int) ([]Certificate, error) {
+        endpoint := "/certificates"
+        
+        // Build search request body
         searchRequest := map[string]interface{}{
                 "limit":  limit,
-                "offset": 0,
+                "offset": offset,
         }
         
         // Add search filters if provided
@@ -296,9 +337,6 @@ func (c *Client) SearchCertificates(params CertificateSearchParams) ([]Certifica
         if err != nil {
                 return nil, fmt.Errorf("failed to marshal search request: %w", err)
         }
-        
-        // Note: ZTPKI server appears to have a maximum limit of 10 certificates per request
-        // If user requests more than 10, we'll need to make multiple paginated requests
         
         resp, err := c.makeRequest("POST", endpoint, bytes.NewReader(requestBody))
         if err != nil {
