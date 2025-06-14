@@ -104,11 +104,24 @@ func runSearch(cmd *cobra.Command, args []string) error {
                         0, "", // keysize, keytype not needed for search
                 )
         } else {
-                // No profile config, use command-line flags
+                // No profile config, use command-line flags or environment variables
+                url := searchURL
+                if url == "" {
+                        url = os.Getenv("ZTPKI_URL")
+                }
+                hawkID := searchHawkID
+                if hawkID == "" {
+                        hawkID = os.Getenv("ZTPKI_HAWK_ID")
+                }
+                hawkKey := searchHawkKey
+                if hawkKey == "" {
+                        hawkKey = os.Getenv("ZTPKI_HAWK_SECRET")
+                }
+                
                 finalProfile = &config.Profile{
-                        URL:    searchURL,
-                        KeyID:  searchHawkID,
-                        Secret: searchHawkKey,
+                        URL:    url,
+                        KeyID:  hawkID,
+                        Secret: hawkKey,
                         Algo:   "sha256", // Always use sha256
                 }
         }
