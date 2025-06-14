@@ -579,11 +579,15 @@ func listAllPolicies(client *api.Client) error {
                 fmt.Fprintf(os.Stderr, "Found %d policies\n", len(policies))
         }
         
-        // Display policies in NAME | POLICYID format
+        // Display policies in table format with proper headers
+        w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
+        fmt.Fprintln(w, "NAME\tPOLICY ID")
+        fmt.Fprintln(w, "----\t---------")
+        
         for _, policy := range policies {
-                fmt.Printf("%s | %s\n", policy.Name, policy.ID)
+                fmt.Fprintf(w, "%s\t%s\n", policy.Name, policy.ID)
         }
         
-        return nil
+        return w.Flush()
 }
 
