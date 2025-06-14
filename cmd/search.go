@@ -62,7 +62,7 @@ func init() {
         searchCmd.Flags().StringVar(&searchCN, "cn", "", "Search by Common Name (substring matching supported)")
         searchCmd.Flags().StringVar(&searchIssuer, "issuer", "", "Search by certificate issuer")
         searchCmd.Flags().StringVar(&searchSerial, "serial", "", "Search by serial number")
-        searchCmd.Flags().StringVar(&searchPolicy, "policy", "", "Search by policy ID or name")
+        searchCmd.Flags().StringVarP(&searchPolicy, "policy", "p", "", "Search by policy ID or name")
         searchCmd.Flags().StringVar(&searchStatus, "status", "", "Search by certificate status (active, revoked, expired)")
         
         // ZTPKI Authentication flags
@@ -419,7 +419,7 @@ func getSearchUsageFunc() func(*cobra.Command) error {
                 fmt.Printf("      --cn string         Search by Common Name (substring matching supported)\n")
                 fmt.Printf("      --issuer string     Search by certificate issuer\n")
                 fmt.Printf("      --serial string     Search by serial number\n")
-                fmt.Printf("      --policy string     Search by policy ID or name\n")
+                fmt.Printf("  -p, --policy string     Search by policy ID or name\n")
                 fmt.Printf("      --status string     Search by certificate status (active, revoked, expired)\n\n")
                 
                 fmt.Printf("Time-Based Filters:\n")
@@ -474,7 +474,7 @@ Search Criteria:
       --cn string         Search by Common Name (substring matching supported)
       --issuer string     Search by certificate issuer
       --serial string     Search by serial number
-      --policy string     Search by policy ID or name
+  -p, --policy string     Search by policy ID or name
       --status string     Search by certificate status (active, revoked, expired)
 
 Time-Based Filters:
