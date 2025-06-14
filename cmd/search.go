@@ -1,6 +1,7 @@
 package cmd
 
 import (
+        "encoding/json"
         "fmt"
         "os"
         "strings"
@@ -149,7 +150,7 @@ func runSearch(cmd *cobra.Command, args []string) error {
                         return fmt.Errorf("failed to initialize API client: %w", err)
                 }
                 
-                return listAllPolicies(client)
+                return listAllPolicies(client, searchLimit, searchFormat, searchWide)
         }
         
         // Use profile configuration if available, otherwise use command-line flags
@@ -560,7 +561,7 @@ Use "zcert search [command] --help" for more information about a command.
 }
 
 // listAllPolicies retrieves and displays all available policies from ZTPKI
-func listAllPolicies(client *api.Client) error {
+func listAllPolicies(client *api.Client, limit int, format string, wide bool) error {
         if viper.GetBool("verbose") {
                 fmt.Fprintln(os.Stderr, "Retrieving all available policies from ZTPKI...")
         }
@@ -575,19 +576,56 @@ func listAllPolicies(client *api.Client) error {
                 return nil
         }
         
-        if viper.GetBool("verbose") {
-                fmt.Fprintf(os.Stderr, "Found %d policies\n", len(policies))
+        // Apply limit if specified
+        if limit > 0 && limit < len(policies) {
+                policies = policies[:limit]
         }
         
-        // Display policies in table format with proper headers
+        if viper.GetBool("verbose") {
+                fmt.Fprintf(os.Stderr, "Found %d policies (showing %d)\n", len(policies), len(policies))
+        }
+        
+        // Display policies based on format
+        switch format {
+        case "json":
+                return outputPoliciesJSON(policies)
+        case "csv":
+                return outputPoliciesCSV(policies)
+        default: // table
+                return outputPoliciesTable(policies, wide)
+        }
+}
+
+// outputPoliciesTable displays policies in table format
+func outputPoliciesTable(policies []api.Policy, wide bool) error {
         w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
         fmt.Fprintln(w, "NAME\tPOLICY ID")
         fmt.Fprintln(w, "----\t---------")
         
         for _, policy := range policies {
-                fmt.Fprintf(w, "%s\t%s\n", policy.Name, policy.ID)
+                name := policy.Name
+                if !wide && len(name) > 30 {
+                        name = name[:27] + "..."
+                }
+                fmt.Fprintf(w, "%s\t%s\n", name, policy.ID)
         }
         
         return w.Flush()
+}
+
+// outputPoliciesJSON displays policies in JSON format
+func outputPoliciesJSON(policies []api.Policy) error {
+        encoder := json.NewEncoder(os.Stdout)
+        encoder.SetIndent("", "  ")
+        return encoder.Encode(policies)
+}
+
+// outputPoliciesCSV displays policies in CSV format
+func outputPoliciesCSV(policies []api.Policy) error {
+        fmt.Println("Name,Policy ID")
+        for _, policy := range policies {
+                fmt.Printf("%s,%s\n", policy.Name, policy.ID)
+        }
+        return nil
 }
 
