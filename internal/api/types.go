@@ -218,6 +218,7 @@ type CertificateSearchParams struct {
         PolicyID      string     `json:"policyId,omitempty"`
         Status        string     `json:"status,omitempty"`
         Limit         int        `json:"limit,omitempty"`
+        Offset        int        `json:"offset,omitempty"`
         NotAfter      string     `json:"not_after,omitempty"`
         NotBefore     string     `json:"not_before,omitempty"`
         ExpiresBefore *time.Time `json:"expiresBefore,omitempty"` // For client-side filtering

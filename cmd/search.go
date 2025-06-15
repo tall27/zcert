@@ -267,36 +267,31 @@ func runSearch(cmd *cobra.Command, args []string) error {
                 fmt.Fprintf(os.Stderr, "  Limit: %d\n", searchLimit)
         }
 
-        // Perform search
-        certificates, err := client.SearchCertificates(searchParams)
-        if err != nil {
-                return fmt.Errorf("failed to search certificates: %w", err)
+        // For client-side filtering requirements, we need a different approach
+        needsClientSideFiltering := searchCN != "" || searchSerial != "" || issuedAfter != nil || expiresBefore != nil
+        
+        var certificates []api.Certificate
+        var searchErr error
+        
+        if needsClientSideFiltering {
+                // When client-side filtering is needed, fetch more certificates and filter iteratively
+                certificates, searchErr = searchWithClientSideFiltering(client, searchParams, searchCN, searchSerial, searchStatus, issuedAfter, expiresBefore)
+        } else {
+                // Standard server-side search
+                certificates, searchErr = client.SearchCertificates(searchParams)
+        }
+        
+        if searchErr != nil {
+                return fmt.Errorf("failed to search certificates: %w", searchErr)
         }
 
         if viper.GetBool("verbose") {
-                fmt.Fprintf(os.Stderr, "Raw API response returned %d certificates\n", len(certificates))
-                for i, cert := range certificates {
-                        fmt.Fprintf(os.Stderr, "Certificate %d: ID=%s, CN=%s, Subject=%s\n", i+1, cert.ID, cert.CommonName, cert.Subject)
-                }
-        }
-
-        // Apply client-side filtering for advanced use cases
-        filtered := applyClientSideFilters(certificates, searchCN, searchSerial, searchStatus, issuedAfter, expiresBefore)
-        
-        if viper.GetBool("verbose") {
-                fmt.Fprintf(os.Stderr, "After filtering: %d certificates match criteria\n", len(filtered))
+                fmt.Fprintf(os.Stderr, "Final result: %d certificates match criteria\n", len(certificates))
         }
         
-        if len(filtered) == 0 {
+        if len(certificates) == 0 {
                 fmt.Println("No certificates found matching the specified criteria.")
                 return nil
-        }
-
-        certificates = filtered
-
-        // Apply final limit after all filtering
-        if searchLimit > 0 && len(certificates) > searchLimit {
-                certificates = certificates[:searchLimit]
         }
 
         if viper.GetBool("verbose") {
@@ -314,6 +309,74 @@ func runSearch(cmd *cobra.Command, args []string) error {
         default:
                 return fmt.Errorf("unsupported output format: %s", searchFormat)
         }
+}
+
+// searchWithClientSideFiltering performs search with client-side filtering and proper pagination
+func searchWithClientSideFiltering(client *api.Client, baseParams api.CertificateSearchParams, commonName, serial, status string, issuedAfter, expiresBefore *time.Time) ([]api.Certificate, error) {
+        var allMatched []api.Certificate
+        const batchSize = 100 // Fetch larger batches when filtering is needed
+        offset := 0
+        requestedLimit := baseParams.Limit
+        
+        if viper.GetBool("verbose") {
+                fmt.Fprintf(os.Stderr, "Using client-side filtering, fetching in batches of %d\n", batchSize)
+        }
+        
+        for len(allMatched) < requestedLimit {
+                // Create search params for this batch
+                batchParams := baseParams
+                batchParams.Limit = batchSize
+                batchParams.Offset = offset
+                
+                // Remove client-side filter criteria from server request
+                if commonName != "" {
+                        batchParams.CommonName = ""
+                }
+                if serial != "" {
+                        batchParams.Serial = ""
+                }
+                
+                certificates, err := client.SearchCertificatesBatch(batchParams)
+                if err != nil {
+                        return nil, err
+                }
+                
+                if len(certificates) == 0 {
+                        break // No more certificates available
+                }
+                
+                // Apply client-side filtering to this batch
+                filtered := applyClientSideFilters(certificates, commonName, serial, status, issuedAfter, expiresBefore)
+                
+                if viper.GetBool("verbose") {
+                        fmt.Fprintf(os.Stderr, "Batch %d: fetched %d, filtered to %d certificates\n", 
+                                offset/batchSize+1, len(certificates), len(filtered))
+                }
+                
+                // Add filtered results
+                for _, cert := range filtered {
+                        if len(allMatched) < requestedLimit {
+                                allMatched = append(allMatched, cert)
+                        }
+                }
+                
+                // If we got fewer than batchSize, we've reached the end
+                if len(certificates) < batchSize {
+                        break
+                }
+                
+                offset += batchSize
+                
+                // Safety limit to prevent infinite loops
+                if offset > 10000 {
+                        if viper.GetBool("verbose") {
+                                fmt.Fprintf(os.Stderr, "Reached safety limit of 10000 certificates\n")
+                        }
+                        break
+                }
+        }
+        
+        return allMatched, nil
 }
 
 // applyClientSideFilters applies advanced filtering that requires client-side processing

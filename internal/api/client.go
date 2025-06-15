@@ -303,6 +303,11 @@ func (c *Client) SearchCertificates(params CertificateSearchParams) ([]Certifica
         return allCertificates, nil
 }
 
+// SearchCertificatesBatch performs a single batch search for client-side filtering
+func (c *Client) SearchCertificatesBatch(params CertificateSearchParams) ([]Certificate, error) {
+        return c.searchCertificatesPage(params, params.Limit, params.Offset)
+}
+
 // searchCertificatesPage performs a single paginated search request
 func (c *Client) searchCertificatesPage(params CertificateSearchParams, limit, offset int) ([]Certificate, error) {
         endpoint := "/certificates"
