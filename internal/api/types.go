@@ -217,7 +217,7 @@ type CertificateSearchParams struct {
         Issuer        string     `json:"issuer,omitempty"`
         PolicyID      string     `json:"policyId,omitempty"`
         Status        string     `json:"status,omitempty"`
-        Expired       bool       `json:"expired,omitempty"`       // Server-side expired filtering
+        Expired       *bool      `json:"expired,omitempty"`       // Pointer to distinguish null vs false
         Limit         int        `json:"limit,omitempty"`
         Offset        int        `json:"offset,omitempty"`
         NotAfter      string     `json:"not_after,omitempty"`

@@ -329,8 +329,8 @@ func (c *Client) searchCertificatesPage(params CertificateSearchParams, limit, o
         if params.Status != "" {
                 searchRequest["status"] = params.Status
         }
-        if params.Expired {
-                searchRequest["expired"] = params.Expired
+        if params.Expired != nil {
+                searchRequest["expired"] = *params.Expired
         }
         if params.PolicyID != "" {
                 searchRequest["policy"] = params.PolicyID

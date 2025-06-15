@@ -223,7 +223,8 @@ func runSearch(cmd *cobra.Command, args []string) error {
 
         // Handle special date-based filters
         if searchExpired {
-                searchParams.Expired = true
+                expired := true
+                searchParams.Expired = &expired
         }
 
         var expiresBefore *time.Time
