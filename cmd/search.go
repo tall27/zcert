@@ -284,9 +284,7 @@ func runSearch(cmd *cobra.Command, args []string) error {
         
         if viper.GetBool("verbose") {
                 fmt.Fprintf(os.Stderr, "Search strategy: needsClientFiltering=%t, useExpiredPagination=%t\n", needsClientFiltering, useExpiredPagination)
-                if profile.Account != "" && searchLimit > 10 {
-                        fmt.Fprintf(os.Stderr, "Note: ZTPKI API limits account-scoped searches to ~10 certificates per request\n")
-                }
+
         }
         
         if useExpiredPagination {

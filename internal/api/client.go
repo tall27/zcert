@@ -282,16 +282,51 @@ func (c *Client) SearchCertificates(params CertificateSearchParams) ([]Certifica
                 userLimit = 100 // Default limit if not specified
         }
         
-        // For account-scoped searches, use the user's exact limit
+        // For account-scoped searches, implement pagination to reach user's limit
         if params.Account != "" {
-                if os.Getenv("ZCERT_DEBUG") != "" {
-                        fmt.Fprintf(os.Stderr, "Account search: userLimit=%d, params.Limit=%d\n", userLimit, params.Limit)
+                var allCertificates []Certificate
+                const batchSize = 10 // ZTPKI typically returns ~10 certificates per request
+                offset := 0
+                
+                // Make paginated requests until we have enough certificates or no more available
+                for len(allCertificates) < userLimit {
+                        requestLimit := batchSize
+                        remaining := userLimit - len(allCertificates)
+                        if remaining < batchSize {
+                                requestLimit = remaining
+                        }
+                        
+                        if os.Getenv("ZCERT_DEBUG") != "" {
+                                fmt.Fprintf(os.Stderr, "Requesting batch: limit=%d, offset=%d, total collected=%d\n", requestLimit, offset, len(allCertificates))
+                        }
+                        
+                        certificates, err := c.searchCertificatesPage(params, requestLimit, offset)
+                        if err != nil {
+                                return nil, err
+                        }
+                        
+                        // If no certificates returned, we've reached the end
+                        if len(certificates) == 0 {
+                                break
+                        }
+                        
+                        allCertificates = append(allCertificates, certificates...)
+                        
+                        // If we got less than requested, we've reached the end
+                        if len(certificates) < requestLimit {
+                                break
+                        }
+                        
+                        offset += len(certificates)
                 }
-                certificates, err := c.searchCertificatesPage(params, userLimit, 0)
-                if err != nil {
-                        return nil, err
+                
+                // Deduplicate and ensure we don't exceed the user's requested limit
+                deduplicated := c.deduplicateCertificates(allCertificates)
+                if len(deduplicated) > userLimit {
+                        deduplicated = deduplicated[:userLimit]
                 }
-                return certificates, nil
+                
+                return deduplicated, nil
         }
         
         // For non-account searches, use traditional pagination
