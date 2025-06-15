@@ -221,10 +221,12 @@ func runSearch(cmd *cobra.Command, args []string) error {
                 Limit:      searchLimit,
         }
 
-        // Handle special date-based filters
+        // Handle special date-based filters - use smart pagination for expired certificates
+        var useExpiredPagination bool
         if searchExpired {
                 expired := true
                 searchParams.Expired = &expired
+                useExpiredPagination = true
         }
 
         var expiresBefore *time.Time
@@ -275,7 +277,34 @@ func runSearch(cmd *cobra.Command, args []string) error {
         var certificates []api.Certificate
         needsClientFiltering := searchCN != "" || searchSerial != "" || issuedAfter != nil || expiresBefore != nil
         
-        if needsClientFiltering {
+        if useExpiredPagination {
+                // Special handling for expired certificates - keep fetching until we get enough expired ones
+                certificates, err := searchExpiredCertificates(client, searchParams, searchLimit)
+                if err != nil {
+                        return fmt.Errorf("failed to search expired certificates: %w", err)
+                }
+                
+                if len(certificates) == 0 {
+                        fmt.Println("No expired certificates found.")
+                        return nil
+                }
+                
+                if viper.GetBool("verbose") {
+                        fmt.Fprintf(os.Stderr, "Found %d expired certificates\n", len(certificates))
+                }
+                
+                // Output results in the requested format
+                switch strings.ToLower(searchFormat) {
+                case "table":
+                        return outputTable(certificates, searchWide)
+                case "json":
+                        return outputJSON(certificates)
+                case "csv":
+                        return outputCSV(certificates)
+                default:
+                        return fmt.Errorf("unsupported output format: %s", searchFormat)
+                }
+        } else if needsClientFiltering {
                 // For client-side filtering, fetch more certificates to ensure we get enough results
                 expandedParams := searchParams
                 expandedParams.Limit = searchLimit * 10 // Fetch 10x more to account for filtering
@@ -333,7 +362,83 @@ func runSearch(cmd *cobra.Command, args []string) error {
         }
 }
 
-
+// searchExpiredCertificates implements smart pagination to find expired certificates
+func searchExpiredCertificates(client *api.Client, baseParams api.CertificateSearchParams, targetLimit int) ([]api.Certificate, error) {
+        var expiredCertificates []api.Certificate
+        const batchSize = 50 // Fetch larger batches to find expired certificates efficiently
+        const maxTotalFetch = 2000 // Safety limit to prevent infinite loops
+        
+        totalFetched := 0
+        offset := 0
+        
+        if viper.GetBool("verbose") {
+                fmt.Fprintf(os.Stderr, "Searching for %d expired certificates with smart pagination\n", targetLimit)
+        }
+        
+        for len(expiredCertificates) < targetLimit && totalFetched < maxTotalFetch {
+                // Create batch parameters
+                batchParams := baseParams
+                batchParams.Limit = batchSize
+                batchParams.Offset = offset
+                
+                // Fetch batch with expired=true flag
+                certificates, err := client.SearchCertificates(batchParams)
+                if err != nil {
+                        return nil, fmt.Errorf("failed to fetch certificate batch: %w", err)
+                }
+                
+                if len(certificates) == 0 {
+                        break // No more certificates available
+                }
+                
+                totalFetched += len(certificates)
+                
+                if viper.GetBool("verbose") {
+                        fmt.Fprintf(os.Stderr, "Batch %d: fetched %d certificates (total: %d)\n", 
+                                offset/batchSize+1, len(certificates), totalFetched)
+                }
+                
+                // Filter for actually expired certificates (status = "Expired" or past expiry date)
+                for _, cert := range certificates {
+                        isExpiredByStatus := strings.ToLower(cert.Status) == "expired"
+                        isExpiredByDate := cert.ExpiryDate.Before(time.Now())
+                        
+                        if isExpiredByStatus || isExpiredByDate {
+                                expiredCertificates = append(expiredCertificates, cert)
+                                
+                                // Stop if we have enough expired certificates
+                                if len(expiredCertificates) >= targetLimit {
+                                        break
+                                }
+                        }
+                }
+                
+                if viper.GetBool("verbose") {
+                        fmt.Fprintf(os.Stderr, "Found %d expired certificates so far (need %d)\n", 
+                                len(expiredCertificates), targetLimit)
+                }
+                
+                // Move to next batch
+                offset += len(certificates)
+                
+                // If we got fewer certificates than batch size, we've reached the end
+                if len(certificates) < batchSize {
+                        break
+                }
+        }
+        
+        // Trim to exact limit requested
+        if len(expiredCertificates) > targetLimit {
+                expiredCertificates = expiredCertificates[:targetLimit]
+        }
+        
+        if viper.GetBool("verbose") {
+                fmt.Fprintf(os.Stderr, "Smart pagination complete: found %d expired certificates (searched %d total)\n", 
+                        len(expiredCertificates), totalFetched)
+        }
+        
+        return expiredCertificates, nil
+}
 
 // applyClientSideFilters applies advanced filtering that requires client-side processing
 func applyClientSideFilters(certificates []api.Certificate, commonName, serial, status string, issuedAfter, expiresBefore *time.Time) []api.Certificate {
