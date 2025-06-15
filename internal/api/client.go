@@ -282,17 +282,12 @@ func (c *Client) SearchCertificates(params CertificateSearchParams) ([]Certifica
                 userLimit = 100 // Default limit if not specified
         }
         
-        // ZTPKI API limitation: offset pagination doesn't work with account-scoped searches
-        // The API ignores offset parameter and always returns the same first batch of certificates
+        // For account-scoped searches, use the user's exact limit
         if params.Account != "" {
-                // Make a single request with the user's limit (API will cap at its server limit)
                 certificates, err := c.searchCertificatesPage(params, userLimit, 0)
                 if err != nil {
                         return nil, err
                 }
-                
-                // The API typically returns ~10 certificates maximum per request
-                // even when requesting more, due to server-side limitations
                 return certificates, nil
         }
         
@@ -384,6 +379,7 @@ func (c *Client) searchCertificatesPage(params CertificateSearchParams, limit, o
         }
         
         searchRequest := map[string]interface{}{
+                "account":        params.Account,
                 "common_name":    commonName,
                 "expired":        expired,
                 "limit":          limit,
@@ -399,6 +395,7 @@ func (c *Client) searchCertificatesPage(params CertificateSearchParams, limit, o
         if os.Getenv("ZCERT_DEBUG") != "" {
                 requestJSON, _ := json.Marshal(searchRequest)
                 fmt.Fprintf(os.Stderr, "API Request to %s: %s\n", endpoint, string(requestJSON))
+                fmt.Fprintf(os.Stderr, "Parameters passed: limit=%d, offset=%d\n", limit, offset)
         }
         
         resp, err := c.makeRequest("POST", endpoint, searchRequest)

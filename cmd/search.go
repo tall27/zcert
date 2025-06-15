@@ -221,6 +221,10 @@ func runSearch(cmd *cobra.Command, args []string) error {
                 Status:     searchStatus,
                 Limit:      searchLimit,
         }
+        
+        if viper.GetBool("verbose") || os.Getenv("ZCERT_DEBUG") != "" {
+                fmt.Fprintf(os.Stderr, "Search limit from command line: %d\n", searchLimit)
+        }
 
         // Handle special date-based filters - use smart pagination for expired certificates
         var useExpiredPagination bool
