@@ -50,7 +50,7 @@ jobs:
     - name: Get build info
       id: build_info
       run: |
-        echo "version=1.0.0" >> $GITHUB_OUTPUT
+        echo "version=1.1.0" >> $GITHUB_OUTPUT
         echo "commit=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
         echo "build_time=$(date -u '+%Y-%m-%d_%H:%M:%S_UTC')" >> $GITHUB_OUTPUT
         echo "go_version=$(go version | awk '{print $3}')" >> $GITHUB_OUTPUT
