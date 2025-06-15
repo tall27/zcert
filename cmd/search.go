@@ -269,7 +269,7 @@ func runSearch(cmd *cobra.Command, args []string) error {
 
         // Adjust search strategy based on filtering requirements
         var certificates []api.Certificate
-        needsClientFiltering := searchCN != "" || searchSerial != "" || issuedAfter != nil || expiresBefore != nil
+        needsClientFiltering := searchCN != "" || searchSerial != "" || searchStatus != "" || issuedAfter != nil || expiresBefore != nil
         
         if needsClientFiltering {
                 // For client-side filtering, fetch more certificates to ensure we get enough results
