@@ -263,51 +263,18 @@ func (c *Client) SearchCertificates(params CertificateSearchParams) ([]Certifica
                 userLimit = 100 // Default limit if not specified
         }
         
-        // For account-scoped searches, implement proper pagination
+        // ZTPKI API limitation: offset pagination doesn't work with account-scoped searches
+        // The API ignores offset parameter and always returns the same first batch of certificates
         if params.Account != "" {
-                var allCertificates []Certificate
-                const serverPageLimit = 50 // ZTPKI appears to limit responses, use smaller pages
-                offset := 0
-                
-                for len(allCertificates) < userLimit {
-                        pageSize := serverPageLimit
-                        remaining := userLimit - len(allCertificates)
-                        if remaining < serverPageLimit {
-                                pageSize = remaining
-                        }
-                        
-                        certificates, err := c.searchCertificatesPage(params, pageSize, offset)
-                        if err != nil {
-                                return nil, err
-                        }
-                        
-                        // If no certificates returned, we've reached the end
-                        if len(certificates) == 0 {
-                                break
-                        }
-                        
-                        allCertificates = append(allCertificates, certificates...)
-                        
-                        // The ZTPKI API seems to limit results to ~10 per request regardless of limit
-                        // So we need to continue pagination even if we got fewer than requested
-                        if len(certificates) < 10 { // If we get less than the apparent server limit
-                                break
-                        }
-                        
-                        offset += len(certificates)
-                        
-                        // Safety check to prevent infinite loops
-                        if offset > 1000 {
-                                break
-                        }
+                // Make a single request with the user's limit (API will cap at its server limit)
+                certificates, err := c.searchCertificatesPage(params, userLimit, 0)
+                if err != nil {
+                        return nil, err
                 }
                 
-                // Remove duplicates and return only requested amount
-                deduplicated := c.deduplicateCertificates(allCertificates)
-                if len(deduplicated) > userLimit {
-                        return deduplicated[:userLimit], nil
-                }
-                return deduplicated, nil
+                // The API typically returns ~10 certificates maximum per request
+                // even when requesting more, due to server-side limitations
+                return certificates, nil
         }
         
         // For non-account searches, use traditional pagination
@@ -378,8 +345,11 @@ func (c *Client) searchCertificatesPage(params CertificateSearchParams, limit, o
         
         // Build search request body
         searchRequest := map[string]interface{}{
-                "limit":  limit,
-                "offset": offset,
+                "limit":          limit,
+                "offset":         offset,
+                "sort_type":      "id",
+                "sort_direction": "asc",
+                "span":           1000, // Try span parameter for better pagination
         }
         
         // Add search filters if provided
