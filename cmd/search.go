@@ -711,7 +711,7 @@ Search Criteria:
 
 Time-Based Filters:
       --expired           Show only expired certificates
-      --expiring int      Show certificates expiring within N days
+      --expiring string   Show certificates expiring within specified period (formats: 30d, 6m, 1y, 30d6m, 1y6m, or plain number for days)
       --recent int        Show certificates issued within N days
 
 Output Options:
