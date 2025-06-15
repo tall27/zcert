@@ -26,6 +26,7 @@ var (
         searchWide     bool
         searchExpired  bool
         searchExpiring string
+        searchExpiringSet bool  // Track if --expiring was explicitly set
         searchRecent   int
         listPolicies   bool
         // ZTPKI Authentication
@@ -257,7 +258,7 @@ func runSearch(cmd *cobra.Command, args []string) error {
         
         // Check if --expiring flag was provided but value looks like another flag (starts with -)
         expiringFlag := cmd.Flags().Lookup("expiring")
-        if expiringFlag.Changed {
+        if expiringFlag.Changed || searchExpiringSet {
                 if searchExpiring == "" || strings.HasPrefix(searchExpiring, "-") {
                         if currentProfile != nil && currentProfile.Validity > 0 {
                                 expiringValue = fmt.Sprintf("%d", currentProfile.Validity)
@@ -318,8 +319,8 @@ func runSearch(cmd *cobra.Command, args []string) error {
                 if searchStatus != "" {
                         fmt.Fprintf(os.Stderr, "  Status: %s\n", searchStatus)
                 }
-                if searchExpiring != "" {
-                        fmt.Fprintf(os.Stderr, "  Expiring within: %s\n", searchExpiring)
+                if searchExpiring.Value != "" {
+                        fmt.Fprintf(os.Stderr, "  Expiring within: %s\n", searchExpiring.Value)
                 }
                 if searchRecent > 0 {
                         fmt.Fprintf(os.Stderr, "  Recent certificates within: %d days\n", searchRecent)
