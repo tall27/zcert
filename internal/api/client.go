@@ -362,39 +362,37 @@ func (c *Client) SearchCertificatesBatch(params CertificateSearchParams) ([]Cert
 func (c *Client) searchCertificatesPage(params CertificateSearchParams, limit, offset int) ([]Certificate, error) {
         endpoint := "/certificates"
         
-        // Build search request body
-        searchRequest := map[string]interface{}{
-                "limit":          limit,
-                "offset":         offset,
-                "sort_type":      "id",
-                "sort_direction": "asc",
-                "span":           1000, // Try span parameter for better pagination
+        // Build search request body to match expected ZTPKI format
+        var commonName interface{} = nil
+        if params.CommonName != "" {
+                commonName = params.CommonName
         }
         
-        // Add search filters if provided
-        if params.Account != "" {
-                searchRequest["account"] = params.Account
-        }
-        if params.CommonName != "" {
-                searchRequest["common_name"] = params.CommonName
-        }
+        var serial interface{} = nil
         if params.Serial != "" {
-                searchRequest["serial"] = params.Serial
+                serial = params.Serial
         }
+        
+        var status interface{} = nil
         if params.Status != "" {
-                searchRequest["status"] = params.Status
+                status = params.Status
         }
+        
+        var expired interface{} = nil
         if params.Expired != nil {
-                searchRequest["expired"] = *params.Expired
+                expired = *params.Expired
         }
-        if params.PolicyID != "" {
-                searchRequest["policy"] = params.PolicyID
-        }
-        if params.NotAfter != "" {
-                searchRequest["not_after"] = params.NotAfter
-        }
-        if params.NotBefore != "" {
-                searchRequest["not_before"] = params.NotBefore
+        
+        searchRequest := map[string]interface{}{
+                "common_name":    commonName,
+                "expired":        expired,
+                "limit":          limit,
+                "offset":         offset,
+                "renewed":        nil,
+                "serial":         serial,
+                "sort_direction": "desc",
+                "sort_type":      "notBefore",
+                "status":         status,
         }
         
         // Log the actual request being sent to ZTPKI API for debugging
