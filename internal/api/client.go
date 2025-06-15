@@ -263,6 +263,30 @@ func (c *Client) SearchCertificates(params CertificateSearchParams) ([]Certifica
                 userLimit = 100 // Default limit if not specified
         }
         
+        // ZTPKI API limitation: offset pagination doesn't work with account parameter
+        // Workaround: fetch larger batches and use client-side deduplication
+        if params.Account != "" {
+                batchSize := userLimit
+                if batchSize > 500 {
+                        batchSize = 500 // Cap at reasonable limit to avoid timeouts
+                }
+                
+                certificates, err := c.searchCertificatesPage(params, batchSize, 0)
+                if err != nil {
+                        return nil, err
+                }
+                
+                // Remove duplicates that might occur due to API issues
+                deduplicated := c.deduplicateCertificates(certificates)
+                
+                // Return only requested amount
+                if len(deduplicated) > userLimit {
+                        return deduplicated[:userLimit], nil
+                }
+                return deduplicated, nil
+        }
+        
+        // For non-account searches, use traditional pagination
         var allCertificates []Certificate
         const serverMaxLimit = 10 // ZTPKI server's maximum limit per request
         offset := 0
@@ -302,6 +326,21 @@ func (c *Client) SearchCertificates(params CertificateSearchParams) ([]Certifica
         }
         
         return allCertificates, nil
+}
+
+// deduplicateCertificates removes duplicate certificates based on ID
+func (c *Client) deduplicateCertificates(certificates []Certificate) []Certificate {
+        seen := make(map[string]bool)
+        var result []Certificate
+        
+        for _, cert := range certificates {
+                if !seen[cert.ID] {
+                        seen[cert.ID] = true
+                        result = append(result, cert)
+                }
+        }
+        
+        return result
 }
 
 // SearchCertificatesBatch performs a single batch search for client-side filtering
