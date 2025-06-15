@@ -398,10 +398,16 @@ func searchExpiredCertificates(client *api.Client, baseParams api.CertificateSea
                                 offset/batchSize+1, len(certificates), totalFetched)
                 }
                 
-                // Filter for actually expired certificates (status = "Expired" or past expiry date)
+                // Filter for actually expired certificates (revocationStatus = "EXPIRED" or past expiry date)
                 for _, cert := range certificates {
-                        isExpiredByStatus := strings.ToLower(cert.Status) == "expired"
+                        isExpiredByStatus := strings.ToUpper(cert.Status) == "EXPIRED"
                         isExpiredByDate := cert.ExpiryDate.Before(time.Now())
+                        
+                        // Debug: Show certificate status in verbose mode (first few certificates only)
+                        if viper.GetBool("verbose") && len(expiredCertificates) == 0 && totalFetched <= 100 {
+                                fmt.Fprintf(os.Stderr, "  Certificate %s: status=%s, expires=%s\n", 
+                                        cert.CommonName, cert.Status, cert.ExpiryDate.Format("2006-01-02"))
+                        }
                         
                         if isExpiredByStatus || isExpiredByDate {
                                 expiredCertificates = append(expiredCertificates, cert)
