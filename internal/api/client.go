@@ -320,6 +320,9 @@ func (c *Client) searchCertificatesPage(params CertificateSearchParams, limit, o
         }
         
         // Add search filters if provided
+        if params.Account != "" {
+                searchRequest["account"] = params.Account
+        }
         if params.CommonName != "" {
                 searchRequest["common_name"] = params.CommonName
         }
