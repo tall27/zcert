@@ -275,7 +275,11 @@ func runSearch(cmd *cobra.Command, args []string) error {
 
         // Adjust search strategy based on filtering requirements
         var certificates []api.Certificate
-        needsClientFiltering := searchCN != "" || searchSerial != "" || issuedAfter != nil || expiresBefore != nil
+        needsClientFiltering := searchSerial != "" || issuedAfter != nil || expiresBefore != nil
+        
+        if viper.GetBool("verbose") {
+                fmt.Fprintf(os.Stderr, "Search strategy: needsClientFiltering=%t, useExpiredPagination=%t\n", needsClientFiltering, useExpiredPagination)
+        }
         
         if useExpiredPagination {
                 // Special handling for expired certificates - keep fetching until we get enough expired ones
@@ -317,8 +321,8 @@ func runSearch(cmd *cobra.Command, args []string) error {
                         return fmt.Errorf("failed to search certificates: %w", err)
                 }
                 
-                // Apply client-side filtering
-                filtered := applyClientSideFilters(allCerts, searchCN, searchSerial, "", issuedAfter, expiresBefore)
+                // Apply client-side filtering (don't re-filter server-side parameters)
+                filtered := applyClientSideFilters(allCerts, "", searchSerial, "", issuedAfter, expiresBefore)
                 
                 // Apply the requested limit
                 if len(filtered) > searchLimit {
