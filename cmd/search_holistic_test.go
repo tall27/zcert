@@ -242,7 +242,7 @@ func TestClientSideFilteringLogic(t *testing.T) {
 
         for _, tt := range tests {
                 t.Run(tt.name, func(t *testing.T) {
-                        result := applyClientSideFilters(certificates, tt.commonName, tt.serial, tt.status, tt.issuedAfter, tt.expiresBefore)
+                        result := applyClientSideFilters(certificates, tt.commonName, tt.serial, "", "", tt.issuedAfter, tt.expiresBefore)
                         
                         if len(result) != tt.expectedCount {
                                 t.Errorf("%s: expected %d certificates, got %d", tt.description, tt.expectedCount, len(result))

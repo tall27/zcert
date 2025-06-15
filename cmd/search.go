@@ -466,7 +466,7 @@ func searchExpiredCertificates(client *api.Client, baseParams api.CertificateSea
 }
 
 // applyClientSideFilters applies advanced filtering that requires client-side processing
-func applyClientSideFilters(certificates []api.Certificate, commonName, serial, issuer string, issuedAfter, expiresBefore *time.Time) []api.Certificate {
+func applyClientSideFilters(certificates []api.Certificate, commonName, serial, issuer, policy string, issuedAfter, expiresBefore *time.Time) []api.Certificate {
         var filtered []api.Certificate
         
         for _, cert := range certificates {
@@ -502,6 +502,13 @@ func applyClientSideFilters(certificates []api.Certificate, commonName, serial, 
                 // Apply issuer substring matching (case-insensitive)
                 if issuer != "" {
                         if !strings.Contains(strings.ToLower(cert.Issuer), strings.ToLower(issuer)) {
+                                continue
+                        }
+                }
+                
+                // Apply policy substring matching (case-insensitive)
+                if policy != "" {
+                        if !strings.Contains(strings.ToLower(cert.PolicyID), strings.ToLower(policy)) {
                                 continue
                         }
                 }
