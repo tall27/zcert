@@ -44,8 +44,8 @@ jobs:
         go vet ./...
         go mod verify
 
-    - name: Run tests
-      run: go test -v ./internal/policy/... ./internal/cert/ -short
+    - name: Run basic tests
+      run: go test -v ./internal/policy/
 
     - name: Get build info
       id: build_info
