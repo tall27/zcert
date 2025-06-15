@@ -250,9 +250,20 @@ func runSearch(cmd *cobra.Command, args []string) error {
         }
 
         var expiresBefore *time.Time
-        if searchExpiring != "" {
+        
+        // Handle --expiring flag - use profile validity if flag present but empty
+        expiringValue := searchExpiring
+        currentProfile := GetCurrentProfile()
+        if cmd.Flags().Lookup("expiring").Changed && searchExpiring == "" && currentProfile != nil && currentProfile.Validity > 0 {
+                expiringValue = fmt.Sprintf("%d", currentProfile.Validity)
+                if viper.GetBool("verbose") {
+                        fmt.Fprintf(os.Stderr, "Using profile validity setting for --expiring: %s days\n", expiringValue)
+                }
+        }
+        
+        if expiringValue != "" {
                 // Parse validity period using shared utility function
-                validityPeriod, err := utils.ParseValidityPeriod(searchExpiring)
+                validityPeriod, err := utils.ParseValidityPeriod(expiringValue)
                 if err != nil {
                         return fmt.Errorf("invalid expiring format: %w", err)
                 }
