@@ -53,9 +53,9 @@ func TestHolisticLimitImplementation(t *testing.T) {
                         searchStatus:      "VALID",
                         requestedLimit:    4,
                         mockCertCount:     20,
-                        expectedFetchSize: 40, // 4 * 10 for client filtering
+                        expectedFetchSize: 4, // Server-side filtering
                         expectedResults:   4,
-                        needsClientFilter: true,
+                        needsClientFilter: false,
                 },
                 {
                         name:              "Issued after filter with limit 6",

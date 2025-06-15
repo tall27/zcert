@@ -231,7 +231,7 @@ func runSearch(cmd *cobra.Command, args []string) error {
                 // Calculate expiration date threshold and set server-side filter
                 expirationThreshold := time.Now().AddDate(0, 0, searchExpiring)
                 searchParams.NotAfter = expirationThreshold.Format("2006-01-02T15:04:05.000Z")
-                expiresBefore = &expirationThreshold
+                // Don't set expiresBefore for client filtering since server handles this
         }
 
         var issuedAfter *time.Time
