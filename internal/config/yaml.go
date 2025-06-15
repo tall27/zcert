@@ -119,7 +119,7 @@ func CreateExampleYAMLConfig(filename string) error {
 
 profiles:
   Default:
-    base_url: "https://ztpki-dev.venafi.com/api/v2"
+    base_url: "https://your-ztpki-instance.com/api/v2"
     hawk_id: "your-hawk-id-here"
     hawk_key: "your-hawk-key-here"
     default_key_size: 2048
@@ -145,7 +145,7 @@ profiles:
     force_revoke: false
 
   staging:
-    base_url: "https://ztpki-staging.venafi.com/api/v2"
+    base_url: "https://your-ztpki-staging.com/api/v2"
     hawk_id: "your-staging-hawk-id"
     hawk_key: "your-staging-hawk-key"
     default_key_size: 2048
@@ -157,7 +157,7 @@ profiles:
     include_chain: true
 
   production:
-    base_url: "https://ztpki-prod.venafi.com/api/v2"
+    base_url: "https://your-ztpki-production.com/api/v2"
     hawk_id: "your-prod-hawk-id"
     hawk_key: "your-prod-hawk-key"
     default_key_size: 4096
@@ -169,7 +169,7 @@ profiles:
     include_chain: true
 
   p12:
-    base_url: "https://ztpki-dev.venafi.com/api/v2"
+    base_url: "https://your-ztpki-instance.com/api/v2"
     hawk_id: "your-hawk-id-here"
     hawk_key: "your-hawk-key-here"
     default_key_size: 2048

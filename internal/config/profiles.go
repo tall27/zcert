@@ -267,7 +267,7 @@ func CreateExampleProfileConfig(filename string) error {
 
 [Default]
 # Default profile used when no -profile is specified
-url = https://ztpki.venafi.com/api/v2
+url = https://your-ztpki-instance.com/api/v2
 hawk-id = your-default-hawk-id
 hawk-api = your-default-hawk-api
 account = your-account-id
@@ -280,7 +280,7 @@ chain = true
 
 [test]
 # Profile for testing environment
-url = https://ztpki.venafi.com/api/v2
+url = https://your-ztpki-instance.com/api/v2
 hawk-id = test-hawk-id
 hawk-api = test-hawk-api
 account = test-account-id
@@ -293,7 +293,7 @@ chain = false
 
 [prod]
 # Profile for production environment
-url = https://ztpki.venafi.com/api/v2
+url = https://your-ztpki-instance.com/api/v2
 hawk-id = prod-hawk-id
 hawk-api = prod-hawk-api
 account = prod-account-id

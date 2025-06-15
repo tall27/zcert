@@ -76,7 +76,7 @@ Examples:
   zcert -config zcert.cnf --cn "example.com"
   
   # Command-line authentication
-  zcert enroll --cn "example.com" --url "https://ztpki.venafi.com/api/v2" --hawk-id "your-id" --hawk-key "your-key"
+  zcert enroll --cn "example.com" --url "https://your-ztpki-instance.com/api/v2" --hawk-id "your-id" --hawk-key "your-key"
   
   # With multiple SANs and OUs
   zcert enroll --cn "api.example.com" --san-dns "example.com" --san-dns "www.example.com" --ou "IT" --ou "Security" --validity "90d"
@@ -90,7 +90,7 @@ func init() {
         rootCmd.AddCommand(enrollCmd)
 
         // Server & Authentication
-        enrollCmd.Flags().StringVar(&enrollURL, "url", "", "ZTPKI API base URL (e.g., https://ztpki.venafi.com/api/v2)")
+        enrollCmd.Flags().StringVar(&enrollURL, "url", "", "ZTPKI API base URL (e.g., https://your-ztpki-instance.com/api/v2)")
         enrollCmd.Flags().StringVar(&enrollHawkID, "hawk-id", "", "HAWK authentication ID")
         enrollCmd.Flags().StringVar(&enrollHawkKey, "hawk-key", "", "HAWK authentication key")
 
@@ -539,7 +539,7 @@ Examples:
   zcert -config zcert.cnf --cn "example.com"
   
   # Command-line authentication
-  zcert enroll --cn "example.com" --url "https://ztpki.venafi.com/api/v2" --hawk-id "your-id" --hawk-key "your-key"
+  zcert enroll --cn "example.com" --url "https://your-ztpki-instance.com/api/v2" --hawk-id "your-id" --hawk-key "your-key"
   
   # With multiple SANs and OUs
   zcert enroll --cn "api.example.com" --san-dns "example.com" --san-dns "www.example.com" --ou "IT" --ou "Security" --validity "90d"
@@ -553,7 +553,7 @@ Usage:
 Server & Authentication:
       --hawk-id string    HAWK authentication ID
       --hawk-key string   HAWK authentication key
-      --url string        ZTPKI API base URL (e.g., https://ztpki.venafi.com/api/v2)
+      --url string        ZTPKI API base URL (e.g., https://your-ztpki-instance.com/api/v2)
 
 Certificate Request:
       --cn string                Common Name for the certificate (required)
@@ -606,7 +606,7 @@ func getEnrollUsageFunc() func(*cobra.Command) error {
                 fmt.Printf("Usage:\n  %s\n\nServer & Authentication:\n", cmd.UseLine())
                 fmt.Printf("      --hawk-id string    HAWK authentication ID\n")
                 fmt.Printf("      --hawk-key string   HAWK authentication key\n")
-                fmt.Printf("      --url string        ZTPKI API base URL (e.g., https://ztpki.venafi.com/api/v2)\n\n")
+                fmt.Printf("      --url string        ZTPKI API base URL (e.g., https://your-ztpki-instance.com/api/v2)\n\n")
 
                 fmt.Printf("Certificate Request:\n")
                 fmt.Printf("      --cn string                Common Name for the certificate (required)\n")
