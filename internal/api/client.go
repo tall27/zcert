@@ -416,12 +416,18 @@ func (c *Client) searchCertificatesPage(params CertificateSearchParams, limit, o
                 expired = *params.Expired
         }
         
+        var policy interface{} = nil
+        if params.PolicyID != "" {
+                policy = params.PolicyID
+        }
+        
         searchRequest := map[string]interface{}{
                 "account":        params.Account,
                 "common_name":    commonName,
                 "expired":        expired,
                 "limit":          limit,
                 "offset":         offset,
+                "policy":         policy,
                 "renewed":        nil,
                 "serial":         serial,
                 "sort_direction": "desc",
