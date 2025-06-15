@@ -1,0 +1,139 @@
+~/workspace$  ./zcert search  --config ./zcert.cnf  --expired --verbose
+Using profile config: ./zcert.cnf, profile: Default
+Search limit from command line: 10
+Searching certificates with criteria:
+  Expired certificates: true
+  Limit: 10
+Search strategy: needsClientFiltering=false, useExpiredPagination=true
+Searching for 10 expired certificates with smart pagination
+Batch 1: fetched 50 certificates (total: 50)
+  Certificate dusan.karlik: status=VALID, expires=2026-06-13
+  Certificate Michael.Bowman: status=VALID, expires=2026-06-12
+  Certificate Michael.Bowman: status=VALID, expires=2026-06-12
+  Certificate dan@cyberarl.com: status=VALID, expires=2025-06-17
+  Certificate leo@cyberark.com: status=VALID, expires=2025-06-17
+  Certificate tal@cyberark.com: status=VALID, expires=2025-06-17
+  Certificate test-app-cba-01.mimlab.io: status=VALID, expires=2025-06-17
+  Certificate mycert.com: status=VALID, expires=2025-06-17
+  Certificate mycert.com: status=VALID, expires=2025-06-17
+  Certificate mycert.com: status=VALID, expires=2025-06-17
+  Certificate example123.org: status=VALID, expires=2025-12-09
+  Certificate Michael.Bowman: status=VALID, expires=2026-06-11
+  Certificate mycert.com: status=VALID, expires=2025-06-16
+  Certificate mycert.com: status=VALID, expires=2025-06-16
+  Certificate abc.mimlab.io: status=VALID, expires=2025-06-16
+  Certificate abc.mimlab.io: status=VALID, expires=2030-06-10
+  Certificate Michael.Bowman: status=VALID, expires=2026-06-11
+  Certificate Amit.Agarwal: status=VALID, expires=2026-06-11
+  Certificate dusan.karlik: status=VALID, expires=2026-06-11
+  Certificate dusan.karlik: status=VALID, expires=2026-06-10
+  Certificate Michael.Bowman: status=VALID, expires=2026-06-10
+  Certificate Michael.Bowman: status=VALID, expires=2026-06-10
+  Certificate Amit.Agarwal: status=VALID, expires=2026-06-10
+  Certificate Michael.Bowman: status=VALID, expires=2026-06-10
+  Certificate Michael.Bowman: status=VALID, expires=2026-06-10
+  Certificate Michael.Bowman: status=VALID, expires=2026-06-10
+  Certificate Michael.Bowman: status=VALID, expires=2026-06-10
+  Certificate Michael.Bowman: status=VALID, expires=2026-06-10
+  Certificate dusan.karlik: status=VALID, expires=2026-06-10
+  Certificate Michael.Bowman: status=VALID, expires=2026-06-10
+  Certificate Michael.Bowman: status=VALID, expires=2026-06-10
+  Certificate dusan.karlik: status=VALID, expires=2026-06-09
+  Certificate dusan.karlik: status=VALID, expires=2026-06-09
+  Certificate dusan.karlik: status=VALID, expires=2026-06-09
+  Certificate Peter.Havener: status=VALID, expires=2026-06-09
+  Certificate example123.org: status=VALID, expires=2025-12-03
+  Certificate Michael.Bowman: status=VALID, expires=2026-06-02
+  Certificate Michael.Bowman: status=VALID, expires=2026-06-02
+  Certificate Michael.Bowman: status=VALID, expires=2026-05-29
+  Certificate mydevice.example.com: status=VALID, expires=2026-05-27
+  Certificate Michael.Bowman: status=VALID, expires=2026-05-26
+  Certificate Michael.Bowman: status=VALID, expires=2026-05-26
+  Certificate dusan.karlik: status=VALID, expires=2026-05-26
+  Certificate dusan.karlik_AndroidEnterprise_5/22/2025_8:38 AM: status=VALID, expires=2026-05-23
+  Certificate win10Client24.Forest-A.local: status=VALID, expires=2026-05-23
+  Certificate win10Client24.Forest-A.local: status=VALID, expires=2026-05-22
+  Certificate Michael’s iPhone: status=VALID, expires=2026-05-22
+  Certificate iPhone-HT2KF04V0F00: status=VALID, expires=2026-05-21
+  Certificate iPhone-HT2KF04V0F00: status=VALID, expires=2026-05-21
+  Certificate iPhone-HT2KF04V0F00: status=VALID, expires=2026-05-21
+Found 0 expired certificates so far (need 10)
+Batch 2: fetched 50 certificates (total: 100)
+  Certificate dusan.karlik: status=VALID, expires=2026-06-13
+  Certificate Michael.Bowman: status=VALID, expires=2026-06-12
+  Certificate Michael.Bowman: status=VALID, expires=2026-06-12
+  Certificate dan@cyberarl.com: status=VALID, expires=2025-06-17
+  Certificate leo@cyberark.com: status=VALID, expires=2025-06-17
+  Certificate tal@cyberark.com: status=VALID, expires=2025-06-17
+  Certificate test-app-cba-01.mimlab.io: status=VALID, expires=2025-06-17
+  Certificate mycert.com: status=VALID, expires=2025-06-17
+  Certificate mycert.com: status=VALID, expires=2025-06-17
+  Certificate mycert.com: status=VALID, expires=2025-06-17
+  Certificate example123.org: status=VALID, expires=2025-12-09
+  Certificate Michael.Bowman: status=VALID, expires=2026-06-11
+  Certificate mycert.com: status=VALID, expires=2025-06-16
+  Certificate mycert.com: status=VALID, expires=2025-06-16
+  Certificate abc.mimlab.io: status=VALID, expires=2025-06-16
+  Certificate abc.mimlab.io: status=VALID, expires=2030-06-10
+  Certificate Michael.Bowman: status=VALID, expires=2026-06-11
+  Certificate Amit.Agarwal: status=VALID, expires=2026-06-11
+  Certificate dusan.karlik: status=VALID, expires=2026-06-11
+  Certificate dusan.karlik: status=VALID, expires=2026-06-10
+  Certificate Michael.Bowman: status=VALID, expires=2026-06-10
+  Certificate Michael.Bowman: status=VALID, expires=2026-06-10
+  Certificate Amit.Agarwal: status=VALID, expires=2026-06-10
+  Certificate Michael.Bowman: status=VALID, expires=2026-06-10
+  Certificate Michael.Bowman: status=VALID, expires=2026-06-10
+  Certificate Michael.Bowman: status=VALID, expires=2026-06-10
+  Certificate Michael.Bowman: status=VALID, expires=2026-06-10
+  Certificate Michael.Bowman: status=VALID, expires=2026-06-10
+  Certificate dusan.karlik: status=VALID, expires=2026-06-10
+  Certificate Michael.Bowman: status=VALID, expires=2026-06-10
+  Certificate Michael.Bowman: status=VALID, expires=2026-06-10
+  Certificate dusan.karlik: status=VALID, expires=2026-06-09
+  Certificate dusan.karlik: status=VALID, expires=2026-06-09
+  Certificate dusan.karlik: status=VALID, expires=2026-06-09
+  Certificate Peter.Havener: status=VALID, expires=2026-06-09
+  Certificate example123.org: status=VALID, expires=2025-12-03
+  Certificate Michael.Bowman: status=VALID, expires=2026-06-02
+  Certificate Michael.Bowman: status=VALID, expires=2026-06-02
+  Certificate Michael.Bowman: status=VALID, expires=2026-05-29
+  Certificate mydevice.example.com: status=VALID, expires=2026-05-27
+  Certificate Michael.Bowman: status=VALID, expires=2026-05-26
+  Certificate Michael.Bowman: status=VALID, expires=2026-05-26
+  Certificate dusan.karlik: status=VALID, expires=2026-05-26
+  Certificate dusan.karlik_AndroidEnterprise_5/22/2025_8:38 AM: status=VALID, expires=2026-05-23
+  Certificate win10Client24.Forest-A.local: status=VALID, expires=2026-05-23
+  Certificate win10Client24.Forest-A.local: status=VALID, expires=2026-05-22
+  Certificate Michael’s iPhone: status=VALID, expires=2026-05-22
+  Certificate iPhone-HT2KF04V0F00: status=VALID, expires=2026-05-21
+  Certificate iPhone-HT2KF04V0F00: status=VALID, expires=2026-05-21
+  Certificate iPhone-HT2KF04V0F00: status=VALID, expires=2026-05-21
+Found 0 expired certificates so far (need 10)
+Batch 3: fetched 50 certificates (total: 150)
+Found 0 expired certificates so far (need 10)
+Batch 4: fetched 50 certificates (total: 200)
+Found 0 expired certificates so far (need 10)
+Batch 5: fetched 50 certificates (total: 250)
+Found 0 expired certificates so far (need 10)
+Batch 6: fetched 50 certificates (total: 300)
+Found 0 expired certificates so far (need 10)
+Batch 7: fetched 50 certificates (total: 350)
+Found 0 expired certificates so far (need 10)
+Batch 8: fetched 50 certificates (total: 400)
+Found 0 expired certificates so far (need 10)
+Batch 9: fetched 50 certificates (total: 450)
+Found 0 expired certificates so far (need 10)
+Batch 10: fetched 50 certificates (total: 500)
+Found 0 expired certificates so far (need 10)
+Batch 11: fetched 50 certificates (total: 550)
+Found 0 expired certificates so far (need 10)
+Batch 12: fetched 50 certificates (total: 600)
+Found 0 expired certificates so far (need 10)
+Batch 13: fetched 50 certificates (total: 650)
+Found 0 expired certificates so far (need 10)
+Batch 14: fetched 50 certificates (total: 700)
+Found 0 expired certificates so far (need 10)
+Batch 15: fetched 50 certificates (total: 750)
+Found 0 expired certificates so far (need 10)
+^C

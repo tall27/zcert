@@ -372,7 +372,7 @@ func runSearch(cmd *cobra.Command, args []string) error {
 // searchExpiredCertificates implements smart pagination to find expired certificates
 func searchExpiredCertificates(client *api.Client, baseParams api.CertificateSearchParams, targetLimit int) ([]api.Certificate, error) {
         var expiredCertificates []api.Certificate
-        const batchSize = 50 // Fetch larger batches to find expired certificates efficiently
+        const batchSize = 10 // Use smaller batches to match API behavior
         const maxTotalFetch = 2000 // Safety limit to prevent infinite loops
         
         totalFetched := 0
@@ -388,8 +388,8 @@ func searchExpiredCertificates(client *api.Client, baseParams api.CertificateSea
                 batchParams.Limit = batchSize
                 batchParams.Offset = offset
                 
-                // Fetch batch with expired=true flag
-                certificates, err := client.SearchCertificates(batchParams)
+                // Use direct batch API call to avoid double pagination
+                certificates, err := client.SearchCertificatesBatch(batchParams)
                 if err != nil {
                         return nil, fmt.Errorf("failed to fetch certificate batch: %w", err)
                 }
@@ -405,18 +405,17 @@ func searchExpiredCertificates(client *api.Client, baseParams api.CertificateSea
                                 offset/batchSize+1, len(certificates), totalFetched)
                 }
                 
-                // Filter for actually expired certificates (revocationStatus = "EXPIRED" or past expiry date)
+                // Filter for actually expired certificates (revocationStatus = "EXPIRED")
                 for _, cert := range certificates {
                         isExpiredByStatus := strings.ToUpper(cert.Status) == "EXPIRED"
-                        isExpiredByDate := cert.ExpiryDate.Before(time.Now())
                         
                         // Debug: Show certificate status in verbose mode (first few certificates only)
-                        if viper.GetBool("verbose") && len(expiredCertificates) == 0 && totalFetched <= 100 {
+                        if viper.GetBool("verbose") && totalFetched <= 50 {
                                 fmt.Fprintf(os.Stderr, "  Certificate %s: status=%s, expires=%s\n", 
                                         cert.CommonName, cert.Status, cert.ExpiryDate.Format("2006-01-02"))
                         }
                         
-                        if isExpiredByStatus || isExpiredByDate {
+                        if isExpiredByStatus {
                                 expiredCertificates = append(expiredCertificates, cert)
                                 
                                 // Stop if we have enough expired certificates
