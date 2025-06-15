@@ -84,6 +84,7 @@ func init() {
         // Special filters
         searchCmd.Flags().BoolVar(&searchExpired, "expired", false, "Show only expired certificates")
         searchCmd.Flags().StringVar(&searchExpiring, "expiring", "", "Show certificates expiring within specified period (formats: 30d, 6m, 1y, 30d6m, 1y6m, or plain number for days)")
+        searchCmd.Flags().Lookup("expiring").NoOptDefVal = "profile-default"  // Special value when no argument provided
         searchCmd.Flags().IntVar(&searchRecent, "recent", 0, "Show certificates issued within N days")
 
         // Set custom help and usage functions to group flags consistently
@@ -252,14 +253,14 @@ func runSearch(cmd *cobra.Command, args []string) error {
 
         var expiresBefore *time.Time
         
-        // Handle --expiring flag - use profile validity if flag present but empty or invalid
+        // Handle --expiring flag - use profile validity if flag present but empty or has special value
         expiringValue := searchExpiring
         currentProfile := GetCurrentProfile()
         
-        // Check if --expiring flag was provided but value looks like another flag (starts with -)
+        // Check if --expiring flag was provided
         expiringFlag := cmd.Flags().Lookup("expiring")
-        if expiringFlag.Changed || searchExpiringSet {
-                if searchExpiring == "" || strings.HasPrefix(searchExpiring, "-") {
+        if expiringFlag.Changed {
+                if searchExpiring == "" || searchExpiring == "profile-default" || strings.HasPrefix(searchExpiring, "-") {
                         if currentProfile != nil && currentProfile.Validity > 0 {
                                 expiringValue = fmt.Sprintf("%d", currentProfile.Validity)
                                 if viper.GetBool("verbose") {
@@ -319,8 +320,8 @@ func runSearch(cmd *cobra.Command, args []string) error {
                 if searchStatus != "" {
                         fmt.Fprintf(os.Stderr, "  Status: %s\n", searchStatus)
                 }
-                if searchExpiring.Value != "" {
-                        fmt.Fprintf(os.Stderr, "  Expiring within: %s\n", searchExpiring.Value)
+                if searchExpiring != "" {
+                        fmt.Fprintf(os.Stderr, "  Expiring within: %s\n", searchExpiring)
                 }
                 if searchRecent > 0 {
                         fmt.Fprintf(os.Stderr, "  Recent certificates within: %d days\n", searchRecent)
