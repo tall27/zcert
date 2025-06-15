@@ -211,14 +211,15 @@ func runSearch(cmd *cobra.Command, args []string) error {
                 return fmt.Errorf("failed to initialize API client: %w", err)
         }
 
-        // Build search parameters (exclude CommonName for client-side filtering)
+        // Build search parameters
         searchParams := api.CertificateSearchParams{
-                Account:  finalProfile.Account,
-                Issuer:   searchIssuer,
-                Serial:   searchSerial,
-                PolicyID: searchPolicy,
-                Status:   searchStatus,
-                Limit:    searchLimit,
+                Account:    finalProfile.Account,
+                CommonName: searchCN,
+                Issuer:     searchIssuer,
+                Serial:     searchSerial,
+                PolicyID:   searchPolicy,
+                Status:     searchStatus,
+                Limit:      searchLimit,
         }
 
         // Handle special date-based filters - use smart pagination for expired certificates
