@@ -115,7 +115,7 @@ func TestHolisticLimitImplementation(t *testing.T) {
         for _, tt := range tests {
                 t.Run(tt.name, func(t *testing.T) {
                         // Test the logic that determines if client-side filtering is needed
-                        needsClientFiltering := tt.searchCN != "" || tt.searchSerial != "" || tt.searchStatus != "" || tt.issuedAfter != nil || tt.expiresBefore != nil
+                        needsClientFiltering := tt.searchCN != "" || tt.searchSerial != "" || tt.issuedAfter != nil || tt.expiresBefore != nil
                         
                         if needsClientFiltering != tt.needsClientFilter {
                                 t.Errorf("Expected needsClientFiltering=%v, got %v", tt.needsClientFilter, needsClientFiltering)

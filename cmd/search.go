@@ -223,7 +223,7 @@ func runSearch(cmd *cobra.Command, args []string) error {
 
         // Handle special date-based filters
         if searchExpired {
-                searchParams.Status = "expired"
+                searchParams.Expired = true
         }
 
         var expiresBefore *time.Time
@@ -269,7 +269,7 @@ func runSearch(cmd *cobra.Command, args []string) error {
 
         // Adjust search strategy based on filtering requirements
         var certificates []api.Certificate
-        needsClientFiltering := searchCN != "" || searchSerial != "" || searchStatus != "" || issuedAfter != nil || expiresBefore != nil
+        needsClientFiltering := searchCN != "" || searchSerial != "" || issuedAfter != nil || expiresBefore != nil
         
         if needsClientFiltering {
                 // For client-side filtering, fetch more certificates to ensure we get enough results
@@ -285,7 +285,7 @@ func runSearch(cmd *cobra.Command, args []string) error {
                 }
                 
                 // Apply client-side filtering
-                filtered := applyClientSideFilters(allCerts, searchCN, searchSerial, searchStatus, issuedAfter, expiresBefore)
+                filtered := applyClientSideFilters(allCerts, searchCN, searchSerial, "", issuedAfter, expiresBefore)
                 
                 // Apply the requested limit
                 if len(filtered) > searchLimit {
