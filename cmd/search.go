@@ -211,14 +211,13 @@ func runSearch(cmd *cobra.Command, args []string) error {
                 return fmt.Errorf("failed to initialize API client: %w", err)
         }
 
-        // Build search parameters
+        // Build search parameters (exclude CommonName for client-side filtering)
         searchParams := api.CertificateSearchParams{
-                CommonName: searchCN,
-                Issuer:     searchIssuer,
-                Serial:     searchSerial,
-                PolicyID:   searchPolicy,
-                Status:     searchStatus,
-                Limit:      searchLimit,
+                Issuer:   searchIssuer,
+                Serial:   searchSerial,
+                PolicyID: searchPolicy,
+                Status:   searchStatus,
+                Limit:    searchLimit,
         }
 
         // Handle special date-based filters - use smart pagination for expired certificates
@@ -275,9 +274,10 @@ func runSearch(cmd *cobra.Command, args []string) error {
 
         // Adjust search strategy based on filtering requirements
         var certificates []api.Certificate
-        needsClientFiltering := searchSerial != "" || issuedAfter != nil || expiresBefore != nil
+        needsClientFiltering := searchCN != "" || searchSerial != "" || issuedAfter != nil || expiresBefore != nil
         
         if viper.GetBool("verbose") {
+                fmt.Fprintf(os.Stderr, "Debug: searchCN='%s', searchSerial='%s'\n", searchCN, searchSerial)
                 fmt.Fprintf(os.Stderr, "Search strategy: needsClientFiltering=%t, useExpiredPagination=%t\n", needsClientFiltering, useExpiredPagination)
         }
         
@@ -321,8 +321,8 @@ func runSearch(cmd *cobra.Command, args []string) error {
                         return fmt.Errorf("failed to search certificates: %w", err)
                 }
                 
-                // Apply client-side filtering (don't re-filter server-side parameters)
-                filtered := applyClientSideFilters(allCerts, "", searchSerial, "", issuedAfter, expiresBefore)
+                // Apply client-side filtering 
+                filtered := applyClientSideFilters(allCerts, searchCN, searchSerial, "", issuedAfter, expiresBefore)
                 
                 // Apply the requested limit
                 if len(filtered) > searchLimit {

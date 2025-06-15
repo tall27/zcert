@@ -212,6 +212,7 @@ type RevocationRequest struct {
 
 // CertificateSearchParams represents search parameters for certificates
 type CertificateSearchParams struct {
+        Account       string     `json:"account,omitempty"`
         CommonName    string     `json:"commonName,omitempty"`
         Serial        string     `json:"serial,omitempty"`
         Issuer        string     `json:"issuer,omitempty"`
