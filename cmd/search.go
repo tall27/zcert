@@ -453,11 +453,21 @@ func applyClientSideFilters(certificates []api.Certificate, commonName, serial, 
         for _, cert := range certificates {
                 // Apply Common Name substring matching (case-insensitive)
                 if commonName != "" {
-                        // Extract CN from certificate subject
+                        // Check both CommonName field and Subject DN for CN
                         cnFound := false
-                        if strings.Contains(strings.ToLower(cert.Subject), strings.ToLower(commonName)) {
+                        
+                        // Check the CommonName field directly
+                        if strings.Contains(strings.ToLower(cert.CommonName), strings.ToLower(commonName)) {
                                 cnFound = true
                         }
+                        
+                        // Also check Subject DN if available (for backward compatibility)
+                        if !cnFound && cert.Subject != "" {
+                                if strings.Contains(strings.ToLower(cert.Subject), strings.ToLower(commonName)) {
+                                        cnFound = true
+                                }
+                        }
+                        
                         if !cnFound {
                                 continue
                         }

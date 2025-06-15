@@ -86,10 +86,11 @@ All scenarios validated:
 ### Smart Pagination Validation
 The `--expired` flag implementation successfully:
 - Uses `expired: true` API parameter to get all certificates including expired ones
-- Fetches certificates in batches of 50 to find actual expired certificates
-- Filters each batch for certificates with "Expired" status or past expiry date
+- Fetches certificates in batches of 50 to find actual expired certificates  
+- Filters each batch for certificates with "EXPIRED" revocationStatus or past expiry date
 - Continues pagination until target limit satisfied or safety limit (2000) reached
 - Properly handles test environments with no expired certificates available
+- Confirmed working with actual ZTPKI API response structure (`status` field mapping to `revocationStatus`)
 
 ## Default Behavior
 - Default limit changed from 50 to 10 certificates
