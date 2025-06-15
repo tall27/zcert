@@ -264,6 +264,9 @@ func runSearch(cmd *cobra.Command, args []string) error {
                 if searchRecent > 0 {
                         fmt.Fprintf(os.Stderr, "  Recent certificates within: %d days\n", searchRecent)
                 }
+                if searchExpired {
+                        fmt.Fprintf(os.Stderr, "  Expired certificates: true\n")
+                }
                 fmt.Fprintf(os.Stderr, "  Limit: %d\n", searchLimit)
         }
 

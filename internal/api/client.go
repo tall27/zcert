@@ -9,6 +9,7 @@ import (
         "io"
         "net/http"
         "net/url"
+        "os"
         "time"
 
         "zcert/internal/auth"
@@ -344,6 +345,11 @@ func (c *Client) searchCertificatesPage(params CertificateSearchParams, limit, o
         requestBody, err := json.Marshal(searchRequest)
         if err != nil {
                 return nil, fmt.Errorf("failed to marshal search request: %w", err)
+        }
+        
+        // Log the actual request being sent to ZTPKI API for debugging
+        if os.Getenv("ZCERT_DEBUG") != "" {
+                fmt.Fprintf(os.Stderr, "API Request to %s: %s\n", endpoint, string(requestBody))
         }
         
         resp, err := c.makeRequest("POST", endpoint, bytes.NewReader(requestBody))
