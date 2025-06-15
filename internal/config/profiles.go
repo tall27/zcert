@@ -262,8 +262,8 @@ func (pc *ProfileConfig) ListProfiles() []string {
 func CreateExampleProfileConfig(filename string) error {
         content := `# zcert Profile Configuration File
 # This file supports multiple profiles with different ZTPKI settings
-# Use: zcert --config zcert.cnf --cn "mycert.com" 
-#   or zcert --config zcert.cnf --profile test --cn "mycert.com"
+# Use: zcert enroll --config zcert.cnf --cn "mycert.com" 
+#   or zcert search --config zcert.cnf --profile test --cn "mycert.com"
 
 [Default]
 # Default profile used when no --profile is specified
