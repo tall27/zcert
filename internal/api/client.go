@@ -86,6 +86,25 @@ func (c *Client) makeRequest(method, endpoint string, body interface{}) (*http.R
                 return nil, fmt.Errorf("failed to sign request with HAWK: %w", err)
         }
         
+        // Debug: Show full HTTP request details
+        if os.Getenv("ZCERT_DEBUG") != "" {
+                fmt.Fprintf(os.Stderr, "\n=== HTTP REQUEST ===\n")
+                fmt.Fprintf(os.Stderr, "%s %s\n", req.Method, req.URL.String())
+                fmt.Fprintf(os.Stderr, "Headers:\n")
+                for name, values := range req.Header {
+                        for _, value := range values {
+                                fmt.Fprintf(os.Stderr, "  %s: %s\n", name, value)
+                        }
+                }
+                if req.Body != nil {
+                        // Read body for logging, then recreate it
+                        bodyBytes, _ := io.ReadAll(req.Body)
+                        req.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+                        fmt.Fprintf(os.Stderr, "Body:\n%s\n", string(bodyBytes))
+                }
+                fmt.Fprintf(os.Stderr, "==================\n\n")
+        }
+        
         resp, err := c.httpClient.Do(req)
         if err != nil {
                 return nil, fmt.Errorf("failed to execute request: %w", err)
@@ -378,17 +397,13 @@ func (c *Client) searchCertificatesPage(params CertificateSearchParams, limit, o
                 searchRequest["not_before"] = params.NotBefore
         }
         
-        requestBody, err := json.Marshal(searchRequest)
-        if err != nil {
-                return nil, fmt.Errorf("failed to marshal search request: %w", err)
-        }
-        
         // Log the actual request being sent to ZTPKI API for debugging
         if os.Getenv("ZCERT_DEBUG") != "" {
-                fmt.Fprintf(os.Stderr, "API Request to %s: %s\n", endpoint, string(requestBody))
+                requestJSON, _ := json.Marshal(searchRequest)
+                fmt.Fprintf(os.Stderr, "API Request to %s: %s\n", endpoint, string(requestJSON))
         }
         
-        resp, err := c.makeRequest("POST", endpoint, bytes.NewReader(requestBody))
+        resp, err := c.makeRequest("POST", endpoint, searchRequest)
         if err != nil {
                 return nil, fmt.Errorf("failed to search certificates: %w", err)
         }
