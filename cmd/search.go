@@ -280,7 +280,7 @@ func runSearch(cmd *cobra.Command, args []string) error {
 
         // Adjust search strategy based on filtering requirements
         var certificates []api.Certificate
-        needsClientFiltering := searchCN != "" || searchSerial != "" || issuedAfter != nil || expiresBefore != nil
+        needsClientFiltering := searchCN != "" || searchSerial != "" || searchIssuer != "" || searchPolicy != "" || issuedAfter != nil || expiresBefore != nil
         
         if viper.GetBool("verbose") {
                 fmt.Fprintf(os.Stderr, "Search strategy: needsClientFiltering=%t, useExpiredPagination=%t\n", needsClientFiltering, useExpiredPagination)
@@ -315,17 +315,30 @@ func runSearch(cmd *cobra.Command, args []string) error {
                         return fmt.Errorf("unsupported output format: %s", searchFormat)
                 }
         } else if needsClientFiltering {
-                // For client-side filtering, use the exact limit requested
+                // For client-side filtering, remove substring filters from server request
                 expandedParams := searchParams
                 expandedParams.Limit = searchLimit
+                
+                // Remove all client-side filters from server request to get broader results for substring matching
+                if searchCN != "" || searchSerial != "" || searchIssuer != "" || searchPolicy != "" {
+                        expandedParams.CommonName = ""
+                        expandedParams.Serial = ""
+                        expandedParams.Issuer = ""
+                        expandedParams.PolicyID = ""
+                        // Increase limit to get more data for client-side filtering
+                        expandedParams.Limit = searchLimit * 10 // Fetch more to ensure we find matches
+                        if expandedParams.Limit > 1000 {
+                                expandedParams.Limit = 1000 // Cap at reasonable limit
+                        }
+                }
                 
                 allCerts, err := client.SearchCertificates(expandedParams)
                 if err != nil {
                         return fmt.Errorf("failed to search certificates: %w", err)
                 }
                 
-                // Apply client-side filtering 
-                filtered := applyClientSideFilters(allCerts, searchCN, searchSerial, "", issuedAfter, expiresBefore)
+                // Apply client-side filtering with substring matching
+                filtered := applyClientSideFilters(allCerts, searchCN, searchSerial, searchIssuer, searchPolicy, issuedAfter, expiresBefore)
                 
                 // Apply the requested limit
                 if len(filtered) > searchLimit {
@@ -453,7 +466,7 @@ func searchExpiredCertificates(client *api.Client, baseParams api.CertificateSea
 }
 
 // applyClientSideFilters applies advanced filtering that requires client-side processing
-func applyClientSideFilters(certificates []api.Certificate, commonName, serial, status string, issuedAfter, expiresBefore *time.Time) []api.Certificate {
+func applyClientSideFilters(certificates []api.Certificate, commonName, serial, issuer string, issuedAfter, expiresBefore *time.Time) []api.Certificate {
         var filtered []api.Certificate
         
         for _, cert := range certificates {
@@ -486,37 +499,14 @@ func applyClientSideFilters(certificates []api.Certificate, commonName, serial, 
                         }
                 }
                 
-                // Apply status filtering (exact match, case-insensitive)
-                if status != "" {
-                        certStatus := strings.ToLower(cert.Status)
-                        requestedStatus := strings.ToLower(status)
-                        
-                        // Handle different status representations
-                        switch requestedStatus {
-                        case "active", "valid":
-                                if certStatus != "valid" {
-                                        continue
-                                }
-                        case "revoked":
-                                if certStatus != "revoked" {
-                                        continue
-                                }
-                        case "expired":
-                                // Check both status field and actual expiration date
-                                now := time.Now()
-                                isExpiredByStatus := certStatus == "expired"
-                                isExpiredByDate := cert.ExpiryDate.Before(now)
-                                
-                                if !isExpiredByStatus && !isExpiredByDate {
-                                        continue
-                                }
-                        default:
-                                // Exact match for any other status
-                                if certStatus != requestedStatus {
-                                        continue
-                                }
+                // Apply issuer substring matching (case-insensitive)
+                if issuer != "" {
+                        if !strings.Contains(strings.ToLower(cert.Issuer), strings.ToLower(issuer)) {
+                                continue
                         }
                 }
+                
+
                 
                 // Apply recent certificates filter (issued after threshold)
                 if issuedAfter != nil {
