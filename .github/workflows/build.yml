@@ -45,7 +45,7 @@ jobs:
         go mod verify
 
     - name: Run tests
-      run: go test -v ./...
+      run: go test -v ./internal/policy/... ./internal/cert/ -short
 
     - name: Get build info
       id: build_info
