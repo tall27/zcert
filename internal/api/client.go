@@ -421,11 +421,17 @@ func (c *Client) searchCertificatesPage(params CertificateSearchParams, limit, o
                 policy = params.PolicyID
         }
         
+        var notAfter interface{} = nil
+        if params.NotAfter != "" {
+                notAfter = params.NotAfter
+        }
+        
         searchRequest := map[string]interface{}{
                 "account":        params.Account,
                 "common_name":    commonName,
                 "expired":        expired,
                 "limit":          limit,
+                "not_after":      notAfter,
                 "offset":         offset,
                 "policy":         policy,
                 "renewed":        nil,
