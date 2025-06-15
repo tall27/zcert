@@ -262,15 +262,8 @@ func (pc *ProfileConfig) ListProfiles() []string {
 func CreateExampleProfileConfig(filename string) error {
         content := `# zcert Profile Configuration File
 # This file supports multiple profiles with different ZTPKI settings
-#
-# Usage Examples:
-#   zcert --config zcert.cnf enroll --cn "example.com"                    # Enroll certificate using Default profile
-#   zcert --config zcert.cnf --profile test enroll --cn "test.com"        # Use test profile for enrollment
-#   zcert --config zcert.cnf --profile prod enroll --cn "prod.com"        # Use production profile
-#   zcert --config zcert.cnf search --cn "*.example.com"                  # Search certificates
-#   zcert --config zcert.cnf search --expiring 30                         # Find certificates expiring in 30 days
-#   zcert --config zcert.cnf retrieve --id "certificate-id"               # Retrieve specific certificate
-#   zcert --config zcert.cnf revoke --cn "old.example.com"                # Revoke certificate
+# Use: zcert --config zcert.cnf --cn "mycert.com" 
+#   or zcert --config zcert.cnf --profile test --cn "mycert.com"
 
 [Default]
 # Default profile used when no --profile is specified
