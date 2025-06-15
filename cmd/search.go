@@ -66,7 +66,7 @@ func init() {
         searchCmd.Flags().StringVar(&searchSerial, "serial", "", "Search by serial number")
         searchCmd.Flags().BoolVarP(&listPolicies, "policies", "p", false, "List all available policies")
         searchCmd.Flags().StringVar(&searchPolicy, "policy", "", "Search by policy ID or name")
-        searchCmd.Flags().StringVar(&searchStatus, "status", "", "Search by certificate status (active, revoked, expired)")
+        searchCmd.Flags().StringVar(&searchStatus, "status", "", "Search by certificate status (Valid, In Process, Pending, Failed, Renewed, Revoked)")
         
         // ZTPKI Authentication flags
         searchCmd.Flags().StringVar(&searchURL, "url", "", "ZTPKI API base URL (e.g., https://ztpki.venafi.com/api/v2)")
@@ -505,7 +505,7 @@ func getSearchUsageFunc() func(*cobra.Command) error {
                 fmt.Printf("      --issuer string     Search by certificate issuer\n")
                 fmt.Printf("      --serial string     Search by serial number\n")
                 fmt.Printf("  -p, --policy string     Search by policy ID or name\n")
-                fmt.Printf("      --status string     Search by certificate status (active, revoked, expired)\n\n")
+                fmt.Printf("      --status string     Search by certificate status (Valid, In Process, Pending, Failed, Renewed, Revoked)\n\n")
                 
                 fmt.Printf("Time-Based Filters:\n")
                 fmt.Printf("      --expired           Show only expired certificates\n")
