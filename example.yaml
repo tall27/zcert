@@ -2,7 +2,7 @@
 # This file can be placed at ~/.zcert.yaml or specified with --config
 
 # ZTPKI API Configuration
-base_url: "https://ztpki-dev.venafi.com/api/v2"
+base_url: "https://your-ztpki-instance.com/api/v2"
 hawk_id: "your-hawk-id-here"
 hawk_key: "your-hawk-key-here"
 

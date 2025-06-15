@@ -59,7 +59,7 @@ Create a configuration file at `~/.zcert.yaml`:
 
 ```yaml
 # ZTPKI API Configuration
-base_url: "https://ztpki-dev.venafi.com/api/v2"
+base_url: "https://your-ztpki-instance.com/api/v2"
 hawk_id: "your-hawk-id-here"
 hawk_key: "your-hawk-key-here"
 
@@ -73,7 +73,7 @@ Or use environment variables:
 ```bash
 export ZCERT_HAWK_ID="your-hawk-id"
 export ZCERT_HAWK_KEY="your-hawk-key"
-export ZCERT_BASE_URL="https://ztpki-dev.venafi.com/api/v2"
+export ZCERT_BASE_URL="https://your-ztpki-instance.com/api/v2"
 ```
 
 ### 2. Basic Usage
@@ -193,7 +193,7 @@ Example configuration:
 
 ```yaml
 # API Configuration
-base_url: "https://ztpki-dev.venafi.com/api/v2"
+base_url: "https://your-ztpki-instance.com/api/v2"
 hawk_id: "your-hawk-id"
 hawk_key: "your-hawk-key"
 
