@@ -544,9 +544,12 @@ func applyClientSideFilters(certificates []api.Certificate, commonName, serial, 
                         }
                 }
                 
-                // Apply expiring certificates filter (expires before threshold)
+                // Apply expiring certificates filter (expires within timeframe from today)
                 if expiresBefore != nil {
-                        if cert.ExpiryDate.After(*expiresBefore) {
+                        now := time.Now()
+                        // Certificate must expire AFTER today (not already expired)
+                        // AND expire BEFORE the threshold date (within specified timeframe)
+                        if cert.ExpiryDate.Before(now) || cert.ExpiryDate.After(*expiresBefore) {
                                 continue
                         }
                 }
