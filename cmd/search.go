@@ -211,13 +211,27 @@ func runSearch(cmd *cobra.Command, args []string) error {
                 return fmt.Errorf("failed to initialize API client: %w", err)
         }
 
+        // Resolve policy substring to full policy ID if needed
+        resolvedPolicyID := ""
+        if searchPolicy != "" {
+                resolvedID, err := resolvePolicySubstring(client, searchPolicy)
+                if err != nil {
+                        return fmt.Errorf("failed to resolve policy '%s': %w", searchPolicy, err)
+                }
+                resolvedPolicyID = resolvedID
+                
+                if viper.GetBool("verbose") {
+                        fmt.Fprintf(os.Stderr, "Resolved policy '%s' to full ID: %s\n", searchPolicy, resolvedPolicyID)
+                }
+        }
+
         // Build search parameters
         searchParams := api.CertificateSearchParams{
                 Account:    finalProfile.Account,
                 CommonName: searchCN,
                 Issuer:     searchIssuer,
                 Serial:     searchSerial,
-                PolicyID:   searchPolicy,
+                PolicyID:   resolvedPolicyID,
                 Status:     searchStatus,
                 Limit:      searchLimit,
         }
@@ -280,7 +294,7 @@ func runSearch(cmd *cobra.Command, args []string) error {
 
         // Adjust search strategy based on filtering requirements
         var certificates []api.Certificate
-        needsClientFiltering := searchCN != "" || searchSerial != "" || searchIssuer != "" || searchPolicy != "" || issuedAfter != nil || expiresBefore != nil
+        needsClientFiltering := searchCN != "" || searchSerial != "" || searchIssuer != "" || issuedAfter != nil || expiresBefore != nil
         
         if viper.GetBool("verbose") {
                 fmt.Fprintf(os.Stderr, "Search strategy: needsClientFiltering=%t, useExpiredPagination=%t\n", needsClientFiltering, useExpiredPagination)
@@ -319,12 +333,12 @@ func runSearch(cmd *cobra.Command, args []string) error {
                 expandedParams := searchParams
                 expandedParams.Limit = searchLimit
                 
-                // Remove all client-side filters from server request to get broader results for substring matching
-                if searchCN != "" || searchSerial != "" || searchIssuer != "" || searchPolicy != "" {
+                // Remove only client-side filters from server request (keep policy for server-side filtering)
+                if searchCN != "" || searchSerial != "" || searchIssuer != "" {
                         expandedParams.CommonName = ""
                         expandedParams.Serial = ""
                         expandedParams.Issuer = ""
-                        expandedParams.PolicyID = ""
+                        // Keep PolicyID for server-side filtering - don't remove it
                         // Increase limit to get more data for client-side filtering
                         expandedParams.Limit = searchLimit * 10 // Fetch more to ensure we find matches
                         if expandedParams.Limit > 1000 {
@@ -337,8 +351,8 @@ func runSearch(cmd *cobra.Command, args []string) error {
                         return fmt.Errorf("failed to search certificates: %w", err)
                 }
                 
-                // Apply client-side filtering with substring matching
-                filtered := applyClientSideFilters(allCerts, searchCN, searchSerial, searchIssuer, searchPolicy, issuedAfter, expiresBefore)
+                // Apply client-side filtering with substring matching (policy filtered server-side)
+                filtered := applyClientSideFilters(allCerts, searchCN, searchSerial, searchIssuer, "", issuedAfter, expiresBefore)
                 
                 // Apply the requested limit
                 if len(filtered) > searchLimit {
@@ -775,5 +789,52 @@ func outputPoliciesCSV(policies []api.Policy) error {
                 fmt.Printf("%s,%s\n", policy.Name, policy.ID)
         }
         return nil
+}
+
+// resolvePolicySubstring resolves a policy substring to a full policy ID
+// Searches both policy IDs and policy names for substring matches
+func resolvePolicySubstring(client *api.Client, policySubstring string) (string, error) {
+        // First, check if it's already a full UUID (36 chars with dashes)
+        if len(policySubstring) == 36 && strings.Count(policySubstring, "-") == 4 {
+                return policySubstring, nil
+        }
+        
+        // Fetch all policies
+        policies, err := client.GetPolicies()
+        if err != nil {
+                return "", fmt.Errorf("failed to fetch policies: %w", err)
+        }
+        
+        var matches []api.Policy
+        searchTerm := strings.ToLower(policySubstring)
+        
+        // Search for substring matches in policy ID and name
+        for _, policy := range policies {
+                // Check policy ID substring match
+                if strings.Contains(strings.ToLower(policy.ID), searchTerm) {
+                        matches = append(matches, policy)
+                        continue
+                }
+                
+                // Check policy name substring match
+                if strings.Contains(strings.ToLower(policy.Name), searchTerm) {
+                        matches = append(matches, policy)
+                }
+        }
+        
+        if len(matches) == 0 {
+                return "", fmt.Errorf("no policies found matching '%s'", policySubstring)
+        }
+        
+        if len(matches) == 1 {
+                return matches[0].ID, nil
+        }
+        
+        // Multiple matches - show options and return error
+        fmt.Fprintf(os.Stderr, "Multiple policies match '%s':\n", policySubstring)
+        for i, policy := range matches {
+                fmt.Fprintf(os.Stderr, "  [%d] %s - %s\n", i+1, policy.Name, policy.ID)
+        }
+        return "", fmt.Errorf("multiple policies match '%s', please be more specific", policySubstring)
 }
 
