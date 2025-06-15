@@ -75,7 +75,7 @@ func init() {
 
         
         // Output options
-        searchCmd.Flags().IntVar(&searchLimit, "limit", 50, "Maximum number of results to return")
+        searchCmd.Flags().IntVar(&searchLimit, "limit", 10, "Maximum number of results to return")
         searchCmd.Flags().StringVar(&searchFormat, "format", "table", "Output format (table, json, csv)")
         searchCmd.Flags().BoolVar(&searchWide, "wide", false, "Show full column content without truncation")
         
