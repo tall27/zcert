@@ -263,23 +263,47 @@ func (c *Client) SearchCertificates(params CertificateSearchParams) ([]Certifica
                 userLimit = 100 // Default limit if not specified
         }
         
-        // ZTPKI API limitation: offset pagination doesn't work with account parameter
-        // Workaround: fetch larger batches and use client-side deduplication
+        // For account-scoped searches, implement proper pagination
         if params.Account != "" {
-                batchSize := userLimit
-                if batchSize > 500 {
-                        batchSize = 500 // Cap at reasonable limit to avoid timeouts
+                var allCertificates []Certificate
+                const serverPageLimit = 50 // ZTPKI appears to limit responses, use smaller pages
+                offset := 0
+                
+                for len(allCertificates) < userLimit {
+                        pageSize := serverPageLimit
+                        remaining := userLimit - len(allCertificates)
+                        if remaining < serverPageLimit {
+                                pageSize = remaining
+                        }
+                        
+                        certificates, err := c.searchCertificatesPage(params, pageSize, offset)
+                        if err != nil {
+                                return nil, err
+                        }
+                        
+                        // If no certificates returned, we've reached the end
+                        if len(certificates) == 0 {
+                                break
+                        }
+                        
+                        allCertificates = append(allCertificates, certificates...)
+                        
+                        // The ZTPKI API seems to limit results to ~10 per request regardless of limit
+                        // So we need to continue pagination even if we got fewer than requested
+                        if len(certificates) < 10 { // If we get less than the apparent server limit
+                                break
+                        }
+                        
+                        offset += len(certificates)
+                        
+                        // Safety check to prevent infinite loops
+                        if offset > 1000 {
+                                break
+                        }
                 }
                 
-                certificates, err := c.searchCertificatesPage(params, batchSize, 0)
-                if err != nil {
-                        return nil, err
-                }
-                
-                // Remove duplicates that might occur due to API issues
-                deduplicated := c.deduplicateCertificates(certificates)
-                
-                // Return only requested amount
+                // Remove duplicates and return only requested amount
+                deduplicated := c.deduplicateCertificates(allCertificates)
                 if len(deduplicated) > userLimit {
                         return deduplicated[:userLimit], nil
                 }
@@ -420,7 +444,21 @@ func (c *Client) searchCertificatesPage(params CertificateSearchParams, limit, o
                 return certificates, nil
         }
         
-        // Try wrapped response formats based on typical pagination responses
+        // Try ZTPKI API response format with count and items
+        var ztpkiResult struct {
+                Count int           `json:"count"`
+                Items []Certificate `json:"items"`
+        }
+        
+        if err := json.Unmarshal(bodyBytes, &ztpkiResult); err == nil && len(ztpkiResult.Items) > 0 {
+                // Debug: Show total count vs returned items in verbose mode
+                if os.Getenv("ZCERT_DEBUG") != "" {
+                        fmt.Fprintf(os.Stderr, "API Response: total count=%d, returned items=%d\n", ztpkiResult.Count, len(ztpkiResult.Items))
+                }
+                return ztpkiResult.Items, nil
+        }
+        
+        // Try other wrapped response formats for backward compatibility
         var result struct {
                 Content      []Certificate `json:"content"`      // Spring Boot pagination
                 Data         []Certificate `json:"data"`
