@@ -251,13 +251,32 @@ func runSearch(cmd *cobra.Command, args []string) error {
 
         var expiresBefore *time.Time
         
-        // Handle --expiring flag - use profile validity if flag present but empty
+        // Handle --expiring flag - use profile validity if flag present but empty or invalid
         expiringValue := searchExpiring
         currentProfile := GetCurrentProfile()
-        if cmd.Flags().Lookup("expiring").Changed && searchExpiring == "" && currentProfile != nil && currentProfile.Validity > 0 {
-                expiringValue = fmt.Sprintf("%d", currentProfile.Validity)
-                if viper.GetBool("verbose") {
-                        fmt.Fprintf(os.Stderr, "Using profile validity setting for --expiring: %s days\n", expiringValue)
+        
+        // Check if --expiring flag was provided but value looks like another flag (starts with -)
+        expiringFlag := cmd.Flags().Lookup("expiring")
+        if expiringFlag.Changed {
+                if searchExpiring == "" || strings.HasPrefix(searchExpiring, "-") {
+                        if currentProfile != nil && currentProfile.Validity > 0 {
+                                expiringValue = fmt.Sprintf("%d", currentProfile.Validity)
+                                if viper.GetBool("verbose") {
+                                        fmt.Fprintf(os.Stderr, "Using profile validity setting for --expiring: %s days\n", expiringValue)
+                                }
+                        } else {
+                                // Default to 15 days if no profile validity
+                                expiringValue = "15"
+                                if viper.GetBool("verbose") {
+                                        fmt.Fprintf(os.Stderr, "Using default validity setting for --expiring: %s days\n", expiringValue)
+                                }
+                        }
+                        
+                        // If the value was actually another flag, we need to reset the searchExpiring
+                        if strings.HasPrefix(searchExpiring, "-") {
+                                // Reset the flag value that was incorrectly captured
+                                searchExpiring = expiringValue
+                        }
                 }
         }
         

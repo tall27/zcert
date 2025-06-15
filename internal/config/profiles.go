@@ -9,6 +9,61 @@ import (
         "strings"
 )
 
+// ValidityPeriod represents a parsed validity period
+type ValidityPeriod struct {
+        Years  int
+        Months int
+        Days   int
+}
+
+// parseValidityPeriodSimple parses validity period strings like "5d", "30", "1y6m"
+func parseValidityPeriodSimple(input string) (*ValidityPeriod, error) {
+        if input == "" {
+                return nil, fmt.Errorf("empty validity period")
+        }
+
+        // If it's just a number, treat as days
+        if days, err := strconv.Atoi(input); err == nil {
+                return &ValidityPeriod{Days: days}, nil
+        }
+
+        // Parse with suffixes
+        result := &ValidityPeriod{}
+        
+        // Regular expressions for different components
+        yearRegex := regexp.MustCompile(`(\d+)y`)
+        monthRegex := regexp.MustCompile(`(\d+)m`)
+        dayRegex := regexp.MustCompile(`(\d+)d`)
+
+        // Extract years
+        if yearMatch := yearRegex.FindStringSubmatch(input); yearMatch != nil {
+                if years, err := strconv.Atoi(yearMatch[1]); err == nil {
+                        result.Years = years
+                }
+        }
+
+        // Extract months
+        if monthMatch := monthRegex.FindStringSubmatch(input); monthMatch != nil {
+                if months, err := strconv.Atoi(monthMatch[1]); err == nil {
+                        result.Months = months
+                }
+        }
+
+        // Extract days
+        if dayMatch := dayRegex.FindStringSubmatch(input); dayMatch != nil {
+                if days, err := strconv.Atoi(dayMatch[1]); err == nil {
+                        result.Days = days
+                }
+        }
+
+        // Validate that we found at least one component
+        if result.Years == 0 && result.Months == 0 && result.Days == 0 {
+                return nil, fmt.Errorf("invalid validity format: %s (expected formats: 30d, 6m, 1y, 30d6m, 1y6m, or plain number for days)", input)
+        }
+
+        return result, nil
+}
+
 // Profile represents a configuration profile
 type Profile struct {
         Name      string
@@ -123,8 +178,17 @@ func LoadProfileConfig(filename string) (*ProfileConfig, error) {
                         case "key-type", "key_type", "keytype":
                                 currentProfile.KeyType = value
                         case "validity", "validity_days":
+                                // Handle validity with suffixes (e.g., "5d", "30", "1y")
                                 if days, err := strconv.Atoi(value); err == nil {
+                                        // Plain integer - treat as days
                                         currentProfile.Validity = days
+                                } else {
+                                        // Try parsing as validity period with suffixes
+                                        if validityPeriod, err := parseValidityPeriodSimple(value); err == nil {
+                                                // Convert to total days
+                                                totalDays := validityPeriod.Years*365 + validityPeriod.Months*30 + validityPeriod.Days
+                                                currentProfile.Validity = totalDays
+                                        }
                                 }
                         case "output-dir", "output_dir", "outdir":
                                 currentProfile.OutDir = value
