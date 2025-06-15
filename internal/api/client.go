@@ -284,6 +284,9 @@ func (c *Client) SearchCertificates(params CertificateSearchParams) ([]Certifica
         
         // For account-scoped searches, use the user's exact limit
         if params.Account != "" {
+                if os.Getenv("ZCERT_DEBUG") != "" {
+                        fmt.Fprintf(os.Stderr, "Account search: userLimit=%d, params.Limit=%d\n", userLimit, params.Limit)
+                }
                 certificates, err := c.searchCertificatesPage(params, userLimit, 0)
                 if err != nil {
                         return nil, err

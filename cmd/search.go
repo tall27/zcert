@@ -317,12 +317,9 @@ func runSearch(cmd *cobra.Command, args []string) error {
                         return fmt.Errorf("unsupported output format: %s", searchFormat)
                 }
         } else if needsClientFiltering {
-                // For client-side filtering, fetch more certificates to ensure we get enough results
+                // For client-side filtering, use the exact limit requested
                 expandedParams := searchParams
-                expandedParams.Limit = searchLimit * 10 // Fetch 10x more to account for filtering
-                if expandedParams.Limit > 1000 {
-                        expandedParams.Limit = 1000 // Cap at reasonable limit
-                }
+                expandedParams.Limit = searchLimit
                 
                 allCerts, err := client.SearchCertificates(expandedParams)
                 if err != nil {
