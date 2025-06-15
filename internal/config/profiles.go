@@ -15,6 +15,7 @@ type Profile struct {
         URL       string
         KeyID     string
         Secret    string
+        Account   string
         Algo      string
         Format    string
         PolicyID  string
@@ -106,6 +107,8 @@ func LoadProfileConfig(filename string) (*ProfileConfig, error) {
                                 currentProfile.KeyID = value
                         case "secret", "hawk_key", "hawk-key", "hawk-api":
                                 currentProfile.Secret = value
+                        case "account", "account_id", "account-id":
+                                currentProfile.Account = value
 
                         case "format":
                                 currentProfile.Format = value

@@ -213,6 +213,7 @@ func runSearch(cmd *cobra.Command, args []string) error {
 
         // Build search parameters (exclude CommonName for client-side filtering)
         searchParams := api.CertificateSearchParams{
+                Account:  finalProfile.Account,
                 Issuer:   searchIssuer,
                 Serial:   searchSerial,
                 PolicyID: searchPolicy,
@@ -277,7 +278,6 @@ func runSearch(cmd *cobra.Command, args []string) error {
         needsClientFiltering := searchCN != "" || searchSerial != "" || issuedAfter != nil || expiresBefore != nil
         
         if viper.GetBool("verbose") {
-                fmt.Fprintf(os.Stderr, "Debug: searchCN='%s', searchSerial='%s'\n", searchCN, searchSerial)
                 fmt.Fprintf(os.Stderr, "Search strategy: needsClientFiltering=%t, useExpiredPagination=%t\n", needsClientFiltering, useExpiredPagination)
         }
         
