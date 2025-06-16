@@ -89,3 +89,6 @@ zi*
 
 # Attached assets and documentation
 attached_assets/
+
+# md files
+*.md
