@@ -253,100 +253,69 @@ profiles:
 // CreateExamplePlaybookConfig creates an example playbook YAML configuration file
 func CreateExamplePlaybookConfig(filename string) error {
         content := `# zcert Playbook Configuration File
-# This file defines certificate management workflows with automated deployment
+# This file defines a series of certificate operations to be executed
 # Usage: zcert run --file playbook.yaml
 
-config:
-  connection:
-    credentials:
-      hawk-id: '{{ZTPKI_HAWK_ID}}'
-      hawk-api: '{{ZTPKI_HAWK_SECRET}}'
-      platform: '{{ZTPKI_URL}}'
+name: "Certificate Management Playbook"
+version: "1.0"
 
-certificateTasks:
-  - name: "WebServerCert"
-    renewBefore: 30d
-    request:
-      csr: local
-      subject:
-        commonName: "abc.example.com"
-        country: US
-        state: Utah
-        locality: Salt Lake City
-        organization: Example Corp
-        orgUnits: ["IT Ops"]
-        # Additional DN components supported by ZTPKI:
-        domainComponents: ["example", "com"]  # DC fields
-        email: "admin@example.com"           # EMAIL field
-      policy: '{{ZTPKI_POLICY_ID}}'
-      # Enhanced SAN support matching ZTPKI schema
-      sans:
-        dns:
-          - "www.example.com"
-          - "api.example.com"
-          - "mail.example.com"
-        ip:
-          - "192.168.1.100"
-          - "10.0.0.50"
-        email:
-          - "webmaster@example.com"
-          - "support@example.com"
-        upn:
-          - "service@example.com"
-        uri:
-          - "https://api.example.com"
-      # Validity period (optional)
-      validity:
-        years: 1
-        months: 0
-        days: 0
-      # Custom fields (optional)
-      customFields:
-        department: "IT"
-        costCenter: "12345"
-      # Custom extensions (optional)
-      customExtensions:
-        "1.3.6.1.4.1.311.21.7": "302f06272b060104018237150884f09f0881fe9c1b85fd973886edbb1581edd1228149828fe83b86f9ea32020164020102"
-        "1.3.6.1.4.1.311.21.10": "3018300a06082b06010505070301300a06082b06010505070302"
-        "1.3.6.1.4.1.311.25.2": ""
-      # Additional metadata
-      comment: "Web server certificate for production environment"
-      expiryEmails:
-        - "admin@example.com"
-        - "security@example.com"
-      # Certificate reminder management
-      clearRemindersCertificateId: ""  # If replacing existing cert
-    installations:
-      - format: PEM
-        file: "./certs/example.crt"
-        chainFile: "./certs/example.chain.crt"
-        keyFile: "./certs/example.key"
-        backupExisting: true
-        afterInstallAction: "echo 'Certificate installed successfully'"
-        # windows example: combine cert and chain files
-        # afterInstallAction: ('', (gc .\certs\example.crt -Raw)) | ac .\certs\example.chain.crt
-      
-      # Additional installation formats
-      - format: PKCS12
-        file: "./certs/example.p12"
-        password: "secure123"
-        afterInstallAction: "systemctl restart apache2"
+tasks:
+  # Task 1: Enroll a new web server certificate
+  - name: "Enroll Web Server Certificate"
+    action: "enroll"
+    common_name: "web.example.com"
+    policy_id: "WebServerPolicy"
+    key_size: 2048
+    key_type: "rsa"
+    output_file: "./certs/web-server"
+    subject:
+      country: ["US"]
+      province: ["CA"]
+      locality: ["San Francisco"]
+      organization: ["Example Corp"]
+      organizational_unit: ["IT Department"]
+    continue_on_error: false
 
-  # Example with minimal configuration
-  - name: "APIServerCert"
-    renewBefore: 15d
-    request:
-      csr: local
-      subject:
-        commonName: "api.example.com"
-      policy: '{{ZTPKI_POLICY_ID}}'
-      sans:
-        dns:
-          - "api-v2.example.com"
-    installations:
-      - format: PEM
-        file: "./certs/api.crt"
-        keyFile: "./certs/api.key"
+  # Task 2: Search for existing certificates
+  - name: "Search Existing Certificates"
+    action: "search"
+    common_name: "*.example.com"
+    limit: 10
+    output_file: "./reports/cert-search-results.txt"
+    continue_on_error: true
+
+  # Task 3: Retrieve a specific certificate by ID
+  - name: "Retrieve Production Certificate"
+    action: "retrieve"
+    certificate_id: "cert-12345-abcdef"
+    output_file: "./certs/production-cert.pem"
+    continue_on_error: false
+
+  # Task 4: Enroll API server certificate
+  - name: "Enroll API Certificate"
+    action: "enroll"
+    common_name: "api.example.com"
+    policy_id: "APIServerPolicy"
+    key_size: 4096
+    key_type: "rsa"
+    output_file: "./certs/api-server"
+    subject:
+      country: ["US"]
+      province: ["CA"]
+      locality: ["San Francisco"]
+      organization: ["Example Corp"]
+      organizational_unit: ["API Team"]
+    continue_on_error: true
+
+# Configuration Notes:
+# - Set environment variables before running:
+#   export ZTPKI_URL="https://your-ztpki-instance.com/api/v2"
+#   export ZTPKI_HAWK_ID="your-hawk-id"
+#   export ZTPKI_HAWK_SECRET="your-hawk-secret"
+#
+# - Available actions: enroll, retrieve, search, revoke
+# - Use --dry-run flag to preview operations without executing
+# - Set continue_on_error: true to continue playbook execution if a task fails
 `
 
         return os.WriteFile(filename, []byte(content), 0600) // Restrict to owner only
