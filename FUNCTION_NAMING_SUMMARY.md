@@ -23,15 +23,23 @@
 zcert config --cnf --output zcert.cnf
 
 # Playbook files (for run command workflows)
-zcert run --file playbook.yaml
+zcert run --example                    # Generate example playbook.yaml
+zcert run --example --file custom.yaml # Generate example with custom filename
+zcert run --file playbook.yaml         # Execute playbook
 ```
 
 ## Eliminated Confusion
 ✅ Removed unnecessary `CreateExampleYAMLProfileConfig()` function
 ✅ Removed `--yaml` flag from config command
+✅ Added `--example` flag to run command for YAML playbook generation
 ✅ Clean separation: CNF for profiles, YAML for playbooks only
 ✅ No more overlapping configuration formats
 
 The system now has exactly two configuration types:
 1. **CNF profiles** - Authentication and settings for individual commands
 2. **YAML playbooks** - Workflow automation for the run command
+
+## Final Solution
+Users generate examples logically:
+- `zcert config --cnf` → Creates profile configurations
+- `zcert run --example` → Creates playbook workflows

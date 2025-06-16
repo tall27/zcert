@@ -14,6 +14,7 @@ var (
         runFile string
         runForceRenew bool
         runDryRun bool
+        runExample bool
 )
 
 // runCmd represents the run command
@@ -25,9 +26,10 @@ The playbook contains connection settings and one or more certificate tasks to
 automate end-to-end certificate enrollment and deployment.
 
 Example usage:
-  zcert run
-  zcert run --file myplaybook.yaml
-  zcert run --force-renew`,
+  zcert run --example                    # Generate example playbook.yaml
+  zcert run                              # Execute playbook.yaml
+  zcert run --file myplaybook.yaml       # Execute specific playbook
+  zcert run --force-renew                # Force renewal of all certificates`,
         Args: cobra.NoArgs,
         RunE: runPlaybook,
 }
@@ -38,9 +40,39 @@ func init() {
         runCmd.Flags().StringVarP(&runFile, "file", "f", "playbook.yaml", "Playbook YAML file to execute (default \"playbook.yaml\")")
         runCmd.Flags().BoolVar(&runForceRenew, "force-renew", false, "Force renew certificates regardless of current expiration")
         runCmd.Flags().BoolVar(&runDryRun, "dry-run", false, "Show what would be executed without running")
+        runCmd.Flags().BoolVar(&runExample, "example", false, "Generate an example playbook YAML file")
 }
 
 func runPlaybook(cmd *cobra.Command, args []string) error {
+        // Handle example generation
+        if runExample {
+                filename := runFile
+                
+                // Check if file exists
+                if _, err := os.Stat(filename); err == nil {
+                        fmt.Printf("File %s already exists. Overwrite? (y/N): ", filename)
+                        var response string
+                        fmt.Scanln(&response)
+                        if response != "y" && response != "Y" {
+                                fmt.Println("Playbook generation cancelled.")
+                                return nil
+                        }
+                }
+
+                err := config.CreateExamplePlaybookYAML(filename)
+                if err != nil {
+                        return fmt.Errorf("failed to create example playbook: %w", err)
+                }
+
+                fmt.Printf("Example playbook created: %s\n", filename)
+                fmt.Println("\nUsage examples:")
+                fmt.Printf("  zcert run --file %s\n", filename)
+                fmt.Printf("  zcert run --file %s --dry-run\n", filename)
+                fmt.Printf("  zcert run --file %s --force-renew\n", filename)
+                fmt.Println("\nEdit the file and add your ZTPKI credentials and certificate requirements.")
+                return nil
+        }
+
         // Use default file if not specified
         playbookFile := runFile
 
