@@ -44,6 +44,7 @@ Example usage:
         Args: cobra.NoArgs,
         RunE: runPlaybook,
         SilenceUsage: true, // Don't show usage on error
+        SilenceErrors: true, // Don't show duplicate error messages
 }
 
 func init() {
@@ -88,7 +89,10 @@ func runPlaybook(cmd *cobra.Command, args []string) error {
         // Fall back to simple playbook format
         playbook, err := config.LoadPlaybook(playbookFile)
         if err != nil {
-                return fmt.Errorf("failed to load playbook: %w", err)
+                if !runQuiet {
+                        fmt.Printf("🟥 Playbook execution failed: run with --verbose flag for more information.\n")
+                }
+                os.Exit(1)
         }
 
         fmt.Printf("Loaded playbook with %d tasks\n", len(playbook.Tasks))
@@ -841,7 +845,7 @@ func executeCertificatePlaybook(certPlaybook *config.CertificatePlaybook, playbo
                                 return fmt.Errorf("certificate task %d failed: %w", i+1, err)
                         } else {
                                 fmt.Printf("🟥 Playbook execution failed: run with --verbose flag for more information.\n")
-                                return fmt.Errorf("certificate task failed")
+                                os.Exit(1)
                         }
                 }
                 
