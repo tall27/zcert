@@ -766,16 +766,10 @@ func (c *Client) RevokeCertificate(id, reason string) error {
         // ZTPKI revoke endpoint - correct format is PATCH /certificates/{id}
         endpoint := fmt.Sprintf("/certificates/%s", url.PathEscape(id))
         
-        // Convert reason string to numeric code per ZTPKI specification
+        // ZTPKI revocation request format - use numeric code
         reasonCode := c.convertRevocationReason(reason)
-        
-        // Current time in ISO format for revocationDate
-        revocationDate := time.Now().UTC().Format(time.RFC3339)
-        
-        // ZTPKI revocation request format
         requestBody := map[string]interface{}{
-                "reason":         reasonCode,
-                "revocationDate": revocationDate,
+                "reason": reasonCode,
         }
         
         // Always show the complete request details for debugging
