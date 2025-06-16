@@ -494,6 +494,9 @@ func saveCertificateAndKeyQuietNoBackup(outputFile, certificate, privateKey, cha
         if err != nil {
                 return fmt.Errorf("failed to write private key file: %w", err)
         }
+        if !quiet {
+                fmt.Printf("    Private key generated and saved to: %s\n", keyFile)
+        }
 
         // Save chain certificate if provided
         if chainCertificate != "" && strings.TrimSpace(chainCertificate) != "" {
