@@ -1,6 +1,7 @@
 package cmd
 
 import (
+        "context"
         "crypto/rand"
         "crypto/rsa"
         "crypto/x509"
@@ -355,72 +356,76 @@ func generateCSR(commonName string, keySize int, keyType string, subject *config
 // Helper functions
 
 func pollForCertificate(client *api.Client, requestID string) (*api.Certificate, error) {
-        // Poll for certificate request status until issued
-        maxAttempts := 30  // 30 attempts with 2 second intervals = 1 minute timeout
-        for attempt := 1; attempt <= maxAttempts; attempt++ {
-                // Get certificate request details
-                certRequest, err := client.GetCertificateRequest(requestID)
-                if err != nil {
-                        return nil, fmt.Errorf("failed to get certificate request: %w", err)
-                }
+        // Use the proven polling logic from enroll command
+        var certificate *api.Certificate
 
-                switch certRequest.IssuanceStatus {
-                case "ISSUED":
-                        // Certificate is ready, retrieve it
-                        if certRequest.CertificateID == "" {
-                                return nil, fmt.Errorf("certificate issued but no certificate ID returned")
-                        }
-                        
-                        certificate, err := client.GetCertificate(certRequest.CertificateID)
+        // Create context with 2-second timeout for immediate polling
+        ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+        defer cancel()
+
+        // Continuous polling until timeout or success
+        ticker := time.NewTicker(50 * time.Millisecond) // Poll every 50ms for faster response
+        defer ticker.Stop()
+
+        attemptCount := 0
+        for {
+                select {
+                case <-ctx.Done():
+                        goto timeout_reached
+                case <-ticker.C:
+                        attemptCount++
+
+                        // First, check the request status to get certificate ID
+                        request, err := client.GetCertificateRequest(requestID)
                         if err != nil {
-                                return nil, fmt.Errorf("failed to retrieve certificate: %w", err)
-                        }
-                        
-                        return certificate, nil
-                        
-                case "APPROVAL_REQUIRED":
-                        return nil, fmt.Errorf("certificate request requires approval")
-                        
-                case "REJECTED":
-                        return nil, fmt.Errorf("certificate request was rejected")
-                        
-                case "FAILED":
-                        return nil, fmt.Errorf("certificate request failed")
-                        
-                case "IN_PROCESS", "PENDING":
-                        // Still processing, wait and retry
-                        if attempt < maxAttempts {
-                                fmt.Printf("    Certificate processing... (attempt %d/%d)\n", attempt, maxAttempts)
-                                time.Sleep(2 * time.Second)
                                 continue
                         }
-                        return nil, fmt.Errorf("certificate request timed out after %d attempts", maxAttempts)
-                        
-                default:
-                        return nil, fmt.Errorf("unknown certificate issuance status: %s", certRequest.IssuanceStatus)
+
+                        if request != nil && request.CertificateID != "" {
+                                // Request completed, now get the actual certificate
+                                certificate, err = client.GetCertificate(request.CertificateID)
+                                if err == nil && certificate != nil && certificate.Certificate != "" {
+                                        return certificate, nil
+                                }
+                        }
                 }
         }
-        
-        return nil, fmt.Errorf("certificate request timed out")
+
+timeout_reached:
+        if certificate == nil {
+                // Fallback: Try to get certificate directly by request ID
+                certificate, err := client.GetCertificate(requestID)
+                if err == nil && certificate != nil && certificate.Certificate != "" {
+                        return certificate, nil
+                }
+                return nil, fmt.Errorf("certificate was not issued within the expected time frame. The certificate may still be processing on the server")
+        }
+
+        return certificate, nil
 }
 
 func saveCertificateAndKey(outputFile, certificate, privateKey string) error {
-        // Save certificate
-        certFile := outputFile
-        if !strings.HasSuffix(certFile, ".pem") {
-                certFile += ".pem"
-        }
-        
-        err := os.WriteFile(certFile, []byte(certificate), 0644)
-        if err != nil {
-                return err
+        // Create directory if it doesn't exist
+        dir := strings.Replace(outputFile, "\\", "/", -1) // Handle Windows paths
+        if lastSlash := strings.LastIndex(dir, "/"); lastSlash != -1 {
+                dir = dir[:lastSlash]
+                err := os.MkdirAll(dir, 0755)
+                if err != nil {
+                        return fmt.Errorf("failed to create directory %s: %w", dir, err)
+                }
         }
 
-        // Save private key
-        keyFile := strings.TrimSuffix(certFile, ".pem") + ".key"
-        err = os.WriteFile(keyFile, []byte(privateKey), 0600)
+        // Save certificate to the specified output file
+        err := os.WriteFile(outputFile, []byte(certificate), 0644)
         if err != nil {
-                return err
+                return fmt.Errorf("failed to write certificate file: %w", err)
+        }
+
+        // Save private key with .key extension
+        keyFile := strings.TrimSuffix(outputFile, ".crt") + ".key"
+        err = os.WriteFile(keyFile, []byte(privateKey), 0600) // More restrictive permissions for private key
+        if err != nil {
+                return fmt.Errorf("failed to write private key file: %w", err)
         }
 
         return nil
