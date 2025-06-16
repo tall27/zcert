@@ -9,6 +9,18 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - goos: windows
+            goarch: amd64
+            suffix: ".exe"
+          - goos: darwin
+            goarch: amd64
+            suffix: ""
+          - goos: darwin
+            goarch: arm64
+            suffix: ""
     
     steps:
     - uses: actions/checkout@v4
@@ -18,8 +30,15 @@ jobs:
       with:
         go-version: '1.21'
     
-    - name: Build
-      run: go build -v -o zcert main.go
+    - name: Build ${{ matrix.goos }}-${{ matrix.goarch }}
+      env:
+        GOOS: ${{ matrix.goos }}
+        GOARCH: ${{ matrix.goarch }}
+        CGO_ENABLED: 0
+      run: go build -v -o zcert-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.suffix }} main.go
     
-    - name: Test
-      run: ./zcert --version
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: zcert-${{ matrix.goos }}-${{ matrix.goarch }}
+        path: zcert-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.suffix }}
