@@ -213,6 +213,5 @@ include_chain: true
 
 // SaveExampleConfig saves an example configuration file
 func SaveExampleConfig(filename string) error {
-        content := GetExampleConfig()
-        return os.WriteFile(filename, []byte(content), 0600) // Restrict to owner only
+        return CreateExampleYAMLConfig(filename)
 }
