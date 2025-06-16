@@ -1,0 +1,66 @@
+# zcert YAML Configuration File
+# This file supports multiple profiles with different ZTPKI settings
+# Usage: zcert --config zcert.yaml --profile <profile_name> enroll --cn example.com
+
+profiles:
+  Default:
+    base_url: "https://your-ztpki-instance.com/api/v2"
+    hawk_id: "your-hawk-id-here"
+    hawk_key: "your-hawk-key-here"
+    default_key_size: 2048
+    default_key_type: "rsa"
+    default_format: "pem"
+    default_policy_id: ""
+    default_algorithm: "sha256"
+    output_directory: "./certificates"
+    no_key_output: false
+    include_chain: true
+    
+    # Default Subject Information
+    default_country: ["US"]
+    default_province: ["CA"]
+    default_locality: ["San Francisco"]
+    default_org: ["Your Organization"]
+    default_org_unit: ["IT Department"]
+    
+    # Behavior Settings
+    poll_interval_seconds: 2
+    poll_timeout_seconds: 300
+    verbose: false
+    force_revoke: false
+
+  staging:
+    base_url: "https://your-ztpki-staging.com/api/v2"
+    hawk_id: "your-staging-hawk-id"
+    hawk_key: "your-staging-hawk-key"
+    default_key_size: 2048
+    default_key_type: "rsa"
+    default_format: "pem"
+    default_policy_id: ""
+    default_algorithm: "sha256"
+    output_directory: "./certificates"
+    include_chain: true
+
+  production:
+    base_url: "https://your-ztpki-production.com/api/v2"
+    hawk_id: "your-prod-hawk-id"
+    hawk_key: "your-prod-hawk-key"
+    default_key_size: 4096
+    default_key_type: "rsa"
+    default_format: "pem"
+    default_policy_id: ""
+    default_algorithm: "sha256"
+    output_directory: "./certificates"
+    include_chain: true
+
+  p12:
+    base_url: "https://your-ztpki-instance.com/api/v2"
+    hawk_id: "your-hawk-id-here"
+    hawk_key: "your-hawk-key-here"
+    default_key_size: 2048
+    default_key_type: "rsa"
+    default_format: "p12"
+    default_policy_id: ""
+    p12_password: "changeme"
+    output_directory: "./certificates"
+    include_chain: true
