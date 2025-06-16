@@ -780,7 +780,7 @@ func executeCertificateTaskWithResult(client *api.Client, certTask *config.Certi
         }
 
         // Submit CSR using comprehensive ZTPKI API payload
-        requestID, err := client.SubmitCSRWithFullPayload(csr, certTask)
+        requestID, err := client.SubmitCSRWithFullPayload(csr, certTask, verbose)
         if err != nil {
                 return nil, fmt.Errorf("failed to submit CSR: %w", err)
         }
@@ -897,7 +897,7 @@ func executeCertificateTask(client *api.Client, certTask *config.CertificateTask
         }
 
         // Submit CSR using comprehensive ZTPKI API payload
-        requestID, err := client.SubmitCSRWithFullPayload(csr, certTask)
+        requestID, err := client.SubmitCSRWithFullPayload(csr, certTask, true) // Always verbose for legacy function
         if err != nil {
                 return fmt.Errorf("failed to submit CSR: %w", err)
         }

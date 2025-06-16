@@ -251,7 +251,7 @@ func (c *Client) SubmitCSR(csrPEM, policyID string, validity *ValidityPeriod) (s
 }
 
 // SubmitCSRWithFullPayload submits a CSR with complete ZTPKI payload including all parameters from the YAML
-func (c *Client) SubmitCSRWithFullPayload(csrPEM string, certTask *config.CertificateTask) (string, error) {
+func (c *Client) SubmitCSRWithFullPayload(csrPEM string, certTask *config.CertificateTask, verbose bool) (string, error) {
         // Extract CN from CSR
         cn, err := extractCNFromCSR(csrPEM)
         if err != nil {
@@ -364,12 +364,14 @@ func (c *Client) SubmitCSRWithFullPayload(csrPEM string, certTask *config.Certif
                 requestBody.ExpiryEmails = certTask.Request.ExpiryEmails
         }
         
-        // Debug: Print the complete payload being sent to ZTPKI
-        if payload, err := json.MarshalIndent(requestBody, "", "  "); err == nil {
-                fmt.Printf("=== COMPLETE ZTPKI API Payload ===\n")
-                fmt.Printf("POST /csr\n")
-                fmt.Printf("%s\n", string(payload))
-                fmt.Printf("=================================\n")
+        // Debug: Print the complete payload being sent to ZTPKI (only in verbose mode)
+        if verbose {
+                if payload, err := json.MarshalIndent(requestBody, "", "  "); err == nil {
+                        fmt.Printf("=== COMPLETE ZTPKI API Payload ===\n")
+                        fmt.Printf("POST /csr\n")
+                        fmt.Printf("%s\n", string(payload))
+                        fmt.Printf("=================================\n")
+                }
         }
         
         resp, err := c.makeRequest("POST", "/csr", requestBody)

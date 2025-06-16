@@ -1,0 +1,32 @@
+~/workspace$ ./zcert run -q --force-renew
+=== COMPLETE ZTPKI API Payload ===
+POST /csr
+{
+  "policy": "5fe6d368-896a-4883-97eb-f87148c90896",
+  "csr": "-----BEGIN CERTIFICATE REQUEST-----\nMIICszCCAZsCAQAwbjELMAkGA1UEBhMCVVMxCzAJBgNVBAgTAklMMRAwDgYDVQQH\nEwdDaGljYWdvMRUwEwYDVQQKEwxFeGFtcGxlIENvcnAxDzANBgNVBAsTBklUIE9w\nczEYMBYGA1UEAxMPYWJjLmV4YW1wbGUuY29tMIIBIjANBgkqhkiG9w0BAQEFAAOC\nAQ8AMIIBCgKCAQEAvLXfGYMvMYErIxXrOz6DzhPjWc6D/f4jpAlo9H/BaK/2kh6F\nVsUculTAsQP6vZ07UfAPO5+ie4vkBUunL8w1Ck8aMCbUeDLUCck+T7euxmbeKtly\n4oB+IjgpxNG4+PWRYMvx0HMWGm7Tg75QMljbsz4XKZvC+0DH+gtY/yQO2qBPF8VT\nF/r+Tb0VJhP2KK9W5Via+GS/HABS3etqzRzR3tsUThZ/d3gZua9z5Ao9clwRT4VX\ntiHYZ55UwfuaNSZq5BbOsDErMof632sE05InMMBLdjRrkIhR53M6lfejeILWS8Jr\nthLGXMu3lI/895ip5+tWSTzb+AlwVH+lDpfs3QIDAQABoAAwDQYJKoZIhvcNAQEL\nBQADggEBABqSbiEJVST5TEgLd5CHYiFXEmPl1Aa/jkIiygZT2nqALcjg1vg6yB82\nDj4n9zCnpBb9B752nE4j5+j1zUCAKry8JX8AdHZI2xtarxAYlrIg6bXj3NJFYCAr\nJZ9BawB0P2StskJOi1GdIKjYRAF26VYMZyLmYaVdcJXn3G/wzDBxANdVdRlG5JTM\nsubgCxOKqYCQ7ONVfZ1tE7xyVAzvqZ8TOQ+X131lX1QC3N0W1WUnTLc8PvlfyreN\nQVMH4ZtzGt4W8eTm/eqQ8m+rAYp2f6caID0QSKujUK9x+AmsuXQHjftjPm8hj655\npMy7Z/uxk0RUX28znN7P9ajXcvQ93RU=\n-----END CERTIFICATE REQUEST-----\n",
+  "dnComponents": {
+    "C": "US",
+    "CN": "abc.example.com",
+    "L": "Chicago",
+    "O": "Example Corp",
+    "OU": [
+      "IT Ops"
+    ],
+    "ST": "IL"
+  },
+  "subjectAltNames": {
+    "dnsNames": [
+      "www.example.com",
+      "api.example.com"
+    ]
+  },
+  "CN": "abc.example.com"
+}
+=================================
+    Backed up existing file: ./certs/example.crt -> ./certs/example.crt.backup.20250616-030957
+    Backed up existing file: ./certs/example.key -> ./certs/example.key.backup.20250616-030957
+    Certificate saved to: ./certs/example.crt
+    Backed up existing file: ./certs/example.key -> ./certs/example.key.backup.20250616-030957
+    Private key saved to: ./certs/example.key
+    Executing after-install action: echo 'Certificate installed successfully!'
+~/workspace$ 
