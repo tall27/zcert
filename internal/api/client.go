@@ -763,12 +763,23 @@ func (c *Client) GetCertificateChain(id string) ([]string, error) {
 
 // RevokeCertificate revokes a certificate
 func (c *Client) RevokeCertificate(id, reason string) error {
-        // ZTPKI revoke endpoint format - try both possible formats
+        // ZTPKI revoke endpoint format
         endpoint := fmt.Sprintf("/certificates/%s/revoke", url.PathEscape(id))
         
-        // Try with minimal request body first
-        requestBody := map[string]string{
+        // Try different request body formats that ZTPKI might expect
+        requestBody := map[string]interface{}{
                 "reason": reason,
+                "disable": true, // Some APIs require this field
+        }
+        
+        // Debug: Print the payload being sent to ZTPKI (only in verbose mode)
+        if os.Getenv("ZCERT_VERBOSE") == "true" {
+                if payload, err := json.MarshalIndent(requestBody, "", "  "); err == nil {
+                        fmt.Printf("=== ZTPKI Revoke API Payload ===\n")
+                        fmt.Printf("POST %s\n", endpoint)
+                        fmt.Printf("%s\n", string(payload))
+                        fmt.Printf("===============================\n")
+                }
         }
         
         requestBodyBytes, err := json.Marshal(requestBody)
@@ -786,7 +797,51 @@ func (c *Client) RevokeCertificate(id, reason string) error {
         resp.Body.Close()
         
         if resp.StatusCode != 200 && resp.StatusCode != 204 {
+                // Try alternative endpoint format if the first one fails
+                if resp.StatusCode == 422 || resp.StatusCode == 404 {
+                        return c.tryAlternativeRevokeFormat(id, reason)
+                }
                 return fmt.Errorf("revocation failed: status %d, body: %s", resp.StatusCode, string(bodyBytes))
+        }
+        
+        return nil
+}
+
+// tryAlternativeRevokeFormat tries different revocation endpoint formats
+func (c *Client) tryAlternativeRevokeFormat(id, reason string) error {
+        // Try alternative endpoint format: PUT /certificates/{id} with status update
+        endpoint := fmt.Sprintf("/certificates/%s", url.PathEscape(id))
+        
+        requestBody := map[string]interface{}{
+                "status": "revoked",
+                "reason": reason,
+        }
+        
+        // Debug output for alternative format
+        if os.Getenv("ZCERT_VERBOSE") == "true" {
+                if payload, err := json.MarshalIndent(requestBody, "", "  "); err == nil {
+                        fmt.Printf("=== ZTPKI Alternative Revoke API Payload ===\n")
+                        fmt.Printf("PUT %s\n", endpoint)
+                        fmt.Printf("%s\n", string(payload))
+                        fmt.Printf("===========================================\n")
+                }
+        }
+        
+        requestBodyBytes, err := json.Marshal(requestBody)
+        if err != nil {
+                return fmt.Errorf("failed to marshal alternative revocation request: %w", err)
+        }
+        
+        resp, err := c.makeRequest("PUT", endpoint, bytes.NewReader(requestBodyBytes))
+        if err != nil {
+                return err
+        }
+        
+        bodyBytes, _ := io.ReadAll(resp.Body)
+        resp.Body.Close()
+        
+        if resp.StatusCode != 200 && resp.StatusCode != 204 {
+                return fmt.Errorf("revocation failed (alternative method): status %d, body: %s", resp.StatusCode, string(bodyBytes))
         }
         
         return nil

@@ -22,13 +22,19 @@ echo "Go Version: ${GO_VERSION}"
 echo "Platform: ${PLATFORM}"
 echo
 
+# Determine binary name based on platform
+BINARY_NAME="zcert"
+if [[ "$GOOS" == "windows" ]]; then
+    BINARY_NAME="zcert.exe"
+fi
+
 # Build the binary
-go build -ldflags "${LDFLAGS}" -o zcert main.go
+go build -ldflags "${LDFLAGS}" -o "${BINARY_NAME}" main.go
 
 # Test the version output
 echo
 echo "Testing version output:"
-./zcert --version
+./"${BINARY_NAME}" --version
 
-echo "Build completed: zcert"
-echo "Run './zcert --version' to see version information"
+echo "Build completed: ${BINARY_NAME}"
+echo "Run './${BINARY_NAME} --version' to see version information"
