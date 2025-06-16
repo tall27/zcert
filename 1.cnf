@@ -1,13 +1,14 @@
 # zcert Profile Configuration File
 # This file supports multiple profiles with different ZTPKI settings
 # Use: zcert enroll --config zcert.cnf --cn "mycert.com" 
-#   or zcert enroll --config zcert.cnf --profile test --cn "mycert.com"
+#   or zcert search --config zcert.cnf --profile test --cn "mycert.com"
 
 [Default]
-# Default profile used when no -profile is specified
-url = https://your-ztpki-instance.com/api/v2
+# Default profile used when no --profile is specified
+url = https://ztpki.venafi.com/api/v2
 hawk-id = your-default-hawk-id
 hawk-api = your-default-hawk-api
+account = your-account-id
 format = pem
 policy = PolicyID
 key-size = 2048
@@ -17,7 +18,7 @@ chain = true
 
 [test]
 # Profile for testing environment
-url = https://your-ztpki-instance.com/api/v2
+url = https://ztpki.venafi.com/api/v2
 hawk-id = test-hawk-id
 hawk-api = test-hawk-api
 format = pem
@@ -29,7 +30,7 @@ chain = false
 
 [prod]
 # Profile for production environment
-url = https://your-ztpki-instance.com/api/v2
+url = https://ztpki.venafi.com/api/v2
 hawk-id = prod-hawk-id
 hawk-api = prod-hawk-api
 format = pem
@@ -38,4 +39,4 @@ key-size = 4096
 key-type = rsa
 validity = 365  # Days (can use 365, 365d, 1y, etc.)
 chain = true
-no-key-output = false
+
