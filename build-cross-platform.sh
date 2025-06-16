@@ -7,7 +7,7 @@ set -e
 
 # Configuration
 APP_NAME="zcert"
-VERSION=${VERSION:-"v1.2.0"}
+VERSION=${VERSION:-"1.2.0"}
 BUILD_TIME=$(date -u +%Y%m%d.%H%M%S)
 GIT_COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 
