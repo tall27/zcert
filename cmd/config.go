@@ -122,13 +122,14 @@ func runConfig(cmd *cobra.Command, args []string) error {
 
                 err := config.CreateExampleYAMLConfig(filename)
                 if err != nil {
-                        return fmt.Errorf("failed to create example playbook config: %w", err)
+                        return fmt.Errorf("failed to create example YAML config: %w", err)
                 }
 
-                fmt.Printf("Example playbook configuration created: %s\n", filename)
+                fmt.Printf("Example YAML profile configuration created: %s\n", filename)
                 fmt.Println("\nUsage examples:")
-                fmt.Printf("  zcert run --file %s\n", filename)
-                fmt.Println("\nEdit the file and add your ZTPKI credentials and certificate tasks.")
+                fmt.Printf("  zcert --config %s --profile Default enroll --cn example.com\n", filename)
+                fmt.Printf("  zcert --config %s --profile staging enroll --cn test.example.com\n", filename)
+                fmt.Println("\nEdit the file and add your ZTPKI credentials for each profile.")
         }
 
         return nil
