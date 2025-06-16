@@ -388,3 +388,38 @@ func ExtractPlaybookCredentials(filename string) (*CredentialsConfig, error) {
         return nil, nil // No credentials found, not an error
 }
 
+// LoadCertificatePlaybook loads a certificate playbook from a YAML file
+func LoadCertificatePlaybook(filename string) (*CertificatePlaybook, error) {
+        file, err := os.Open(filename)
+        if err != nil {
+                return nil, fmt.Errorf("failed to open file: %w", err)
+        }
+        defer file.Close()
+
+        var playbook CertificatePlaybook
+        decoder := yaml.NewDecoder(file)
+        if err := decoder.Decode(&playbook); err != nil {
+                return nil, fmt.Errorf("failed to parse YAML: %w", err)
+        }
+
+        // Validate the playbook
+        if len(playbook.CertificateTasks) == 0 {
+                return nil, nil // Not a certificate playbook format
+        }
+
+        // Validate each certificate task
+        for i, task := range playbook.CertificateTasks {
+                if task.Name == "" {
+                        return nil, fmt.Errorf("certificate task %d must have a name", i+1)
+                }
+                if task.Request.Subject.CommonName == "" {
+                        return nil, fmt.Errorf("certificate task %d (%s) must have a common name", i+1, task.Name)
+                }
+                if task.Request.Policy == "" {
+                        return nil, fmt.Errorf("certificate task %d (%s) must have a policy", i+1, task.Name)
+                }
+        }
+
+        return &playbook, nil
+}
+

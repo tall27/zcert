@@ -250,65 +250,118 @@ func (c *Client) SubmitCSR(csrPEM, policyID string, validity *ValidityPeriod) (s
         return requestID, nil
 }
 
-// SubmitCSRWithCompletePayload submits a CSR with complete ZTPKI payload including SANs, DN components, etc.
-func (c *Client) SubmitCSRWithCompletePayload(csrPEM string, task interface{}) (string, error) {
-        // We need to import the config package to access PlaybookTask
-        // For now, let's use interface{} and type assertion
-        
+// SubmitCSRWithFullPayload submits a CSR with complete ZTPKI payload including all parameters from the YAML
+func (c *Client) SubmitCSRWithFullPayload(csrPEM string, certTask *config.CertificateTask) (string, error) {
         // Extract CN from CSR
         cn, err := extractCNFromCSR(csrPEM)
         if err != nil {
                 return "", fmt.Errorf("failed to extract CN from CSR: %w", err)
         }
         
-        // Start building the complete request payload
+        // Build complete request payload from the certificate task
         requestBody := CSRSubmissionRequest{
+                Policy: certTask.Request.Policy,
                 CSR:    csrPEM,
                 CN:     cn,
         }
         
-        // We'll need to access task fields through type assertion or interface
-        // For now, build basic payload and extend it
-        if taskData, ok := task.(map[string]interface{}); ok {
-                if policy, exists := taskData["policy"]; exists {
-                        requestBody.Policy = policy.(string)
-                }
+        // Build DN Components from subject data
+        dnComponents := map[string]interface{}{
+                "CN": certTask.Request.Subject.CommonName,
+        }
+        
+        if certTask.Request.Subject.Country != "" {
+                dnComponents["C"] = certTask.Request.Subject.Country
+        }
+        if certTask.Request.Subject.State != "" {
+                dnComponents["ST"] = certTask.Request.Subject.State
+        }
+        if certTask.Request.Subject.Locality != "" {
+                dnComponents["L"] = certTask.Request.Subject.Locality
+        }
+        if certTask.Request.Subject.Organization != "" {
+                dnComponents["O"] = certTask.Request.Subject.Organization
+        }
+        if len(certTask.Request.Subject.OrgUnits) > 0 {
+                dnComponents["OU"] = certTask.Request.Subject.OrgUnits
+        }
+        if len(certTask.Request.Subject.DomainComponents) > 0 {
+                dnComponents["DC"] = certTask.Request.Subject.DomainComponents
+        }
+        if certTask.Request.Subject.Email != "" {
+                dnComponents["emailAddress"] = certTask.Request.Subject.Email
+        }
+        
+        requestBody.DNComponents = dnComponents
+        
+        // Build Subject Alternative Names if specified
+        if certTask.Request.SANs != nil {
+                sanMap := map[string]interface{}{}
                 
-                // Build DN Components from subject data
-                dnComponents := map[string]interface{}{
-                        "CN": cn,
-                }
-                
-                if subject, exists := taskData["subject"]; exists {
-                        if subjectMap, ok := subject.(map[string]interface{}); ok {
-                                if country, exists := subjectMap["country"]; exists {
-                                        dnComponents["C"] = country
-                                }
-                                if state, exists := subjectMap["state"]; exists {
-                                        dnComponents["ST"] = state
-                                }
-                                if locality, exists := subjectMap["locality"]; exists {
-                                        dnComponents["L"] = locality
-                                }
-                                if organization, exists := subjectMap["organization"]; exists {
-                                        dnComponents["O"] = organization
-                                }
-                                if orgUnits, exists := subjectMap["orgUnits"]; exists {
-                                        dnComponents["OU"] = orgUnits
-                                }
+                // Handle structured SANs
+                if certTask.Request.SANs.SubjectAltNames != nil {
+                        if len(certTask.Request.SANs.SubjectAltNames.DNS) > 0 {
+                                sanMap["dnsNames"] = certTask.Request.SANs.SubjectAltNames.DNS
+                        }
+                        if len(certTask.Request.SANs.SubjectAltNames.IP) > 0 {
+                                sanMap["ipAddresses"] = certTask.Request.SANs.SubjectAltNames.IP
+                        }
+                        if len(certTask.Request.SANs.SubjectAltNames.Email) > 0 {
+                                sanMap["rfc822Names"] = certTask.Request.SANs.SubjectAltNames.Email
+                        }
+                        if len(certTask.Request.SANs.SubjectAltNames.UPN) > 0 {
+                                sanMap["userPrincipalNames"] = certTask.Request.SANs.SubjectAltNames.UPN
+                        }
+                        if len(certTask.Request.SANs.SubjectAltNames.URI) > 0 {
+                                sanMap["uniformResourceIdentifiers"] = certTask.Request.SANs.SubjectAltNames.URI
                         }
                 }
-                requestBody.DNComponents = dnComponents
                 
-                // Build Subject Alternative Names
-                if sans, exists := taskData["sans"]; exists {
-                        if sansList, ok := sans.([]interface{}); ok {
-                                sanMap := map[string]interface{}{
-                                        "dnsNames": sansList,
-                                }
-                                requestBody.SubjectAltNames = sanMap
-                        }
+                // Handle simple list format (backwards compatibility)
+                if len(certTask.Request.SANs.SimpleList) > 0 {
+                        sanMap["dnsNames"] = certTask.Request.SANs.SimpleList
                 }
+                
+                if len(sanMap) > 0 {
+                        requestBody.SubjectAltNames = sanMap
+                }
+        }
+        
+        // Add validity period if specified
+        if certTask.Request.Validity != nil {
+                requestBody.Validity = &ValidityRequest{
+                        Years:  certTask.Request.Validity.Years,
+                        Months: certTask.Request.Validity.Months,
+                        Days:   certTask.Request.Validity.Days,
+                }
+        }
+        
+        // Add custom fields if specified
+        if len(certTask.Request.CustomFields) > 0 {
+                customFields := make(map[string]interface{})
+                for k, v := range certTask.Request.CustomFields {
+                        customFields[k] = v
+                }
+                requestBody.CustomFields = customFields
+        }
+        
+        // Add custom extensions if specified
+        if len(certTask.Request.CustomExtensions) > 0 {
+                customExtensions := make(map[string]interface{})
+                for k, v := range certTask.Request.CustomExtensions {
+                        customExtensions[k] = v
+                }
+                requestBody.CustomExtensions = customExtensions
+        }
+        
+        // Add comment if specified
+        if certTask.Request.Comment != "" {
+                requestBody.Comment = certTask.Request.Comment
+        }
+        
+        // Add expiry emails if specified
+        if len(certTask.Request.ExpiryEmails) > 0 {
+                requestBody.ExpiryEmails = certTask.Request.ExpiryEmails
         }
         
         // Debug: Print the complete payload being sent to ZTPKI

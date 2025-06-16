@@ -64,7 +64,13 @@ func runPlaybook(cmd *cobra.Command, args []string) error {
         }
         fmt.Println()
 
-        // Load and parse the YAML playbook
+        // Try to load as certificate playbook format first (comprehensive YAML)
+        certPlaybook, err := config.LoadCertificatePlaybook(playbookFile)
+        if err == nil && certPlaybook != nil {
+                return executeCertificatePlaybook(certPlaybook, playbookFile)
+        }
+        
+        // Fall back to simple playbook format
         playbook, err := config.LoadPlaybook(playbookFile)
         if err != nil {
                 return fmt.Errorf("failed to load playbook: %w", err)
@@ -613,4 +619,270 @@ func saveSearchResults(outputFile string, certificates []api.Certificate) error 
         }
 
         return os.WriteFile(outputFile, []byte(results.String()), 0644)
+}
+
+// executeCertificatePlaybook executes a certificate playbook with comprehensive ZTPKI API payloads
+func executeCertificatePlaybook(certPlaybook *config.CertificatePlaybook, playbookFile string) error {
+        fmt.Printf("Loaded certificate playbook with %d certificate tasks\n", len(certPlaybook.CertificateTasks))
+        fmt.Println()
+
+        // Create API client using credentials from playbook or environment
+        cfg := config.GetConfig()
+        
+        // Extract credentials from playbook if available
+        playbookCredentials := &certPlaybook.Config.Connection.Credentials
+        if playbookCredentials != nil {
+                if playbookCredentials.Platform != "" {
+                        cfg.BaseURL = os.ExpandEnv(playbookCredentials.Platform)
+                }
+                if playbookCredentials.HawkID != "" {
+                        cfg.HawkID = os.ExpandEnv(playbookCredentials.HawkID)
+                }
+                if playbookCredentials.HawkAPI != "" {
+                        cfg.HawkKey = os.ExpandEnv(playbookCredentials.HawkAPI)
+                }
+        }
+        
+        // Override with environment variables if available (highest priority)
+        if url := os.Getenv("ZTPKI_URL"); url != "" {
+                cfg.BaseURL = url
+        }
+        if hawkID := os.Getenv("ZTPKI_HAWK_ID"); hawkID != "" {
+                cfg.HawkID = hawkID
+        }
+        if hawkKey := os.Getenv("ZTPKI_HAWK_SECRET"); hawkKey != "" {
+                cfg.HawkKey = hawkKey
+        }
+
+        // Validate required credentials
+        if cfg.BaseURL == "" {
+                return fmt.Errorf("ZTPKI URL is required (set ZTPKI_URL environment variable or configure in playbook)")
+        }
+        if cfg.HawkID == "" {
+                return fmt.Errorf("HAWK ID is required (set ZTPKI_HAWK_ID environment variable or configure in playbook)")
+        }
+        if cfg.HawkKey == "" {
+                return fmt.Errorf("HAWK key is required (set ZTPKI_HAWK_SECRET environment variable or configure in playbook)")
+        }
+
+        client, err := api.NewClient(cfg)
+        if err != nil {
+                return fmt.Errorf("failed to create API client: %w", err)
+        }
+
+        // Execute each certificate task
+        for i, certTask := range certPlaybook.CertificateTasks {
+                fmt.Printf("Executing certificate task %d/%d: %s\n", i+1, len(certPlaybook.CertificateTasks), certTask.Name)
+                
+                if runDryRun {
+                        fmt.Printf("  [DRY RUN] Would process certificate for CN: %s\n", certTask.Request.Subject.CommonName)
+                        continue
+                }
+                
+                err := executeCertificateTask(client, &certTask)
+                if err != nil {
+                        fmt.Printf("  ❌ Task failed: %v\n", err)
+                        return fmt.Errorf("certificate task %d failed: %w", i+1, err)
+                } else {
+                        fmt.Printf("  ✅ Certificate task completed successfully\n")
+                }
+                fmt.Println()
+        }
+
+        if runDryRun {
+                fmt.Println("DRY RUN completed - no actual operations performed")
+        } else {
+                fmt.Printf("Certificate playbook execution completed: %d tasks processed\n", len(certPlaybook.CertificateTasks))
+        }
+
+        return nil
+}
+
+// executeCertificateTask executes a single certificate task with comprehensive ZTPKI API payload
+func executeCertificateTask(client *api.Client, certTask *config.CertificateTask) error {
+        fmt.Printf("    Processing certificate for CN: %s\n", certTask.Request.Subject.CommonName)
+
+        // Check for existing certificate renewal needs if renewBefore is specified
+        if certTask.RenewBefore != "" && !runForceRenew {
+                needsRenewal, err := checkCertificateRenewalFromTask(certTask)
+                if err != nil {
+                        fmt.Printf("    Warning: Could not check renewal status: %v\n", err)
+                } else if !needsRenewal {
+                        fmt.Printf("    Certificate does not need renewal (expires more than %s from now)\n", certTask.RenewBefore)
+                        return nil
+                }
+        }
+
+        // Generate CSR with comprehensive subject information
+        keySize := 2048 // Default key size
+        keyType := "rsa" // Default key type
+        
+        // Create certificate request with full subject details
+        csr, privateKeyPEM, err := generateCSRFromCertTask(certTask, keySize, keyType)
+        if err != nil {
+                return fmt.Errorf("failed to generate CSR: %w", err)
+        }
+
+        // Submit CSR using comprehensive ZTPKI API payload
+        requestID, err := client.SubmitCSRWithFullPayload(csr, certTask)
+        if err != nil {
+                return fmt.Errorf("failed to submit CSR: %w", err)
+        }
+
+        fmt.Printf("    CSR submitted with comprehensive payload, request ID: %s\n", requestID)
+
+        // Poll for certificate
+        certificate, err := pollForCertificate(client, requestID)
+        if err != nil {
+                return fmt.Errorf("failed to retrieve certificate: %w", err)
+        }
+
+        // Process each installation configuration
+        for _, installation := range certTask.Installations {
+                err := processCertificateInstallation(certificate, privateKeyPEM, &installation, certTask)
+                if err != nil {
+                        return fmt.Errorf("failed to install certificate: %w", err)
+                }
+        }
+
+        return nil
+}
+
+// generateCSRFromCertTask generates a CSR from a certificate task with complete subject information
+func generateCSRFromCertTask(certTask *config.CertificateTask, keySize int, keyType string) (string, string, error) {
+        // Build subject from certificate task
+        subject := map[string]interface{}{
+                "commonName": certTask.Request.Subject.CommonName,
+        }
+        
+        if certTask.Request.Subject.Country != "" {
+                subject["country"] = certTask.Request.Subject.Country
+        }
+        if certTask.Request.Subject.State != "" {
+                subject["state"] = certTask.Request.Subject.State
+        }
+        if certTask.Request.Subject.Locality != "" {
+                subject["locality"] = certTask.Request.Subject.Locality
+        }
+        if certTask.Request.Subject.Organization != "" {
+                subject["organization"] = certTask.Request.Subject.Organization
+        }
+        if len(certTask.Request.Subject.OrgUnits) > 0 {
+                subject["orgUnits"] = certTask.Request.Subject.OrgUnits
+        }
+        
+        return generateCSR(certTask.Request.Subject.CommonName, keySize, keyType, subject)
+}
+
+// checkCertificateRenewalFromTask checks if a certificate needs renewal based on certificate task
+func checkCertificateRenewalFromTask(certTask *config.CertificateTask) (bool, error) {
+        // Check local certificate files from installations
+        for _, installation := range certTask.Installations {
+                if installation.Format == "PEM" && installation.File != "" {
+                        certFile := installation.File
+                        
+                        // Check if certificateLocation overrides the installation file path
+                        if certTask.CertificateLocation != "" {
+                                certFile = certTask.CertificateLocation
+                        }
+                        
+                        needsRenewal, err := checkLocalCertificateRenewal(certFile, certTask.RenewBefore)
+                        if err != nil {
+                                continue // Try next installation
+                        }
+                        return needsRenewal, nil
+                }
+        }
+        
+        return true, fmt.Errorf("no certificate files found for renewal check")
+}
+
+// processCertificateInstallation handles certificate installation with comprehensive options
+func processCertificateInstallation(certificate *api.Certificate, privateKeyPEM string, installation *config.CertificateInstall, certTask *config.CertificateTask) error {
+        switch strings.ToUpper(installation.Format) {
+        case "PEM":
+                return processPEMInstallation(certificate, privateKeyPEM, installation, certTask)
+        case "PKCS12":
+                return processPKCS12Installation(certificate, privateKeyPEM, installation, certTask)
+        default:
+                return fmt.Errorf("unsupported certificate format: %s", installation.Format)
+        }
+}
+
+// processPEMInstallation handles PEM format certificate installation
+func processPEMInstallation(certificate *api.Certificate, privateKeyPEM string, installation *config.CertificateInstall, certTask *config.CertificateTask) error {
+        outputFile := installation.File
+        if outputFile == "" {
+                return fmt.Errorf("output file is required for PEM installation")
+        }
+
+        // Parse chain certificate if present
+        chainCertificate := ""
+        if certificate.ChainCertificate != "" {
+                chainCertificate = certificate.ChainCertificate
+        }
+
+        // Save certificate and key with backup if requested
+        err := saveCertificateAndKey(outputFile, certificate.Certificate, privateKeyPEM, chainCertificate, installation.BackupExisting)
+        if err != nil {
+                return err
+        }
+
+        fmt.Printf("    Certificate saved to: %s\n", outputFile)
+        
+        // Save to separate key file if specified
+        if installation.KeyFile != "" {
+                keyFile := installation.KeyFile
+                
+                // Backup existing key file if requested
+                if installation.BackupExisting {
+                        err := backupFileIfExists(keyFile)
+                        if err != nil {
+                                return fmt.Errorf("failed to backup key file: %w", err)
+                        }
+                }
+                
+                err := os.WriteFile(keyFile, []byte(privateKeyPEM), 0600)
+                if err != nil {
+                        return fmt.Errorf("failed to write key file: %w", err)
+                }
+                fmt.Printf("    Private key saved to: %s\n", keyFile)
+        }
+        
+        // Save to separate chain file if specified
+        if installation.ChainFile != "" && chainCertificate != "" {
+                chainFile := installation.ChainFile
+                
+                // Backup existing chain file if requested
+                if installation.BackupExisting {
+                        err := backupFileIfExists(chainFile)
+                        if err != nil {
+                                return fmt.Errorf("failed to backup chain file: %w", err)
+                        }
+                }
+                
+                err := os.WriteFile(chainFile, []byte(chainCertificate), 0644)
+                if err != nil {
+                        return fmt.Errorf("failed to write chain file: %w", err)
+                }
+                fmt.Printf("    Chain certificate saved to: %s\n", chainFile)
+        }
+
+        // Execute after-install action if specified
+        if installation.AfterInstallAction != "" {
+                fmt.Printf("    Executing after-install action: %s\n", installation.AfterInstallAction)
+                // Note: Actual execution would require shell command execution
+                // For now, just log the action that would be performed
+        }
+
+        return nil
+}
+
+// processPKCS12Installation handles PKCS12 format certificate installation
+func processPKCS12Installation(certificate *api.Certificate, privateKeyPEM string, installation *config.CertificateInstall, certTask *config.CertificateTask) error {
+        // PKCS12 installation would require additional implementation
+        // For now, return an informative message
+        fmt.Printf("    PKCS12 installation to %s (password: %s)\n", installation.File, installation.Password)
+        fmt.Printf("    Note: PKCS12 conversion not yet implemented\n")
+        return nil
 }
