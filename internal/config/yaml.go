@@ -42,10 +42,11 @@ type CredentialsConfig struct {
 
 // CertificateTask represents a certificate management task
 type CertificateTask struct {
-        Name         string                 `yaml:"name"`
-        RenewBefore  string                 `yaml:"renewBefore"`
-        Request      CertificateRequest     `yaml:"request"`
-        Installations []CertificateInstall  `yaml:"installations"`
+        Name                string                 `yaml:"name"`
+        RenewBefore         string                 `yaml:"renewBefore"`
+        CertificateLocation string                 `yaml:"certificateLocation,omitempty"`
+        Request             CertificateRequest     `yaml:"request"`
+        Installations       []CertificateInstall   `yaml:"installations"`
 }
 
 // CertificateRequest represents certificate request details
@@ -130,19 +131,20 @@ type CertificateInstall struct {
 
 // PlaybookTask represents a single task in a playbook
 type PlaybookTask struct {
-        Name            string       `yaml:"name"`
-        Action          string       `yaml:"action"`
-        CommonName      string       `yaml:"common_name"`
-        PolicyID        string       `yaml:"policy_id"`
-        CertificateID   string       `yaml:"certificate_id"`
-        OutputFile      string       `yaml:"output_file"`
-        KeySize         int          `yaml:"key_size"`
-        KeyType         string       `yaml:"key_type"`
-        Subject         *SubjectInfo `yaml:"subject"`
-        RenewBefore     string       `yaml:"renew_before"`
-        BackupExisting  bool         `yaml:"backup_existing"`
-        Limit           int          `yaml:"limit"`
-        ContinueOnError bool         `yaml:"continue_on_error"`
+        Name               string       `yaml:"name"`
+        Action             string       `yaml:"action"`
+        CommonName         string       `yaml:"common_name"`
+        PolicyID           string       `yaml:"policy_id"`
+        CertificateID      string       `yaml:"certificate_id"`
+        OutputFile         string       `yaml:"output_file"`
+        CertificateLocation string      `yaml:"certificate_location"`
+        KeySize            int          `yaml:"key_size"`
+        KeyType            string       `yaml:"key_type"`
+        Subject            *SubjectInfo `yaml:"subject"`
+        RenewBefore        string       `yaml:"renew_before"`
+        BackupExisting     bool         `yaml:"backup_existing"`
+        Limit              int          `yaml:"limit"`
+        ContinueOnError    bool         `yaml:"continue_on_error"`
 }
 
 // SubjectInfo represents certificate subject information
@@ -233,6 +235,13 @@ func convertCertificatePlaybook(certPlaybook *CertificatePlaybook, filename stri
                 if len(certTask.Installations) > 0 {
                         task.OutputFile = certTask.Installations[0].File
                         task.BackupExisting = certTask.Installations[0].BackupExisting
+                }
+                
+                // Set certificate location from task or use output file as default
+                if certTask.CertificateLocation != "" {
+                        task.CertificateLocation = certTask.CertificateLocation
+                } else {
+                        task.CertificateLocation = task.OutputFile
                 }
 
                 // Validate required fields

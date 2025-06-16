@@ -512,7 +512,7 @@ func backupFileIfExists(filePath string) error {
         return nil
 }
 
-// checkCertificateRenewal checks if an existing certificate needs renewal based on renewBefore period
+// checkCertificateRenewal checks if a local certificate file needs renewal based on renewBefore period
 func checkCertificateRenewal(client *api.Client, task *config.PlaybookTask) (bool, error) {
         // Parse the renewBefore duration (e.g., "30d", "7d", "1h")
         renewBeforeDuration, err := parseDuration(task.RenewBefore)
@@ -520,37 +520,42 @@ func checkCertificateRenewal(client *api.Client, task *config.PlaybookTask) (boo
                 return true, fmt.Errorf("invalid renewBefore format: %w", err)
         }
 
-        // Search for existing certificates with the same common name
-        searchParams := api.CertificateSearchParams{
-                CommonName: task.CommonName,
-                Status:     "VALID",
-                Limit:      10,
+        // Determine certificate file path to check
+        certPath := task.CertificateLocation
+        if certPath == "" {
+                certPath = task.OutputFile
+        }
+        
+        if certPath == "" {
+                // No certificate file specified, needs enrollment
+                return true, nil
         }
 
-        certificates, err := client.SearchCertificates(searchParams)
+        // Check if certificate file exists
+        if _, err := os.Stat(certPath); os.IsNotExist(err) {
+                // Certificate file doesn't exist, needs enrollment
+                return true, nil
+        }
+
+        // Read and parse the certificate file
+        certData, err := os.ReadFile(certPath)
         if err != nil {
-                return true, fmt.Errorf("failed to search for existing certificates: %w", err)
+                return true, fmt.Errorf("failed to read certificate file %s: %w", certPath, err)
         }
 
-        if len(certificates) == 0 {
-                // No existing certificate found, needs enrollment
-                return true, nil
+        // Parse the PEM certificate
+        block, _ := pem.Decode(certData)
+        if block == nil || block.Type != "CERTIFICATE" {
+                return true, fmt.Errorf("invalid certificate file format in %s", certPath)
         }
 
-        // Find the certificate with the latest expiration date
-        var latestCert *api.Certificate
-        for i, cert := range certificates {
-                if latestCert == nil || cert.ExpiryDate.After(latestCert.ExpiryDate) {
-                        latestCert = &certificates[i]
-                }
+        cert, err := x509.ParseCertificate(block.Bytes)
+        if err != nil {
+                return true, fmt.Errorf("failed to parse certificate from %s: %w", certPath, err)
         }
 
-        if latestCert == nil {
-                return true, nil
-        }
-
-        // Use the certificate expiration date directly (already parsed as time.Time)
-        expiryTime := latestCert.ExpiryDate
+        // Get certificate expiration time
+        expiryTime := cert.NotAfter
 
         // Calculate renewal threshold time
         renewalThreshold := expiryTime.Add(-renewBeforeDuration)
@@ -560,8 +565,11 @@ func checkCertificateRenewal(client *api.Client, task *config.PlaybookTask) (boo
         needsRenewal := currentTime.After(renewalThreshold)
         
         if needsRenewal {
-                fmt.Printf("    Certificate expires %s, renewing due to %s threshold\n", 
+                fmt.Printf("    Local certificate expires %s, renewing due to %s threshold\n", 
                         expiryTime.Format("2006-01-02"), task.RenewBefore)
+        } else {
+                fmt.Printf("    Local certificate expires %s, renewal not needed (threshold: %s)\n", 
+                        expiryTime.Format("2006-01-02"), renewalThreshold.Format("2006-01-02"))
         }
 
         return needsRenewal, nil
