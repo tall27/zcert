@@ -83,3 +83,6 @@ setup-completion.sh
 # Backup files
 *.backup
 *.bak
+
+# Large temporary files
+zi*
