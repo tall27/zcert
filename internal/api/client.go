@@ -9,6 +9,8 @@ import (
         "io"
         "net/http"
         "net/url"
+        "os"
+        "strings"
         "time"
 
         "zcert/internal/auth"
@@ -85,6 +87,25 @@ func (c *Client) makeRequest(method, endpoint string, body interface{}) (*http.R
                 return nil, fmt.Errorf("failed to sign request with HAWK: %w", err)
         }
         
+        // Debug: Show full HTTP request details
+        if os.Getenv("ZCERT_DEBUG") != "" {
+                fmt.Fprintf(os.Stderr, "\n=== HTTP REQUEST ===\n")
+                fmt.Fprintf(os.Stderr, "%s %s\n", req.Method, req.URL.String())
+                fmt.Fprintf(os.Stderr, "Headers:\n")
+                for name, values := range req.Header {
+                        for _, value := range values {
+                                fmt.Fprintf(os.Stderr, "  %s: %s\n", name, value)
+                        }
+                }
+                if req.Body != nil {
+                        // Read body for logging, then recreate it
+                        bodyBytes, _ := io.ReadAll(req.Body)
+                        req.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+                        fmt.Fprintf(os.Stderr, "Body:\n%s\n", string(bodyBytes))
+                }
+                fmt.Fprintf(os.Stderr, "==================\n\n")
+        }
+        
         resp, err := c.httpClient.Do(req)
         if err != nil {
                 return nil, fmt.Errorf("failed to execute request: %w", err)
@@ -114,9 +135,25 @@ func (c *Client) handleResponse(resp *http.Response, target interface{}) error {
         if resp.StatusCode >= 400 {
                 var apiError APIError
                 if err := json.Unmarshal(bodyBytes, &apiError); err != nil {
-                        // If we can't parse the error, return a generic one
+                        // Enhanced error handling for authentication issues
+                        if resp.StatusCode == 401 || resp.StatusCode == 403 {
+                                return fmt.Errorf("authentication failed (status %d): %s\n\nTroubleshooting:\n"+
+                                        "1. Verify HAWK credentials are correct\n"+
+                                        "2. Check environment variables: ZTPKI_HAWK_ID, ZTPKI_HAWK_SECRET\n"+
+                                        "3. Ensure API endpoint URL is correct: %s\n"+
+                                        "4. Verify credentials have proper permissions", 
+                                        resp.StatusCode, string(bodyBytes), c.baseURL)
+                        }
                         return fmt.Errorf("API request failed with status %d: %s", resp.StatusCode, string(bodyBytes))
                 }
+                
+                // Add context for authentication errors
+                if apiError.Code == 401 || apiError.Code == 403 || 
+                   strings.Contains(strings.ToLower(apiError.Message), "credentials") ||
+                   strings.Contains(strings.ToLower(apiError.Message), "unauthorized") {
+                        return fmt.Errorf("authentication error: %s\n\nVerify your HAWK credentials and permissions", apiError.Message)
+                }
+                
                 return &apiError
         }
         
@@ -178,19 +215,18 @@ func (c *Client) GetPolicyDetails(policyID string) (*PolicyDetailsResponse, erro
 
 // SubmitCSR submits a Certificate Signing Request with validity period
 func (c *Client) SubmitCSR(csrPEM, policyID string, validity *ValidityPeriod) (string, error) {
-        // Extract CN from CSR
-        cn, err := extractCNFromCSR(csrPEM)
+        // Extract subject information from CSR
+        dnComponents, sans, cn, err := extractCSRDetails(csrPEM)
         if err != nil {
-                return "", fmt.Errorf("failed to extract CN from CSR: %w", err)
+                return "", fmt.Errorf("failed to extract CSR details: %w", err)
         }
         
         requestBody := CSRSubmissionRequest{
-                Policy: policyID,
-                CSR:    csrPEM,
-                CN:     cn,
-                DNComponents: map[string]interface{}{
-                        "CN": cn,
-                },
+                Policy:           policyID,
+                CSR:             csrPEM,
+                CN:              cn,
+                DNComponents:    dnComponents,
+                SubjectAltNames: sans,
         }
         
         // Add validity if specified
@@ -238,6 +274,78 @@ func (c *Client) GetCertificate(id string) (*Certificate, error) {
         return &certificate, nil
 }
 
+// GetCertificateWithChain retrieves a certificate by ID including the certificate chain
+func (c *Client) GetCertificateWithChain(id string) (*Certificate, error) {
+        endpoint := fmt.Sprintf("/certificates/%s/pem?chain=true", url.PathEscape(id))
+        
+        resp, err := c.makeRequest("GET", endpoint, nil)
+        if err != nil {
+                return nil, err
+        }
+        
+        // The PEM endpoint returns raw PEM data, not JSON
+        bodyBytes, err := io.ReadAll(resp.Body)
+        resp.Body.Close()
+        if err != nil {
+                return nil, fmt.Errorf("failed to read response body: %w", err)
+        }
+        
+        if resp.StatusCode != 200 {
+                return nil, fmt.Errorf("failed to get certificate: status %d, body: %s", resp.StatusCode, string(bodyBytes))
+        }
+        
+        // Parse the PEM response which should contain certificate + chain
+        pemData := string(bodyBytes)
+        certificate, chain := c.parsePEMWithChain(pemData)
+        
+        // Create Certificate object with the PEM data
+        cert := &Certificate{
+                ID:          id,
+                Certificate: certificate,
+                Chain:       chain,
+        }
+        
+        return cert, nil
+}
+
+// parsePEMWithChain splits PEM data into certificate and chain components
+func (c *Client) parsePEMWithChain(pemData string) (string, []string) {
+        var certificates []string
+        var currentCert strings.Builder
+        
+        lines := strings.Split(pemData, "\n")
+        inCert := false
+        
+        for _, line := range lines {
+                if strings.Contains(line, "-----BEGIN CERTIFICATE-----") {
+                        inCert = true
+                        currentCert.Reset()
+                }
+                
+                if inCert {
+                        currentCert.WriteString(line + "\n")
+                }
+                
+                if strings.Contains(line, "-----END CERTIFICATE-----") {
+                        inCert = false
+                        certificates = append(certificates, strings.TrimSpace(currentCert.String()))
+                }
+        }
+        
+        if len(certificates) == 0 {
+                return "", nil
+        }
+        
+        // First certificate is the end entity, rest are chain
+        endEntityCert := certificates[0]
+        var chain []string
+        if len(certificates) > 1 {
+                chain = certificates[1:]
+        }
+        
+        return endEntityCert, chain
+}
+
 // GetCertificateRequest retrieves the status of a certificate request
 func (c *Client) GetCertificateRequest(requestID string) (*CertificateRequest, error) {
         endpoint := fmt.Sprintf("/csr/%s/status", url.PathEscape(requestID))
@@ -257,43 +365,178 @@ func (c *Client) GetCertificateRequest(requestID string) (*CertificateRequest, e
 
 // SearchCertificates searches for certificates based on criteria
 func (c *Client) SearchCertificates(params CertificateSearchParams) ([]Certificate, error) {
-        // ZTPKI uses POST /certificates for search according to the Swagger documentation
+        userLimit := params.Limit
+        if userLimit <= 0 {
+                userLimit = 100 // Default limit if not specified
+        }
+        
+        // For account-scoped searches, implement pagination to reach user's limit
+        if params.Account != "" {
+                var allCertificates []Certificate
+                const batchSize = 10 // ZTPKI typically returns ~10 certificates per request
+                offset := 0
+                
+                // Make paginated requests until we have enough certificates or no more available
+                for len(allCertificates) < userLimit {
+                        requestLimit := batchSize
+                        remaining := userLimit - len(allCertificates)
+                        if remaining < batchSize {
+                                requestLimit = remaining
+                        }
+                        
+                        if os.Getenv("ZCERT_DEBUG") != "" {
+                                fmt.Fprintf(os.Stderr, "Requesting batch: limit=%d, offset=%d, total collected=%d\n", requestLimit, offset, len(allCertificates))
+                        }
+                        
+                        certificates, err := c.searchCertificatesPage(params, requestLimit, offset)
+                        if err != nil {
+                                return nil, err
+                        }
+                        
+                        // If no certificates returned, we've reached the end
+                        if len(certificates) == 0 {
+                                break
+                        }
+                        
+                        allCertificates = append(allCertificates, certificates...)
+                        
+                        // If we got less than requested, we've reached the end
+                        if len(certificates) < requestLimit {
+                                break
+                        }
+                        
+                        offset += len(certificates)
+                }
+                
+                // Deduplicate and ensure we don't exceed the user's requested limit
+                deduplicated := c.deduplicateCertificates(allCertificates)
+                if len(deduplicated) > userLimit {
+                        deduplicated = deduplicated[:userLimit]
+                }
+                
+                return deduplicated, nil
+        }
+        
+        // For non-account searches, use traditional pagination
+        var allCertificates []Certificate
+        const serverMaxLimit = 10 // ZTPKI server's maximum limit per request
+        offset := 0
+        
+        // Make paginated requests until we have enough certificates or no more available
+        for len(allCertificates) < userLimit {
+                requestLimit := serverMaxLimit
+                remaining := userLimit - len(allCertificates)
+                if remaining < serverMaxLimit {
+                        requestLimit = remaining
+                }
+                
+                // Build search request for this page
+                certificates, err := c.searchCertificatesPage(params, requestLimit, offset)
+                if err != nil {
+                        return nil, err
+                }
+                
+                // If no certificates returned, we've reached the end
+                if len(certificates) == 0 {
+                        break
+                }
+                
+                allCertificates = append(allCertificates, certificates...)
+                
+                // If we got less than the server max, we've reached the end
+                if len(certificates) < serverMaxLimit {
+                        break
+                }
+                
+                offset += len(certificates)
+        }
+        
+        // Ensure we don't exceed the user's requested limit
+        if len(allCertificates) > userLimit {
+                allCertificates = allCertificates[:userLimit]
+        }
+        
+        return allCertificates, nil
+}
+
+// deduplicateCertificates removes duplicate certificates based on ID
+func (c *Client) deduplicateCertificates(certificates []Certificate) []Certificate {
+        seen := make(map[string]bool)
+        var result []Certificate
+        
+        for _, cert := range certificates {
+                if !seen[cert.ID] {
+                        seen[cert.ID] = true
+                        result = append(result, cert)
+                }
+        }
+        
+        return result
+}
+
+// SearchCertificatesBatch performs a single batch search for client-side filtering
+func (c *Client) SearchCertificatesBatch(params CertificateSearchParams) ([]Certificate, error) {
+        return c.searchCertificatesPage(params, params.Limit, params.Offset)
+}
+
+// searchCertificatesPage performs a single paginated search request
+func (c *Client) searchCertificatesPage(params CertificateSearchParams, limit, offset int) ([]Certificate, error) {
         endpoint := "/certificates"
         
-        // Build search request body based on ZTPKI API specification
-        searchRequest := map[string]interface{}{
-                "limit":  100,
-                "offset": 0,
-        }
-        
-        // Add search filters if provided
+        // Build search request body to match expected ZTPKI format
+        var commonName interface{} = nil
         if params.CommonName != "" {
-                searchRequest["common_name"] = params.CommonName
+                commonName = params.CommonName
         }
+        
+        var serial interface{} = nil
         if params.Serial != "" {
-                searchRequest["serial"] = params.Serial
+                serial = params.Serial
         }
+        
+        var status interface{} = nil
         if params.Status != "" {
-                searchRequest["status"] = params.Status
+                status = params.Status
         }
+        
+        var expired interface{} = nil
+        if params.Expired != nil {
+                expired = *params.Expired
+        }
+        
+        var policy interface{} = nil
         if params.PolicyID != "" {
-                searchRequest["policy"] = params.PolicyID
+                policy = params.PolicyID
         }
+        
+        var notAfter interface{} = nil
         if params.NotAfter != "" {
-                searchRequest["not_after"] = params.NotAfter
-        }
-        if params.NotBefore != "" {
-                searchRequest["not_before"] = params.NotBefore
+                notAfter = params.NotAfter
         }
         
-        requestBody, err := json.Marshal(searchRequest)
-        if err != nil {
-                return nil, fmt.Errorf("failed to marshal search request: %w", err)
+        searchRequest := map[string]interface{}{
+                "account":        params.Account,
+                "common_name":    commonName,
+                "expired":        expired,
+                "limit":          limit,
+                "not_after":      notAfter,
+                "offset":         offset,
+                "policy":         policy,
+                "renewed":        nil,
+                "serial":         serial,
+                "sort_direction": "desc",
+                "sort_type":      "notBefore",
+                "status":         status,
         }
         
-
+        // Log the actual request being sent to ZTPKI API for debugging
+        if os.Getenv("ZCERT_DEBUG") != "" {
+                requestJSON, _ := json.Marshal(searchRequest)
+                fmt.Fprintf(os.Stderr, "API Request to %s: %s\n", endpoint, string(requestJSON))
+                fmt.Fprintf(os.Stderr, "Parameters passed: limit=%d, offset=%d\n", limit, offset)
+        }
         
-        resp, err := c.makeRequest("POST", endpoint, bytes.NewReader(requestBody))
+        resp, err := c.makeRequest("POST", endpoint, searchRequest)
         if err != nil {
                 return nil, fmt.Errorf("failed to search certificates: %w", err)
         }
@@ -319,7 +562,21 @@ func (c *Client) SearchCertificates(params CertificateSearchParams) ([]Certifica
                 return certificates, nil
         }
         
-        // Try wrapped response formats based on typical pagination responses
+        // Try ZTPKI API response format with count and items
+        var ztpkiResult struct {
+                Count int           `json:"count"`
+                Items []Certificate `json:"items"`
+        }
+        
+        if err := json.Unmarshal(bodyBytes, &ztpkiResult); err == nil && len(ztpkiResult.Items) > 0 {
+                // Debug: Show total count vs returned items in verbose mode
+                if os.Getenv("ZCERT_DEBUG") != "" {
+                        fmt.Fprintf(os.Stderr, "API Response: total count=%d, returned items=%d\n", ztpkiResult.Count, len(ztpkiResult.Items))
+                }
+                return ztpkiResult.Items, nil
+        }
+        
+        // Try other wrapped response formats for backward compatibility
         var result struct {
                 Content      []Certificate `json:"content"`      // Spring Boot pagination
                 Data         []Certificate `json:"data"`
@@ -401,21 +658,6 @@ func (c *Client) RevokeCertificate(id, reason string) error {
         return nil
 }
 
-// TestConnection tests connectivity to the ZTPKI API endpoint
-func (c *Client) TestConnection() error {
-        resp, err := c.makeRequest("GET", "/policies", nil)
-        if err != nil {
-                return fmt.Errorf("connection test failed: %w", err)
-        }
-        defer resp.Body.Close()
-        
-        if resp.StatusCode == 200 {
-                return nil
-        }
-        
-        return fmt.Errorf("connection test failed with status %d", resp.StatusCode)
-}
-
 // extractCNFromCSR extracts the Common Name from a PEM-encoded CSR
 func extractCNFromCSR(csrPEM string) (string, error) {
         block, _ := pem.Decode([]byte(csrPEM))
@@ -429,4 +671,74 @@ func extractCNFromCSR(csrPEM string) (string, error) {
         }
         
         return csr.Subject.CommonName, nil
+}
+
+// extractCSRDetails extracts all DN components and SANs from a PEM-encoded CSR
+// Returns: dnComponents, subjectAltNames, CN, error
+func extractCSRDetails(csrPEM string) (map[string]interface{}, map[string]interface{}, string, error) {
+        block, _ := pem.Decode([]byte(csrPEM))
+        if block == nil {
+                return nil, nil, "", fmt.Errorf("failed to decode PEM block")
+        }
+        
+        csr, err := x509.ParseCertificateRequest(block.Bytes)
+        if err != nil {
+                return nil, nil, "", fmt.Errorf("failed to parse CSR: %w", err)
+        }
+        
+        // Extract DN components according to ZTPKI schema
+        dnComponents := make(map[string]interface{})
+        
+        if csr.Subject.CommonName != "" {
+                dnComponents["CN"] = csr.Subject.CommonName
+        }
+        
+        if len(csr.Subject.OrganizationalUnit) > 0 {
+                dnComponents["OU"] = csr.Subject.OrganizationalUnit
+        }
+        
+        if len(csr.Subject.Organization) > 0 {
+                dnComponents["O"] = csr.Subject.Organization[0]
+        }
+        
+        if len(csr.Subject.Locality) > 0 {
+                dnComponents["L"] = csr.Subject.Locality[0]
+        }
+        
+        if len(csr.Subject.Province) > 0 {
+                dnComponents["ST"] = csr.Subject.Province[0]
+        }
+        
+        if len(csr.Subject.Country) > 0 {
+                dnComponents["C"] = csr.Subject.Country[0]
+        }
+        
+        // Extract Subject Alternative Names according to ZTPKI schema
+        subjectAltNames := make(map[string]interface{})
+        
+        if len(csr.DNSNames) > 0 {
+                subjectAltNames["DNSNAME"] = csr.DNSNames
+        }
+        
+        if len(csr.IPAddresses) > 0 {
+                var ipStrings []string
+                for _, ip := range csr.IPAddresses {
+                        ipStrings = append(ipStrings, ip.String())
+                }
+                subjectAltNames["IPADDRESS"] = ipStrings
+        }
+        
+        if len(csr.EmailAddresses) > 0 {
+                subjectAltNames["RFC822NAME"] = csr.EmailAddresses
+        }
+        
+        if len(csr.URIs) > 0 {
+                var uriStrings []string
+                for _, uri := range csr.URIs {
+                        uriStrings = append(uriStrings, uri.String())
+                }
+                subjectAltNames["URI"] = uriStrings
+        }
+        
+        return dnComponents, subjectAltNames, csr.Subject.CommonName, nil
 }

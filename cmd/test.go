@@ -62,13 +62,22 @@ func runTest(cmd *cobra.Command, args []string) {
         // Test API connectivity
         fmt.Println("\n2. API Connectivity Test:")
         
-        clientConfig := &config.Config{
-                BaseURL: url,
-                HawkID:  hawkID,
-                HawkKey: hawkSecret,
+        // Use the same authentication pattern as the working search command
+        finalProfile := &config.Profile{
+                URL:    url,
+                KeyID:  hawkID,
+                Secret: hawkSecret,
+                Algo:   "sha256", // Always use sha256
         }
         
-        client, err := api.NewClient(clientConfig)
+        // Create API client with profile settings (same as search command)
+        cfg := &config.Config{
+                BaseURL: finalProfile.URL,
+                HawkID:  finalProfile.KeyID,
+                HawkKey: finalProfile.Secret,
+        }
+        
+        client, err := api.NewClient(cfg)
         if err != nil {
                 fmt.Printf("   ❌ Failed to create API client: %v\n", err)
                 return
