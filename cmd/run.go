@@ -543,26 +543,43 @@ func backupFileIfExistsQuiet(filePath string, quiet bool) error {
                 return nil
         }
 
-        // Generate backup filename with timestamp
-        timestamp := time.Now().Format("20060102-150405")
-        backupPath := filePath + ".backup." + timestamp
+        // Simple backup filename (replaces any existing backup)
+        backupPath := filePath + ".backup"
 
-        // Read original file
-        data, err := os.ReadFile(filePath)
-        if err != nil {
-                return fmt.Errorf("failed to read original file %s: %w", filePath, err)
+        // Delete existing backup if it exists
+        if _, err := os.Stat(backupPath); err == nil {
+                err = os.Remove(backupPath)
+                if err != nil {
+                        return fmt.Errorf("failed to remove existing backup %s: %w", backupPath, err)
+                }
         }
 
-        // Write backup file
-        err = os.WriteFile(backupPath, data, 0644)
+        // Copy original file to backup
+        err := copyFile(filePath, backupPath)
         if err != nil {
-                return fmt.Errorf("failed to write backup file %s: %w", backupPath, err)
+                return fmt.Errorf("failed to create backup %s: %w", backupPath, err)
         }
 
-        if !globalQuietMode {
+        if !quiet && !globalQuietMode {
                 fmt.Printf("    Backed up existing file: %s -> %s\n", filePath, backupPath)
         }
         return nil
+}
+
+// copyFile copies a file from src to dst
+func copyFile(src, dst string) error {
+        data, err := os.ReadFile(src)
+        if err != nil {
+                return err
+        }
+        
+        // Preserve file permissions
+        srcInfo, err := os.Stat(src)
+        if err != nil {
+                return err
+        }
+        
+        return os.WriteFile(dst, data, srcInfo.Mode())
 }
 
 // checkCertificateRenewal checks if a local certificate file needs renewal based on renewBefore period
