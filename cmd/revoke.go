@@ -8,7 +8,6 @@ import (
         "github.com/spf13/viper"
         "zcert/internal/api"
         "zcert/internal/config"
-        "zcert/internal/utils"
 )
 
 var (
