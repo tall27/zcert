@@ -522,7 +522,9 @@ func saveCertificateAndKeyQuiet(outputFile, certificate, privateKey, chainCertif
                 if err != nil {
                         return fmt.Errorf("failed to write chain certificate file: %w", err)
                 }
-                fmt.Printf("    Chain certificate saved to: %s\n", chainFile)
+                if !quiet {
+                        fmt.Printf("    Chain certificate saved to: %s\n", chainFile)
+                }
         }
 
         return nil
@@ -1027,8 +1029,15 @@ func processPEMInstallation(certificate *api.Certificate, privateKeyPEM string, 
         
 
 
+        // Determine if we should pass chain to default save function
+        chainForDefaultSave := chainCertificate
+        if installation.ChainFile != "" {
+                // Custom chain file specified, don't save to default location
+                chainForDefaultSave = ""
+        }
+        
         // Save certificate and key with backup if requested
-        err := saveCertificateAndKeyQuiet(outputFile, certificate.Certificate, privateKeyPEM, chainCertificate, installation.BackupExisting, quiet)
+        err := saveCertificateAndKeyQuiet(outputFile, certificate.Certificate, privateKeyPEM, chainForDefaultSave, installation.BackupExisting, quiet)
         if err != nil {
                 return err
         }
