@@ -9,6 +9,7 @@ import (
         "fmt"
         "os"
         "strings"
+        "time"
 
         "github.com/spf13/cobra"
         "zcert/internal/api"
@@ -354,9 +355,53 @@ func generateCSR(commonName string, keySize int, keyType string, subject *config
 // Helper functions
 
 func pollForCertificate(client *api.Client, requestID string) (*api.Certificate, error) {
-        // This would poll the certificate request status until ready
-        // For now, return an error indicating this needs to be implemented
-        return nil, fmt.Errorf("certificate polling not yet implemented in run command")
+        // Poll for certificate request status until issued
+        maxAttempts := 30  // 30 attempts with 2 second intervals = 1 minute timeout
+        for attempt := 1; attempt <= maxAttempts; attempt++ {
+                // Get certificate request details
+                certRequest, err := client.GetCertificateRequest(requestID)
+                if err != nil {
+                        return nil, fmt.Errorf("failed to get certificate request: %w", err)
+                }
+
+                switch certRequest.IssuanceStatus {
+                case "ISSUED":
+                        // Certificate is ready, retrieve it
+                        if certRequest.CertificateID == "" {
+                                return nil, fmt.Errorf("certificate issued but no certificate ID returned")
+                        }
+                        
+                        certificate, err := client.GetCertificate(certRequest.CertificateID)
+                        if err != nil {
+                                return nil, fmt.Errorf("failed to retrieve certificate: %w", err)
+                        }
+                        
+                        return certificate, nil
+                        
+                case "APPROVAL_REQUIRED":
+                        return nil, fmt.Errorf("certificate request requires approval")
+                        
+                case "REJECTED":
+                        return nil, fmt.Errorf("certificate request was rejected")
+                        
+                case "FAILED":
+                        return nil, fmt.Errorf("certificate request failed")
+                        
+                case "IN_PROCESS", "PENDING":
+                        // Still processing, wait and retry
+                        if attempt < maxAttempts {
+                                fmt.Printf("    Certificate processing... (attempt %d/%d)\n", attempt, maxAttempts)
+                                time.Sleep(2 * time.Second)
+                                continue
+                        }
+                        return nil, fmt.Errorf("certificate request timed out after %d attempts", maxAttempts)
+                        
+                default:
+                        return nil, fmt.Errorf("unknown certificate issuance status: %s", certRequest.IssuanceStatus)
+                }
+        }
+        
+        return nil, fmt.Errorf("certificate request timed out")
 }
 
 func saveCertificateAndKey(outputFile, certificate, privateKey string) error {
