@@ -51,6 +51,7 @@ build/
 # Configuration files with secrets
 .zcert.yaml
 config.yaml
+test*.yaml
 zcert.cnf
 test-config.cnf
 *.cnf.orig
