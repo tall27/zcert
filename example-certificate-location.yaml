@@ -1,0 +1,36 @@
+---
+authentication:
+  profileName: Default
+
+certificateTasks:
+  - name: WebServerCert
+    renewBefore: 30d
+    certificateLocation: "/etc/ssl/certs/web-server.crt"  # Certificate might be moved here by afterInstallAction
+    request:
+      subject:
+        commonName: "web.example.com"
+      policy: 5fe6d368-896a-4883-97eb-f87148c90896
+      sans:
+        - "www.example.com" 
+        - "api.example.com"
+    installations:
+      - format: PEM
+        file: "./certs/web-server.crt"
+        chainFile: "./certs/web-server.chain.crt"
+        keyFile: "./certs/web-server.key"
+        backupExisting: true
+        afterInstallAction: "sudo cp ./certs/web-server.crt /etc/ssl/certs/ && sudo systemctl reload nginx"
+        
+  - name: DatabaseCert
+    renewBefore: 7d
+    # No certificateLocation specified - will check the installation file location
+    request:
+      subject:
+        commonName: "db.example.com"
+      policy: 5fe6d368-896a-4883-97eb-f87148c90896
+    installations:
+      - format: PEM
+        file: "./certs/database.crt"
+        keyFile: "./certs/database.key"
+        backupExisting: true
+        afterInstallAction: "echo 'Database certificate updated'"
