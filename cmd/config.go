@@ -77,7 +77,7 @@ func runConfig(cmd *cobra.Command, args []string) error {
                 if _, err := os.Stat(filename); err == nil {
                         fmt.Printf("File %s already exists. Overwrite? (y/N): ", filename)
                         var response string
-                        fmt.Scanln(&response)
+                        _, _ = fmt.Scanln(&response)
                         if response != "y" && response != "Y" {
                                 fmt.Println("Configuration file generation cancelled.")
                                 return nil
@@ -109,7 +109,7 @@ func runConfig(cmd *cobra.Command, args []string) error {
                 if _, err := os.Stat(filename); err == nil {
                         fmt.Printf("File %s already exists. Overwrite? (y/N): ", filename)
                         var response string
-                        fmt.Scanln(&response)
+                        _, _ = fmt.Scanln(&response)
                         if response != "y" && response != "Y" {
                                 fmt.Println("Configuration file generation cancelled.")
                                 return nil

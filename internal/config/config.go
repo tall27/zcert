@@ -83,9 +83,9 @@ func InitDefaults() {
         viper.AutomaticEnv()
         
         // Bind specific environment variables
-        viper.BindEnv("hawk_id", "ZCERT_HAWK_ID", "HAWK_ID")
-        viper.BindEnv("hawk_key", "ZCERT_HAWK_KEY", "HAWK_KEY")
-        viper.BindEnv("base_url", "ZCERT_BASE_URL", "ZTPKI_URL")
+        _ = viper.BindEnv("hawk_id", "ZCERT_HAWK_ID", "HAWK_ID")
+        _ = viper.BindEnv("hawk_key", "ZCERT_HAWK_KEY", "HAWK_KEY")
+        _ = viper.BindEnv("base_url", "ZCERT_BASE_URL", "ZTPKI_URL")
 }
 
 // GetConfig returns the current configuration
