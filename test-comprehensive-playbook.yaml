@@ -1,0 +1,56 @@
+# Comprehensive ZTPKI API Payload Test
+config:
+  connection:
+    credentials:
+      hawk-id: '{{ZTPKI_HAWK_ID}}'
+      hawk-api: '{{ZTPKI_HAWK_SECRET}}'
+      platform: '{{ZTPKI_URL}}'
+
+certificateTasks:
+  - name: "ComprehensiveTestCert"
+    renewBefore: 30d
+    request:
+      csr: local
+      subject:
+        commonName: "test.example.com"
+        country: US
+        state: Utah
+        locality: Salt Lake City
+        organization: Example Corp
+        orgUnits: ["IT Ops", "Security"]
+        domainComponents: ["example", "com"]
+        email: "admin@example.com"
+      policy: '5fe6d368-896a-4883-97eb-f87148c90896'
+      sans:
+        dns:
+          - "www.example.com"
+          - "api.example.com"
+        ip:
+          - "192.168.1.100"
+        email:
+          - "webmaster@example.com"
+        upn:
+          - "service@example.com"
+        uri:
+          - "https://api.example.com"
+      validity:
+        years: 1
+        months: 0
+        days: 0
+      customFields:
+        department: "IT"
+        costCenter: "12345"
+        environment: "production"
+      customExtensions:
+        "1.3.6.1.4.1.311.21.7": "302f06272b060104018237150884f09f0881fe9c1b85fd973886edbb1581edd1228149828fe83b86f9ea32020164020102"
+      comment: "Comprehensive test certificate with all ZTPKI parameters"
+      expiryEmails:
+        - "admin@example.com"
+        - "security@example.com"
+    installations:
+      - format: PEM
+        file: "./certs/comprehensive-test.crt"
+        chainFile: "./certs/comprehensive-test.chain.crt"
+        keyFile: "./certs/comprehensive-test.key"
+        backupExisting: true
+        afterInstallAction: "echo 'Comprehensive certificate installed successfully'"
