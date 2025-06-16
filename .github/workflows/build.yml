@@ -14,16 +14,16 @@ jobs:
         include:
           - goos: linux
             goarch: amd64
-            suffix: ""
+            binary: "zcert"
           - goos: windows
             goarch: amd64
-            suffix: ".exe"
+            binary: "zcert.exe"
           - goos: darwin
             goarch: amd64
-            suffix: ""
+            binary: "zcert"
           - goos: darwin
             goarch: arm64
-            suffix: ""
+            binary: "zcert"
     
     steps:
     - uses: actions/checkout@v4
@@ -44,10 +44,10 @@ jobs:
         BUILD_TIME=$(date -u '+%Y%m%d.%H%M%S')
         GO_VERSION=$(go version | awk '{print $3}')
         LDFLAGS="-X main.Version=${VERSION} -X main.GitCommit=${GIT_COMMIT} -X main.BuildTime=${BUILD_TIME} -X main.GoVersion=${GO_VERSION}"
-        go build -v -ldflags "${LDFLAGS}" -o zcert-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.suffix }} main.go
+        go build -v -ldflags "${LDFLAGS}" -o ${{ matrix.binary }} main.go
     
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
-        name: zcert-${{ matrix.goos }}-${{ matrix.goarch }}
-        path: zcert-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.suffix }}
+        name: ${{ matrix.binary }}-${{ matrix.goos }}-${{ matrix.goarch }}
+        path: ${{ matrix.binary }}

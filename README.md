@@ -38,11 +38,12 @@ cd zcert
 # Install dependencies
 go mod tidy
 
-# Build the executable
-go build -o zcert main.go
+# Build the executable (outputs "zcert" on Linux/macOS, "zcert.exe" on Windows)
+./build.sh
 
-# For Windows
-go build -o zcert.exe main.go
+# Or build manually:
+# Linux/macOS: go build -o zcert main.go
+# Windows: go build -o zcert.exe main.go
 ```
 
 ### Prerequisites

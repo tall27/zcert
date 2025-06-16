@@ -50,14 +50,27 @@ Run `zcert env` for detailed environment setup instructions for your platform.
 ## Production Deployment Steps
 
 ### 1. Binary Installation
+
+#### Linux/macOS
 ```bash
 # Download the appropriate binary for your platform
-wget https://github.com/your-org/zcert/releases/latest/download/zcert-1.0.0-linux-amd64.tar.gz
+wget https://github.com/your-org/zcert/releases/latest/download/zcert-1.2.0-linux-amd64.tar.gz
 
-# Extract and install
-tar -xzf zcert-1.0.0-linux-amd64.tar.gz
+# Extract and install (binary is named "zcert")
+tar -xzf zcert-1.2.0-linux-amd64.tar.gz
 sudo mv zcert /usr/local/bin/
 sudo chmod +x /usr/local/bin/zcert
+```
+
+#### Windows
+```powershell
+# Download and extract the Windows binary
+# Binary is named "zcert.exe"
+Invoke-WebRequest -Uri "https://github.com/your-org/zcert/releases/latest/download/zcert-1.2.0-windows-amd64.zip" -OutFile "zcert.zip"
+Expand-Archive -Path "zcert.zip" -DestinationPath "."
+
+# Add to PATH or run directly
+.\zcert.exe --version
 ```
 
 ### 2. Configuration Setup

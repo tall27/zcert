@@ -44,7 +44,7 @@ build_target() {
         suffix=".exe"
     fi
     
-    local output_name="${APP_NAME}-${goos}-${goarch}${suffix}"
+    local binary_name="${APP_NAME}${suffix}"
     local archive_name="${APP_NAME}-${VERSION}-${goos}-${goarch}"
     
     echo "Building $target..."
@@ -55,15 +55,15 @@ build_target() {
     export CGO_ENABLED=0
     
     # Build with version information
-    go build -ldflags="-X 'main.Version=$VERSION' -X 'main.GitCommit=$GIT_COMMIT' -X 'main.BuildTime=$BUILD_TIME' -w -s" -o "dist/$output_name" main.go
+    go build -ldflags="-X 'main.Version=$VERSION' -X 'main.GitCommit=$GIT_COMMIT' -X 'main.BuildTime=$BUILD_TIME' -w -s" -o "dist/$binary_name" main.go
     
     # Create archive
     cd dist/
     if [ "$goos" = "windows" ]; then
-        zip "${archive_name}.zip" "$output_name" ../README.md ../SECURITY.md ../DEPLOYMENT.md
+        zip "${archive_name}.zip" "$binary_name" ../README.md ../SECURITY.md ../DEPLOYMENT.md
         echo "Created: ${archive_name}.zip"
     else
-        tar -czf "${archive_name}.tar.gz" "$output_name" ../README.md ../SECURITY.md ../DEPLOYMENT.md
+        tar -czf "${archive_name}.tar.gz" "$binary_name" ../README.md ../SECURITY.md ../DEPLOYMENT.md
         echo "Created: ${archive_name}.tar.gz"
     fi
     cd ..
@@ -102,5 +102,6 @@ echo
 echo "Installation instructions:"
 echo "1. Download the appropriate archive for your platform"
 echo "2. Extract: tar -xzf zcert-*.tar.gz (Linux/macOS) or unzip zcert-*.zip (Windows)"
-echo "3. Make executable: chmod +x zcert (Linux/macOS)"
-echo "4. Run: ./zcert --version"
+echo "3. The binary is named 'zcert' (Linux/macOS) or 'zcert.exe' (Windows)"
+echo "4. Make executable: chmod +x zcert (Linux/macOS only)"
+echo "5. Run: ./zcert --version (Linux/macOS) or zcert.exe --version (Windows)"

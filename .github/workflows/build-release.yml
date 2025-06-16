@@ -1,1 +1,66 @@
-# Removed - use build.yml instead
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+            binary: "zcert"
+            archive: "tar.gz"
+          - goos: windows
+            goarch: amd64
+            binary: "zcert.exe"
+            archive: "zip"
+          - goos: darwin
+            goarch: amd64
+            binary: "zcert"
+            archive: "tar.gz"
+          - goos: darwin
+            goarch: arm64
+            binary: "zcert"
+            archive: "tar.gz"
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.21'
+    
+    - name: Build ${{ matrix.goos }}-${{ matrix.goarch }}
+      env:
+        GOOS: ${{ matrix.goos }}
+        GOARCH: ${{ matrix.goarch }}
+        CGO_ENABLED: 0
+      run: |
+        VERSION="${GITHUB_REF#refs/tags/v}"
+        GIT_COMMIT=$(git rev-parse --short HEAD)
+        BUILD_TIME=$(date -u '+%Y%m%d.%H%M%S')
+        GO_VERSION=$(go version | awk '{print $3}')
+        LDFLAGS="-X main.Version=${VERSION} -X main.GitCommit=${GIT_COMMIT} -X main.BuildTime=${BUILD_TIME} -X main.GoVersion=${GO_VERSION}"
+        go build -v -ldflags "${LDFLAGS}" -o ${{ matrix.binary }} main.go
+    
+    - name: Create archive
+      run: |
+        VERSION="${GITHUB_REF#refs/tags/v}"
+        if [ "${{ matrix.archive }}" = "zip" ]; then
+          zip zcert-${VERSION}-${{ matrix.goos }}-${{ matrix.goarch }}.zip ${{ matrix.binary }} README.md SECURITY.md DEPLOYMENT.md
+        else
+          tar -czf zcert-${VERSION}-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz ${{ matrix.binary }} README.md SECURITY.md DEPLOYMENT.md
+        fi
+    
+    - name: Upload Release Asset
+      uses: softprops/action-gh-release@v1
+      with:
+        files: zcert-*
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
