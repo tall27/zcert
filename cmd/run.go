@@ -99,7 +99,20 @@ func runPlaybook(cmd *cobra.Command, args []string) error {
         // Create API client using global configuration
         cfg := config.GetConfig()
         
-        // Override with environment variables if available
+        // First, try to use credentials from the playbook itself (if it's a certificate playbook)
+        if certPlaybook, ok := playbook.(*config.CertificatePlaybook); ok {
+                if certPlaybook.Config.Connection.Credentials.Platform != "" {
+                        cfg.BaseURL = os.ExpandEnv(certPlaybook.Config.Connection.Credentials.Platform)
+                }
+                if certPlaybook.Config.Connection.Credentials.HawkID != "" {
+                        cfg.HawkID = os.ExpandEnv(certPlaybook.Config.Connection.Credentials.HawkID)
+                }
+                if certPlaybook.Config.Connection.Credentials.HawkAPI != "" {
+                        cfg.HawkKey = os.ExpandEnv(certPlaybook.Config.Connection.Credentials.HawkAPI)
+                }
+        }
+        
+        // Override with environment variables if available (highest priority)
         if url := os.Getenv("ZTPKI_URL"); url != "" {
                 cfg.BaseURL = url
         }
@@ -108,6 +121,17 @@ func runPlaybook(cmd *cobra.Command, args []string) error {
         }
         if hawkKey := os.Getenv("ZTPKI_HAWK_SECRET"); hawkKey != "" {
                 cfg.HawkKey = hawkKey
+        }
+
+        // Validate required credentials before proceeding
+        if cfg.BaseURL == "" {
+                return fmt.Errorf("ZTPKI URL is required (set ZTPKI_URL environment variable or use --config with profile)")
+        }
+        if cfg.HawkID == "" {
+                return fmt.Errorf("HAWK ID is required (set ZTPKI_HAWK_ID environment variable or use --config with profile)")
+        }
+        if cfg.HawkKey == "" {
+                return fmt.Errorf("HAWK key is required (set ZTPKI_HAWK_SECRET environment variable or use --config with profile)")
         }
 
         client, err := api.NewClient(cfg)
