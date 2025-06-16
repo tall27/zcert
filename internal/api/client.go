@@ -778,11 +778,15 @@ func (c *Client) RevokeCertificate(id, reason string) error {
                 "revocationDate": revocationDate,
         }
         
-        // Always show the payload format for revocation (for debugging)
+        // Always show the complete request details for debugging
         if payload, err := json.MarshalIndent(requestBody, "", "  "); err == nil {
                 fmt.Printf("=== ZTPKI Revoke API Request ===\n")
-                fmt.Printf("PATCH %s\n", endpoint)
-                fmt.Printf("%s\n", string(payload))
+                fmt.Printf("Method: PATCH\n")
+                fmt.Printf("URL: %s%s\n", c.baseURL, endpoint)
+                fmt.Printf("Headers:\n")
+                fmt.Printf("  Content-Type: application/json\n")
+                fmt.Printf("  Authorization: Hawk id=\"[hawk-id]\", ts=\"[timestamp]\", nonce=\"[nonce]\", mac=\"[mac]\"\n")
+                fmt.Printf("Payload:\n%s\n", string(payload))
                 fmt.Printf("================================\n")
         }
         

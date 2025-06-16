@@ -45,6 +45,9 @@ func promptRevocationReason() (string, error) {
                 return "unspecified", nil
         case "1":
                 return "keyCompromise", nil
+        case "2":
+                fmt.Fprintf(os.Stderr, "Option 2 not valid, selecting 3 (affiliationChanged)\n")
+                return "affiliationChanged", nil
         case "3":
                 return "affiliationChanged", nil
         case "4":
