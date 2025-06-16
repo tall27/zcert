@@ -99,16 +99,17 @@ func runPlaybook(cmd *cobra.Command, args []string) error {
         // Create API client using global configuration
         cfg := config.GetConfig()
         
-        // First, try to use credentials from the playbook itself (if it's a certificate playbook)
-        if certPlaybook, ok := playbook.(*config.CertificatePlaybook); ok {
-                if certPlaybook.Config.Connection.Credentials.Platform != "" {
-                        cfg.BaseURL = os.ExpandEnv(certPlaybook.Config.Connection.Credentials.Platform)
+        // Try to extract credentials from the playbook file directly
+        playbookCredentials, err := config.ExtractPlaybookCredentials(playbookFile)
+        if err == nil && playbookCredentials != nil {
+                if playbookCredentials.Platform != "" {
+                        cfg.BaseURL = os.ExpandEnv(playbookCredentials.Platform)
                 }
-                if certPlaybook.Config.Connection.Credentials.HawkID != "" {
-                        cfg.HawkID = os.ExpandEnv(certPlaybook.Config.Connection.Credentials.HawkID)
+                if playbookCredentials.HawkID != "" {
+                        cfg.HawkID = os.ExpandEnv(playbookCredentials.HawkID)
                 }
-                if certPlaybook.Config.Connection.Credentials.HawkAPI != "" {
-                        cfg.HawkKey = os.ExpandEnv(certPlaybook.Config.Connection.Credentials.HawkAPI)
+                if playbookCredentials.HawkAPI != "" {
+                        cfg.HawkKey = os.ExpandEnv(playbookCredentials.HawkAPI)
                 }
         }
         

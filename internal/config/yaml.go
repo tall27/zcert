@@ -326,3 +326,25 @@ certificateTasks:
         return os.WriteFile(filename, []byte(content), 0600) // Restrict to owner only
 }
 
+// ExtractPlaybookCredentials attempts to extract credentials from a playbook file
+func ExtractPlaybookCredentials(filename string) (*CredentialsConfig, error) {
+        file, err := os.Open(filename)
+        if err != nil {
+                return nil, fmt.Errorf("failed to open playbook file: %w", err)
+        }
+        defer file.Close()
+
+        // Try to parse as certificate playbook format
+        var certPlaybook CertificatePlaybook
+        decoder := yaml.NewDecoder(file)
+        if err := decoder.Decode(&certPlaybook); err == nil {
+                if certPlaybook.Config.Connection.Credentials.Platform != "" ||
+                   certPlaybook.Config.Connection.Credentials.HawkID != "" ||
+                   certPlaybook.Config.Connection.Credentials.HawkAPI != "" {
+                        return &certPlaybook.Config.Connection.Credentials, nil
+                }
+        }
+
+        return nil, nil // No credentials found, not an error
+}
+
