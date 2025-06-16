@@ -1,10 +1,9 @@
-# ZCert CLI Function Naming Convention
+# ZCert CLI Function Naming Convention - FINAL
 
 ## Clean Separation Achieved
 
 ### profiles.go - Profile Configuration Functions
 - `CreateExampleCNFConfig(filename)` - Creates CNF/INI profile configuration files
-- `CreateExampleYAMLProfileConfig(filename)` - Creates YAML profile configuration files
 - `LoadProfileConfig(filename)` - Loads CNF/INI profile configuration
 - `LoadConfig(filename)` - Main entry point for profile configuration loading
 
@@ -14,7 +13,7 @@
 - `convertCertificatePlaybook()` - Converts certificateTasks to executable format
 
 ## File Organization
-- **profiles.go**: All CNF and YAML profile configuration handling
+- **profiles.go**: CNF profile configuration handling only
 - **yaml.go**: Pure playbook YAML functionality for the run command
 - **config.go**: Viper configuration management only
 
@@ -22,12 +21,17 @@
 ```bash
 # Profile configuration files (for authentication/settings)
 zcert config --cnf --output zcert.cnf
-zcert config --yaml --output zcert.yaml
 
 # Playbook files (for run command workflows)
 zcert run --file playbook.yaml
 ```
 
-The naming convention now clearly distinguishes between:
-1. Profile configs (authentication/settings)
-2. Playbook configs (certificate workflows)
+## Eliminated Confusion
+✅ Removed unnecessary `CreateExampleYAMLProfileConfig()` function
+✅ Removed `--yaml` flag from config command
+✅ Clean separation: CNF for profiles, YAML for playbooks only
+✅ No more overlapping configuration formats
+
+The system now has exactly two configuration types:
+1. **CNF profiles** - Authentication and settings for individual commands
+2. **YAML playbooks** - Workflow automation for the run command
