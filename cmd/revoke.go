@@ -171,7 +171,7 @@ func runRevoke(cmd *cobra.Command, args []string) error {
 
         // Confirmation prompt unless --force is used
         if !revokeForce {
-                confirmed, err := utils.PromptConfirm(
+                confirmed, err := promptConfirm(
                         fmt.Sprintf("Are you sure you want to revoke certificate CN=%s?", certificate.CommonName),
                         false)
                 if err != nil {
