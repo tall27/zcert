@@ -440,6 +440,10 @@ timeout_reached:
 }
 
 func saveCertificateAndKey(outputFile, certificate, privateKey, chainCertificate string, backupExisting bool) error {
+        return saveCertificateAndKeyQuiet(outputFile, certificate, privateKey, chainCertificate, backupExisting, false)
+}
+
+func saveCertificateAndKeyQuiet(outputFile, certificate, privateKey, chainCertificate string, backupExisting bool, quiet bool) error {
         // Create directory if it doesn't exist
         dir := strings.Replace(outputFile, "\\", "/", -1) // Handle Windows paths
         if lastSlash := strings.LastIndex(dir, "/"); lastSlash != -1 {
@@ -456,19 +460,19 @@ func saveCertificateAndKey(outputFile, certificate, privateKey, chainCertificate
 
         // Backup existing files if requested
         if backupExisting {
-                err := backupFileIfExists(outputFile)
+                err := backupFileIfExistsQuiet(outputFile, quiet)
                 if err != nil {
                         return fmt.Errorf("failed to backup certificate file: %w", err)
                 }
                 
-                err = backupFileIfExists(keyFile)
+                err = backupFileIfExistsQuiet(keyFile, quiet)
                 if err != nil {
                         return fmt.Errorf("failed to backup key file: %w", err)
                 }
                 
                 // Backup chain file if it exists
                 if chainCertificate != "" {
-                        err = backupFileIfExists(chainFile)
+                        err = backupFileIfExistsQuiet(chainFile, quiet)
                         if err != nil {
                                 return fmt.Errorf("failed to backup chain file: %w", err)
                         }
@@ -501,6 +505,11 @@ func saveCertificateAndKey(outputFile, certificate, privateKey, chainCertificate
 
 // backupFileIfExists creates a backup copy of a file if it exists
 func backupFileIfExists(filePath string) error {
+        return backupFileIfExistsQuiet(filePath, false)
+}
+
+// backupFileIfExistsQuiet creates a backup copy of a file if it exists with optional quiet mode
+func backupFileIfExistsQuiet(filePath string, quiet bool) error {
         // Check if file exists
         if _, err := os.Stat(filePath); os.IsNotExist(err) {
                 // File doesn't exist, no backup needed
@@ -523,7 +532,9 @@ func backupFileIfExists(filePath string) error {
                 return fmt.Errorf("failed to write backup file %s: %w", backupPath, err)
         }
 
-        fmt.Printf("    Backed up existing file: %s -> %s\n", filePath, backupPath)
+        if !quiet {
+                fmt.Printf("    Backed up existing file: %s -> %s\n", filePath, backupPath)
+        }
         return nil
 }
 
@@ -1005,7 +1016,7 @@ func processPEMInstallation(certificate *api.Certificate, privateKeyPEM string, 
                 
                 // Backup existing key file if requested
                 if installation.BackupExisting {
-                        err := backupFileIfExists(keyFile)
+                        err := backupFileIfExistsQuiet(keyFile, quiet)
                         if err != nil {
                                 return fmt.Errorf("failed to backup key file: %w", err)
                         }
@@ -1026,7 +1037,7 @@ func processPEMInstallation(certificate *api.Certificate, privateKeyPEM string, 
                 
                 // Backup existing chain file if requested
                 if installation.BackupExisting {
-                        err := backupFileIfExists(chainFile)
+                        err := backupFileIfExistsQuiet(chainFile, quiet)
                         if err != nil {
                                 return fmt.Errorf("failed to backup chain file: %w", err)
                         }
@@ -1036,12 +1047,16 @@ func processPEMInstallation(certificate *api.Certificate, privateKeyPEM string, 
                 if err != nil {
                         return fmt.Errorf("failed to write chain file: %w", err)
                 }
-                fmt.Printf("    Chain certificate saved to: %s\n", chainFile)
+                if !quiet {
+                        fmt.Printf("    Chain certificate saved to: %s\n", chainFile)
+                }
         }
 
         // Execute after-install action if specified
         if installation.AfterInstallAction != "" {
-                fmt.Printf("    Executing after-install action: %s\n", installation.AfterInstallAction)
+                if !quiet {
+                        fmt.Printf("    Executing after-install action: %s\n", installation.AfterInstallAction)
+                }
                 // Note: Actual execution would require shell command execution
                 // For now, just log the action that would be performed
         }
@@ -1053,7 +1068,9 @@ func processPEMInstallation(certificate *api.Certificate, privateKeyPEM string, 
 func processPKCS12Installation(certificate *api.Certificate, privateKeyPEM string, installation *config.CertificateInstall, certTask *config.CertificateTask, quiet bool) error {
         // PKCS12 installation would require additional implementation
         // For now, return an informative message
-        fmt.Printf("    PKCS12 installation to %s (password: %s)\n", installation.File, installation.Password)
-        fmt.Printf("    Note: PKCS12 conversion not yet implemented\n")
+        if !quiet {
+                fmt.Printf("    PKCS12 installation to %s (password: %s)\n", installation.File, installation.Password)
+                fmt.Printf("    Note: PKCS12 conversion not yet implemented\n")
+        }
         return nil
 }
