@@ -58,7 +58,7 @@ func runTest(cmd *cobra.Command, args []string) error {
                         envOK = false
                 } else {
                         displayValue := env.value
-                        if strings.Contains(env.name, "SECRET") || strings.Contains(env.name, "KEY") {
+                        if env.name == "ZTPKI_HAWK_SECRET" {
                                 displayValue = maskSecret(env.value)
                         }
                         fmt.Printf("   %s: %s\n", env.name, displayValue)
