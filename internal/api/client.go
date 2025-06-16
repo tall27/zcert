@@ -401,6 +401,21 @@ func (c *Client) RevokeCertificate(id, reason string) error {
         return nil
 }
 
+// TestConnection tests connectivity to the ZTPKI API endpoint
+func (c *Client) TestConnection() error {
+        resp, err := c.makeRequest("GET", "/policies", nil)
+        if err != nil {
+                return fmt.Errorf("connection test failed: %w", err)
+        }
+        defer resp.Body.Close()
+        
+        if resp.StatusCode == 200 {
+                return nil
+        }
+        
+        return fmt.Errorf("connection test failed with status %d", resp.StatusCode)
+}
+
 // extractCNFromCSR extracts the Common Name from a PEM-encoded CSR
 func extractCNFromCSR(csrPEM string) (string, error) {
         block, _ := pem.Decode([]byte(csrPEM))
