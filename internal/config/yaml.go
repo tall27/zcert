@@ -111,6 +111,73 @@ func LoadYAMLConfig(filename string) (*ProfileConfig, error) {
         return config, nil
 }
 
+// Playbook represents a YAML playbook configuration
+type Playbook struct {
+        Name    string          `yaml:"name"`
+        Version string          `yaml:"version"`
+        Tasks   []PlaybookTask  `yaml:"tasks"`
+}
+
+// PlaybookTask represents a single task in a playbook
+type PlaybookTask struct {
+        Name            string       `yaml:"name"`
+        Action          string       `yaml:"action"`
+        CommonName      string       `yaml:"common_name"`
+        PolicyID        string       `yaml:"policy_id"`
+        CertificateID   string       `yaml:"certificate_id"`
+        OutputFile      string       `yaml:"output_file"`
+        KeySize         int          `yaml:"key_size"`
+        KeyType         string       `yaml:"key_type"`
+        Subject         *SubjectInfo `yaml:"subject"`
+        Limit           int          `yaml:"limit"`
+        ContinueOnError bool         `yaml:"continue_on_error"`
+}
+
+// SubjectInfo represents certificate subject information
+type SubjectInfo struct {
+        Country      []string `yaml:"country"`
+        Province     []string `yaml:"province"`
+        Locality     []string `yaml:"locality"`
+        Organization []string `yaml:"organization"`
+        OrgUnit      []string `yaml:"organizational_unit"`
+}
+
+// LoadPlaybook loads a YAML playbook from file
+func LoadPlaybook(filename string) (*Playbook, error) {
+        file, err := os.Open(filename)
+        if err != nil {
+                return nil, fmt.Errorf("failed to open playbook file %s: %w", filename, err)
+        }
+        defer file.Close()
+
+        var playbook Playbook
+        decoder := yaml.NewDecoder(file)
+        if err := decoder.Decode(&playbook); err != nil {
+                return nil, fmt.Errorf("failed to parse playbook YAML: %w", err)
+        }
+
+        // Validate playbook
+        if playbook.Name == "" {
+                playbook.Name = filepath.Base(filename)
+        }
+        
+        if len(playbook.Tasks) == 0 {
+                return nil, fmt.Errorf("playbook must contain at least one task")
+        }
+
+        // Validate each task
+        for i, task := range playbook.Tasks {
+                if task.Name == "" {
+                        return nil, fmt.Errorf("task %d must have a name", i+1)
+                }
+                if task.Action == "" {
+                        return nil, fmt.Errorf("task %d (%s) must have an action", i+1, task.Name)
+                }
+        }
+
+        return &playbook, nil
+}
+
 // CreateExampleYAMLConfig creates an example YAML configuration file
 func CreateExampleYAMLConfig(filename string) error {
         content := `# zcert YAML Configuration File
