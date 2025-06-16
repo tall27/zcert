@@ -14,6 +14,7 @@ var (
         runFile string
         runDryRun bool
         runVerbose bool
+        runForceRenew bool
 )
 
 // runCmd represents the run command

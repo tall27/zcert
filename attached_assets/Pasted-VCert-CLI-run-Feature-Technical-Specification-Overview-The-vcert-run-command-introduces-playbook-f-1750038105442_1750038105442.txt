@@ -1,0 +1,81 @@
+VCert CLI run Feature – Technical Specification
+Overview
+The vcert run command introduces playbook functionality to the Venafi VCert CLI. This feature allows users to execute a sequence of certificate operations defined in a YAML “playbook” file. The playbook contains connection settings and one or more certificate tasks (requests and installations) to automate end-to-end certificate enrollment and deployment
+pkg.go.dev
+. In essence, vcert run reads the YAML configuration, requests or renews certificates as specified, and installs them to the target locations (files, keystores, etc.), optionally performing post-installation actions. This specification covers the current capabilities of vcert run and outlines a development plan in three sprints to implement and test this functionality.
+vcert run Command and Flags
+The vcert run command is invoked with optional flags to specify the playbook file and behavior. Supported flags for the run command include:
+-f, --file <path> – Path to the YAML playbook file to execute. If not provided, defaults to playbook.yaml in the current directory
+github.com
+.
+--force-renew – Boolean flag to ignore certificate validity and force a new enrollment. When set, VCert will request a new certificate regardless of the current certificate’s expiration date
+github.com
+, overriding the playbook’s renewal logic.
+-h, --help – Displays help information for the run command, including usage and flag descriptions.
+Other global flags (such as verbosity or trust store options) are inherited from VCert’s global configuration if applicable. Below is an example help output for vcert run:
+bash
+Copy
+Edit
+$ vcert run --help
+Usage: 
+  vcert run [--file PLAYBOOK] [--force-renew]
+
+Flags:
+  -f, --file string      Playbook YAML file to execute (default "playbook.yaml")
+      --force-renew      Force renew certificates regardless of current expiration
+  -h, --help             Show help for the run command
+Playbook YAML Configuration Format
+Users define certificate operations in a YAML playbook file. The playbook has two main sections: config (connection settings) and certificateTasks (an array of one or more tasks)
+pkg.go.dev
+. Key elements of the YAML format include:
+Connection Configuration (config.connection): Specifies how to connect to the Venafi platform (Trust Protection Platform on-prem, Venafi as a Service Cloud, or Firefly). It includes:
+platform – The Venafi platform type (e.g. tpp, vaas, firefly).
+url – URL of the Venafi endpoint (for TPP on-prem, or leave blank for cloud).
+insecure – Boolean to skip TLS verification if needed.
+trustBundle – Path to a trust bundle file if custom TLS trust is required.
+Credentials – Authentication details, which can be an API key for cloud or username/password or OAuth for TPP. The YAML supports embedding credentials directly or via environment variables. Playbooks support handlebar-style notation for injecting env variables, e.g. one can specify an API key as apiKey: '{{ Env "VC_TLSPC_KEY" }}' to pull from the environment
+gist.github.com
+. (Alternatively, the user may export VCERT_APIKEY and rely on the CLI’s default credentials resolution if supported.)
+Certificate Tasks (certificateTasks): A list of tasks to execute in order. Each task represents a certificate enrollment/renewal and installation workflow
+pkg.go.dev
+. For each CertificateTask, the YAML defines:
+name – A descriptive name for the task (used for logging and identification).
+renewBefore – The renewal threshold, specified as a duration or percentage of the cert’s lifetime. For example, "30d" means renew 30 days before expiration, and "10%" means renew when 90% of the certificate’s validity period has elapsed
+developer.venafi.com
+. If an existing certificate (from a prior run) is found and not expiring within this window, the task will skip enrollment (unless --force-renew is used to override this).
+request – The certificate request details. This includes all the fields needed to request a certificate:
+zone – The policy/zone identifier (e.g. “ApplicationName\IssuingTemplate”) where the certificate will be requested
+gist.github.com
+.
+csr – CSR generation mode (service to have VCert generate a key/CSR automatically, or local to provide your own CSR).
+Key parameters – e.g. keyType (RSA or ECDSA), keySize or keyCurve if applicable, and optional keyPassword (for password-protecting private keys in certain formats)
+gist.github.com
+gist.github.com
+.
+Subject DN details – e.g. commonName, country, state (province), locality, organization, and orgUnits (OU)
+gist.github.com
+.
+SANs – optional subject alternative names like sanDNS, sanIP, sanEmail, etc., if needed (not shown in the example below, but supported by the structure).
+cadn or issuerHint – optional fields if a specific CA or issuer must be chosen (advanced use).
+validDays – optional requested validity period.
+(Any field not specified will use Venafi defaults or policy defaults as applicable.)
+installations – A list of one or more installation targets for the certificate. Each installation specifies where and how to store the obtained certificate (and key/chain):
+format – The installation format/type: supported values include PEM, PKCS12, JKS, or CAPI (Windows Certificate Store)
+pkg.go.dev
+pkg.go.dev
+. This determines which other fields are required.
+File paths – For file-based formats (PEM, PKCS12, JKS), specify file (certificate file path), keyFile (private key file path, if separate), chainFile (CA chain path, if needed). For JKS/PKCS12, also provide jksPassword/p12Password (and jksAlias if a specific alias is needed in the keystore).
+Windows CAPI store – For format: CAPI, one would specify capiLocation (e.g. LocalMachine\My or CurrentUser\My) and a capiFriendlyName for the certificate. (Note: in the current version, capiLocation can also be given via the legacy field location; the friendly name is optional now but will become required in a future release
+pkg.go.dev
+.)
+backupFiles – Boolean to indicate if existing certificate/key files at the target should be backed up before overwriting
+pkg.go.dev
+ (e.g. rename with a .bak extension).
+afterInstallAction – A command or script to run after successful installation
+pkg.go.dev
+. This can be used to restart services or trigger any post-deployment action (for example, restarting a webserver to pick up the new cert).
+installValidationAction – (If supported) a command to validate the certificate installation. This field is present for completeness, but in current version it may serve as a placeholder for future use.
+setEnvVars – An optional list of environment variable names to export after the task completes
+pkg.go.dev
+. This feature allows subsequent tasks in the playbook to re-use outputs of earlier tasks. For example, a task could set an env var for the certificate’s serial number or ID, which a later task might consume. (The specific variables that get set – e.g. by the VCert tool – are defined internally; this simply names them for export. In current implementation, this may include things like the certificate’s thumbprint or file paths.)
+All tasks in certificateTasks are executed sequentially in the order listed. The CLI will process each task: perform enrollment or renewal if needed, then do all installations for that task. If any task fails (e.g. request error or file write error), vcert run will stop execution and return a non-zero exit code to indicate failure.
