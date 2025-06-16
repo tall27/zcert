@@ -173,22 +173,32 @@ func runPlaybook(cmd *cobra.Command, args []string) error {
 }
 
 func executeTask(client *api.Client, task *config.PlaybookTask) error {
+        return executeTaskQuiet(client, task, false)
+}
+
+func executeTaskQuiet(client *api.Client, task *config.PlaybookTask, quiet bool) error {
         switch strings.ToLower(task.Action) {
         case "enroll":
-                return executeEnrollTask(client, task)
+                return executeEnrollTaskQuiet(client, task, quiet)
         case "retrieve":
-                return executeRetrieveTask(client, task)
+                return executeRetrieveTaskQuiet(client, task, quiet)
         case "search":
-                return executeSearchTask(client, task)
+                return executeSearchTaskQuiet(client, task, quiet)
         case "revoke":
-                return executeRevokeTask(client, task)
+                return executeRevokeTaskQuiet(client, task, quiet)
         default:
                 return fmt.Errorf("unknown task action: %s", task.Action)
         }
 }
 
 func executeEnrollTask(client *api.Client, task *config.PlaybookTask) error {
-        fmt.Printf("    Enrolling certificate for CN: %s\n", task.CommonName)
+        return executeEnrollTaskQuiet(client, task, false)
+}
+
+func executeEnrollTaskQuiet(client *api.Client, task *config.PlaybookTask, quiet bool) error {
+        if !quiet {
+                fmt.Printf("    Enrolling certificate for CN: %s\n", task.CommonName)
+        }
 
         // Validate required fields
         if task.CommonName == "" {
@@ -1001,7 +1011,7 @@ func processPEMInstallation(certificate *api.Certificate, privateKeyPEM string, 
         }
 
         // Save certificate and key with backup if requested
-        err := saveCertificateAndKey(outputFile, certificate.Certificate, privateKeyPEM, chainCertificate, installation.BackupExisting)
+        err := saveCertificateAndKeyQuiet(outputFile, certificate.Certificate, privateKeyPEM, chainCertificate, installation.BackupExisting, quiet)
         if err != nil {
                 return err
         }
