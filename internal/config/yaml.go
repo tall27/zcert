@@ -224,8 +224,8 @@ func convertCertificatePlaybook(certPlaybook *CertificatePlaybook, filename stri
 
 
 
-// CreateExamplePlaybookConfig creates an example playbook YAML configuration file
-func CreateExamplePlaybookConfig(filename string) error {
+// CreateExamplePlaybookYAML creates an example playbook YAML file
+func CreateExamplePlaybookYAML(filename string) error {
         content := `# zcert Playbook Configuration File
 # This file defines certificate management workflows with automated deployment
 # Usage: zcert run --file playbook.yaml

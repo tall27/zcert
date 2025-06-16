@@ -120,7 +120,7 @@ func runConfig(cmd *cobra.Command, args []string) error {
                         }
                 }
 
-                err := config.CreateExampleYAMLConfig(filename)
+                err := config.CreateExampleYAMLProfileConfig(filename)
                 if err != nil {
                         return fmt.Errorf("failed to create example YAML config: %w", err)
                 }

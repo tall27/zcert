@@ -309,8 +309,8 @@ no-key-output = false
         return os.WriteFile(filename, []byte(content), 0600) // Restrict to owner only
 }
 
-// CreateExampleYAMLConfig creates an example YAML profile configuration file
-func CreateExampleYAMLConfig(filename string) error {
+// CreateExampleYAMLProfileConfig creates an example YAML profile configuration file
+func CreateExampleYAMLProfileConfig(filename string) error {
         content := `# zcert YAML Profile Configuration File
 # This file supports multiple profiles with different ZTPKI settings
 # Usage: zcert --config zcert.yaml --profile <profile_name> enroll --cn example.com
