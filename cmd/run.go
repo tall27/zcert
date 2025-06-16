@@ -993,8 +993,6 @@ func executeCertificateTask(client *api.Client, certTask *config.CertificateTask
                 return fmt.Errorf("failed to generate CSR: %w", err)
         }
 
-        // Show private key generation first
-        fmt.Printf("    Private key generated for CN: %s\n", certTask.Request.Subject.CommonName)
         fmt.Printf("    Enrolling certificate for CN: %s\n", certTask.Request.Subject.CommonName)
 
         // Submit CSR using comprehensive ZTPKI API payload
@@ -1123,6 +1121,11 @@ func processPEMInstallation(certificate *api.Certificate, privateKeyPEM string, 
                                         return fmt.Errorf("failed to backup separate key file: %w", err)
                                 }
                         }
+                }
+                
+                // Add empty line after backup operations
+                if !quiet {
+                        fmt.Println()
                 }
         }
 
