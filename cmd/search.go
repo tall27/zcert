@@ -21,7 +21,6 @@ var (
         searchStatus   string
         searchLimit    int
         searchFormat   string
-        searchWide     bool
         searchExpired  bool
         searchExpiring int
         searchRecent   int
@@ -29,7 +28,7 @@ var (
         searchURL      string
         searchHawkID   string
         searchHawkKey  string
-
+        searchAlgo     string
 )
 
 // searchCmd represents the search command
@@ -69,12 +68,11 @@ func init() {
         searchCmd.Flags().StringVar(&searchURL, "url", "", "ZTPKI API base URL (e.g., https://ztpki.venafi.com/api/v2)")
         searchCmd.Flags().StringVar(&searchHawkID, "hawk-id", "", "HAWK authentication ID")
         searchCmd.Flags().StringVar(&searchHawkKey, "hawk-key", "", "HAWK authentication key")
-
+        searchCmd.Flags().StringVar(&searchAlgo, "algo", "sha256", "HAWK algorithm (sha1, sha256)")
         
         // Output options
         searchCmd.Flags().IntVar(&searchLimit, "limit", 50, "Maximum number of results to return")
         searchCmd.Flags().StringVar(&searchFormat, "format", "table", "Output format (table, json, csv)")
-        searchCmd.Flags().BoolVar(&searchWide, "wide", false, "Show full column content without truncation")
         
         // Special filters
         searchCmd.Flags().BoolVar(&searchExpired, "expired", false, "Show only expired certificates")
@@ -99,7 +97,7 @@ func runSearch(cmd *cobra.Command, args []string) error {
                 // Merge profile with command-line flags (flags take precedence)
                 finalProfile = config.MergeProfileWithFlags(
                         profile,
-                        searchURL, searchHawkID, searchHawkKey,
+                        searchURL, searchHawkID, searchHawkKey, searchAlgo,
                         "", "", "", // format, policy, p12password not needed for search
                         0, "", // keysize, keytype not needed for search
                 )
@@ -109,7 +107,12 @@ func runSearch(cmd *cobra.Command, args []string) error {
                         URL:    searchURL,
                         KeyID:  searchHawkID,
                         Secret: searchHawkKey,
-                        Algo:   "sha256", // Always use sha256
+                        Algo:   searchAlgo,
+                }
+                
+                // Set defaults if not provided
+                if finalProfile.Algo == "" {
+                        finalProfile.Algo = "sha256"
                 }
         }
 
@@ -151,12 +154,10 @@ func runSearch(cmd *cobra.Command, args []string) error {
                 searchParams.Status = "expired"
         }
 
-        var expiresBefore *time.Time
         if searchExpiring > 0 {
-                // Calculate expiration date threshold and set server-side filter
-                expirationThreshold := time.Now().AddDate(0, 0, searchExpiring)
-                searchParams.NotAfter = expirationThreshold.Format("2006-01-02T15:04:05.000Z")
-                expiresBefore = &expirationThreshold
+                // Calculate expiration date threshold
+                expiresBefore := time.Now().AddDate(0, 0, searchExpiring)
+                searchParams.ExpiresBefore = &expiresBefore
         }
 
         var issuedAfter *time.Time
@@ -198,19 +199,8 @@ func runSearch(cmd *cobra.Command, args []string) error {
                 return fmt.Errorf("failed to search certificates: %w", err)
         }
 
-        if viper.GetBool("verbose") {
-                fmt.Fprintf(os.Stderr, "Raw API response returned %d certificates\n", len(certificates))
-                for i, cert := range certificates {
-                        fmt.Fprintf(os.Stderr, "Certificate %d: ID=%s, CN=%s, Subject=%s\n", i+1, cert.ID, cert.CommonName, cert.Subject)
-                }
-        }
-
         // Apply client-side filtering for advanced use cases
-        filtered := applyClientSideFilters(certificates, searchCN, searchSerial, searchStatus, issuedAfter, expiresBefore)
-        
-        if viper.GetBool("verbose") {
-                fmt.Fprintf(os.Stderr, "After filtering: %d certificates match criteria\n", len(filtered))
-        }
+        filtered := applyClientSideFilters(certificates, searchCN, searchSerial, issuedAfter)
         
         if len(filtered) == 0 {
                 fmt.Println("No certificates found matching the specified criteria.")
@@ -226,7 +216,7 @@ func runSearch(cmd *cobra.Command, args []string) error {
         // Output results in the requested format
         switch strings.ToLower(searchFormat) {
         case "table":
-                return outputTable(certificates, searchWide)
+                return outputTable(certificates)
         case "json":
                 return outputJSON(certificates)
         case "csv":
@@ -237,7 +227,7 @@ func runSearch(cmd *cobra.Command, args []string) error {
 }
 
 // applyClientSideFilters applies advanced filtering that requires client-side processing
-func applyClientSideFilters(certificates []api.Certificate, commonName, serial, status string, issuedAfter, expiresBefore *time.Time) []api.Certificate {
+func applyClientSideFilters(certificates []api.Certificate, commonName, serial string, issuedAfter *time.Time) []api.Certificate {
         var filtered []api.Certificate
         
         for _, cert := range certificates {
@@ -260,43 +250,9 @@ func applyClientSideFilters(certificates []api.Certificate, commonName, serial, 
                         }
                 }
                 
-                // Apply status filtering (exact match, case-insensitive)
-                if status != "" {
-                        certStatus := strings.ToLower(cert.Status)
-                        requestedStatus := strings.ToLower(status)
-                        
-                        // Handle different status representations
-                        switch requestedStatus {
-                        case "active", "valid":
-                                if certStatus != "valid" {
-                                        continue
-                                }
-                        case "revoked":
-                                if certStatus != "revoked" {
-                                        continue
-                                }
-                        case "expired":
-                                if certStatus != "expired" {
-                                        continue
-                                }
-                        default:
-                                // Exact match for any other status
-                                if certStatus != requestedStatus {
-                                        continue
-                                }
-                        }
-                }
-                
                 // Apply recent certificates filter (issued after threshold)
                 if issuedAfter != nil {
                         if cert.CreatedDate.Before(*issuedAfter) {
-                                continue
-                        }
-                }
-                
-                // Apply expiring certificates filter (expires before threshold)
-                if expiresBefore != nil {
-                        if cert.ExpiryDate.After(*expiresBefore) {
                                 continue
                         }
                 }
@@ -307,7 +263,7 @@ func applyClientSideFilters(certificates []api.Certificate, commonName, serial, 
         return filtered
 }
 
-func outputTable(certificates []api.Certificate, wide bool) error {
+func outputTable(certificates []api.Certificate) error {
         w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
         
         // Header
@@ -316,23 +272,12 @@ func outputTable(certificates []api.Certificate, wide bool) error {
         
         // Data rows
         for _, cert := range certificates {
-                var id, cn, serial, issuer string
-                
-                if wide {
-                        // Show full values without truncation
-                        id = cert.ID
-                        cn = cert.CommonName
-                        serial = cert.SerialNumber
-                        issuer = cert.Issuer
-                } else {
-                        // Truncate long values for table display
-                        id = truncateString(cert.ID, 12)
-                        cn = truncateString(cert.CommonName, 25)
-                        serial = truncateString(cert.SerialNumber, 16)
-                        issuer = truncateString(cert.Issuer, 20)
-                }
-                
+                // Truncate long values for table display
+                id := truncateString(cert.ID, 12)
+                cn := truncateString(cert.CommonName, 25)
+                serial := truncateString(cert.SerialNumber, 16)
                 status := cert.Status
+                issuer := truncateString(cert.Issuer, 20)
                 expires := cert.ExpiryDate.Format("2006-01-02")
                 
                 fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n", 
@@ -395,10 +340,11 @@ func getSearchUsageFunc() func(*cobra.Command) error {
                 fmt.Printf("Usage:\n  %s\n\nServer & Authentication:\n", cmd.UseLine())
                 fmt.Printf("      --url string        ZTPKI API base URL (e.g., https://ztpki.venafi.com/api/v2)\n")
                 fmt.Printf("      --hawk-id string    HAWK authentication ID\n")
-                fmt.Printf("      --hawk-key string   HAWK authentication key\n\n")
+                fmt.Printf("      --hawk-key string   HAWK authentication key\n")
+                fmt.Printf("      --algo string       HAWK algorithm (sha1, sha256) (default \"sha256\")\n\n")
                 
                 fmt.Printf("Search Criteria:\n")
-                fmt.Printf("      --cn string         Search by Common Name (substring matching supported)\n")
+                fmt.Printf("      --cn string         Search by Common Name (supports wildcards)\n")
                 fmt.Printf("      --issuer string     Search by certificate issuer\n")
                 fmt.Printf("      --serial string     Search by serial number\n")
                 fmt.Printf("      --policy string     Search by policy ID or name\n")
@@ -406,13 +352,11 @@ func getSearchUsageFunc() func(*cobra.Command) error {
                 
                 fmt.Printf("Time-Based Filters:\n")
                 fmt.Printf("      --expired           Show only expired certificates\n")
-                fmt.Printf("      --expiring int      Show certificates expiring within N days\n")
-                fmt.Printf("      --recent int        Show certificates issued within N days\n\n")
+                fmt.Printf("      --expiring int      Show certificates expiring within N days\n\n")
                 
                 fmt.Printf("Output Options:\n")
                 fmt.Printf("      --format string     Output format (table, json, csv) (default \"table\")\n")
-                fmt.Printf("      --limit int         Maximum number of results to return (default 50)\n")
-                fmt.Printf("      --wide              Show full column content without truncation\n\n")
+                fmt.Printf("      --limit int         Maximum number of results to return (default 50)\n\n")
                 
                 fmt.Printf("Global Flags:\n")
                 fmt.Printf("      --config string     profile config file (e.g., zcert.cnf)\n")
@@ -428,20 +372,13 @@ func getSearchUsageFunc() func(*cobra.Command) error {
 func getSearchHelpFunc() func(*cobra.Command, []string) {
         return func(cmd *cobra.Command, args []string) {
                 fmt.Print(`The search command allows you to find certificates and list them based on various criteria.
-You can search by Common Name (with substring matching), issuer, serial number, policy, or status.
-The results can be displayed in different formats including table, JSON, or CSV.
-
-Primary use cases:
-  - Recently issued certificates: --recent 30
-  - Upcoming expiration search: --expiring 30  
-  - Common Name substring matching: --cn "test" (matches test1.mimlab.io)
-  - Serial number search: --serial "ABC123"
+You can search by Common Name, issuer, serial number, policy, or status. The results can be
+displayed in different formats including table, JSON, or CSV.
 
 Examples:
-  zcert search --cn test                    # Find certificates with "test" in Common Name
-  zcert search --recent 7                   # Certificates issued in last 7 days
-  zcert search --expiring 30                # Certificates expiring in 30 days
-  zcert search --serial "12345"             # Search by serial number
+  zcert search --cn example.com
+  zcert search --policy "Web Server Policy" --limit 10
+  zcert search --expiring 30  # Certificates expiring in 30 days
   zcert search --status active --format json
 
 Usage:
@@ -451,9 +388,10 @@ Server & Authentication:
       --url string        ZTPKI API base URL (e.g., https://ztpki.venafi.com/api/v2)
       --hawk-id string    HAWK authentication ID
       --hawk-key string   HAWK authentication key
+      --algo string       HAWK algorithm (sha1, sha256) (default "sha256")
 
 Search Criteria:
-      --cn string         Search by Common Name (substring matching supported)
+      --cn string         Search by Common Name (supports wildcards)
       --issuer string     Search by certificate issuer
       --serial string     Search by serial number
       --policy string     Search by policy ID or name
@@ -462,12 +400,10 @@ Search Criteria:
 Time-Based Filters:
       --expired           Show only expired certificates
       --expiring int      Show certificates expiring within N days
-      --recent int        Show certificates issued within N days
 
 Output Options:
       --format string     Output format (table, json, csv) (default "table")
       --limit int         Maximum number of results to return (default 50)
-      --wide              Show full column content without truncation
 
 Global Flags:
       --config string     profile config file (e.g., zcert.cnf)
