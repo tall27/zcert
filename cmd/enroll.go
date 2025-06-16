@@ -471,10 +471,10 @@ func runEnroll(cmd *cobra.Command, args []string) error {
                                 // Request completed, now get the actual certificate with chain
                                 certificate, err = client.GetCertificate(request.CertificateID)
                                 if err == nil && certificate != nil && certificate.Certificate != "" {
-                                        // Get certificate chain
-                                        chain, chainErr := client.GetCertificateChain(request.CertificateID)
-                                        if chainErr == nil {
-                                                certificate.Chain = chain
+                                        // Get certificate with chain using PEM endpoint
+                                        pemResp, chainErr := client.GetCertificatePEM(request.CertificateID, true)
+                                        if chainErr == nil && pemResp != nil && pemResp.Chain != "" {
+                                                certificate.Chain = []string{pemResp.Chain}
                                         } else if viper.GetBool("verbose") {
                                                 fmt.Fprintf(os.Stderr, "Warning: Failed to retrieve certificate chain: %v\n", chainErr)
                                         }
