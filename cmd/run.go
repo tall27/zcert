@@ -186,18 +186,14 @@ func executeEnrollTask(client *api.Client, task *config.PlaybookTask) error {
                 if err != nil {
                         return fmt.Errorf("failed to save certificate: %w", err)
                 }
-                if verbose {
-                        fmt.Printf("    Certificate saved to: %s\n", task.OutputFile)
-                }
+                fmt.Printf("    Certificate saved to: %s\n", task.OutputFile)
         }
 
         return nil
 }
 
-func executeRetrieveTask(client *api.Client, task *config.PlaybookTask, verbose bool) error {
-        if verbose {
-                fmt.Printf("    Retrieving certificate ID: %s\n", task.CertificateID)
-        }
+func executeRetrieveTask(client *api.Client, task *config.PlaybookTask) error {
+        fmt.Printf("    Retrieving certificate ID: %s\n", task.CertificateID)
 
         if task.CertificateID == "" {
                 return fmt.Errorf("certificate ID is required for retrieval")
@@ -213,18 +209,14 @@ func executeRetrieveTask(client *api.Client, task *config.PlaybookTask, verbose 
                 if err != nil {
                         return fmt.Errorf("failed to save certificate: %w", err)
                 }
-                if verbose {
-                        fmt.Printf("    Certificate saved to: %s\n", task.OutputFile)
-                }
+                fmt.Printf("    Certificate saved to: %s\n", task.OutputFile)
         }
 
         return nil
 }
 
-func executeSearchTask(client *api.Client, task *config.PlaybookTask, verbose bool) error {
-        if verbose {
-                fmt.Printf("    Searching certificates with criteria\n")
-        }
+func executeSearchTask(client *api.Client, task *config.PlaybookTask) error {
+        fmt.Printf("    Searching certificates with criteria\n")
 
         searchParams := api.CertificateSearchParams{
                 CommonName: task.CommonName,
@@ -241,9 +233,7 @@ func executeSearchTask(client *api.Client, task *config.PlaybookTask, verbose bo
                 return fmt.Errorf("failed to search certificates: %w", err)
         }
 
-        if verbose {
-                fmt.Printf("    Found %d certificates\n", len(certificates))
-        }
+        fmt.Printf("    Found %d certificates\n", len(certificates))
 
         // Save search results if output file specified
         if task.OutputFile != "" {
@@ -256,10 +246,8 @@ func executeSearchTask(client *api.Client, task *config.PlaybookTask, verbose bo
         return nil
 }
 
-func executeRevokeTask(client *api.Client, task *config.PlaybookTask, verbose bool) error {
-        if verbose {
-                fmt.Printf("    Revoking certificate ID: %s\n", task.CertificateID)
-        }
+func executeRevokeTask(client *api.Client, task *config.PlaybookTask) error {
+        fmt.Printf("    Revoking certificate ID: %s\n", task.CertificateID)
 
         if task.CertificateID == "" {
                 return fmt.Errorf("certificate ID is required for revocation")
@@ -277,7 +265,7 @@ func generateCSR(commonName string, keySize int, keyType string, subject *config
         return "", "", fmt.Errorf("CSR generation not yet implemented in run command")
 }
 
-func pollForCertificate(client *api.Client, requestID string, verbose bool) (*api.Certificate, error) {
+func pollForCertificate(client *api.Client, requestID string) (*api.Certificate, error) {
         // This would poll the certificate request status until ready
         // For now, return an error indicating this needs to be implemented
         return nil, fmt.Errorf("certificate polling not yet implemented in run command")

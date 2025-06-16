@@ -1,0 +1,27 @@
+config:
+  connection:
+    platform: ztpki
+    url: "{{ZTPKI_URL}}"
+    credentials:
+      hawk-id: "{{ZTPKI_HAWK_ID}}"
+      hawk-api: "{{ZTPKI_HAWK_SECRET}}"
+
+certificateTasks:
+  - name: "WebServerCert"
+    renewBefore: 30d
+    request:
+      csr: service
+      subject:
+        commonName: "example.com"
+        country: US
+        state: Utah
+        locality: Salt Lake City
+        organization: Example Corp
+        orgUnits: ["IT Ops"]
+      policy: "My Application\\Default"
+    installations:
+      - format: PEM
+        file: "/etc/nginx/tls/example.crt"
+        chainFile: "/etc/nginx/tls/example.chain.crt"
+        keyFile: "/etc/nginx/tls/example.key"
+        afterInstallAction: "systemctl reload nginx"
