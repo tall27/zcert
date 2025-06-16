@@ -972,8 +972,6 @@ func extractExpiryDates(certFile, renewBefore string) (string, string) {
 
 // executeCertificateTask executes a single certificate task with comprehensive ZTPKI API payload
 func executeCertificateTask(client *api.Client, certTask *config.CertificateTask) error {
-        fmt.Printf("    Processing certificate for CN: %s\n", certTask.Request.Subject.CommonName)
-
         // Check for existing certificate renewal needs if renewBefore is specified
         if certTask.RenewBefore != "" && !runForceRenew {
                 needsRenewal, err := checkCertificateRenewalFromTask(certTask)
@@ -994,6 +992,10 @@ func executeCertificateTask(client *api.Client, certTask *config.CertificateTask
         if err != nil {
                 return fmt.Errorf("failed to generate CSR: %w", err)
         }
+
+        // Show private key generation first
+        fmt.Printf("    Private key generated for CN: %s\n", certTask.Request.Subject.CommonName)
+        fmt.Printf("    Enrolling certificate for CN: %s\n", certTask.Request.Subject.CommonName)
 
         // Submit CSR using comprehensive ZTPKI API payload
         requestID, err := client.SubmitCSRWithFullPayload(csr, certTask, false) // Never show verbose output in legacy function
