@@ -797,7 +797,7 @@ func executeCertificateTaskWithResult(client *api.Client, certTask *config.Certi
 
         // Process each installation configuration
         for _, installation := range certTask.Installations {
-                err := processCertificateInstallation(certificate, privateKeyPEM, &installation, certTask)
+                err := processCertificateInstallation(certificate, privateKeyPEM, &installation, certTask, quiet)
                 if err != nil {
                         return nil, fmt.Errorf("failed to install certificate: %w", err)
                 }
@@ -897,7 +897,7 @@ func executeCertificateTask(client *api.Client, certTask *config.CertificateTask
         }
 
         // Submit CSR using comprehensive ZTPKI API payload
-        requestID, err := client.SubmitCSRWithFullPayload(csr, certTask, true) // Always verbose for legacy function
+        requestID, err := client.SubmitCSRWithFullPayload(csr, certTask, false) // Never show verbose output in legacy function
         if err != nil {
                 return fmt.Errorf("failed to submit CSR: %w", err)
         }
@@ -912,7 +912,7 @@ func executeCertificateTask(client *api.Client, certTask *config.CertificateTask
 
         // Process each installation configuration
         for _, installation := range certTask.Installations {
-                err := processCertificateInstallation(certificate, privateKeyPEM, &installation, certTask)
+                err := processCertificateInstallation(certificate, privateKeyPEM, &installation, certTask, false)
                 if err != nil {
                         return fmt.Errorf("failed to install certificate: %w", err)
                 }
@@ -962,19 +962,19 @@ func checkCertificateRenewalFromTask(certTask *config.CertificateTask) (bool, er
 }
 
 // processCertificateInstallation handles certificate installation with comprehensive options
-func processCertificateInstallation(certificate *api.Certificate, privateKeyPEM string, installation *config.CertificateInstall, certTask *config.CertificateTask) error {
+func processCertificateInstallation(certificate *api.Certificate, privateKeyPEM string, installation *config.CertificateInstall, certTask *config.CertificateTask, quiet bool) error {
         switch strings.ToUpper(installation.Format) {
         case "PEM":
-                return processPEMInstallation(certificate, privateKeyPEM, installation, certTask)
+                return processPEMInstallation(certificate, privateKeyPEM, installation, certTask, quiet)
         case "PKCS12":
-                return processPKCS12Installation(certificate, privateKeyPEM, installation, certTask)
+                return processPKCS12Installation(certificate, privateKeyPEM, installation, certTask, quiet)
         default:
                 return fmt.Errorf("unsupported certificate format: %s", installation.Format)
         }
 }
 
 // processPEMInstallation handles PEM format certificate installation
-func processPEMInstallation(certificate *api.Certificate, privateKeyPEM string, installation *config.CertificateInstall, certTask *config.CertificateTask) error {
+func processPEMInstallation(certificate *api.Certificate, privateKeyPEM string, installation *config.CertificateInstall, certTask *config.CertificateTask, quiet bool) error {
         outputFile := installation.File
         if outputFile == "" {
                 return fmt.Errorf("output file is required for PEM installation")
@@ -995,7 +995,9 @@ func processPEMInstallation(certificate *api.Certificate, privateKeyPEM string, 
                 return err
         }
 
-        fmt.Printf("    Certificate saved to: %s\n", outputFile)
+        if !quiet {
+                fmt.Printf("    Certificate saved to: %s\n", outputFile)
+        }
         
         // Save to separate key file if specified
         if installation.KeyFile != "" {
@@ -1013,7 +1015,9 @@ func processPEMInstallation(certificate *api.Certificate, privateKeyPEM string, 
                 if err != nil {
                         return fmt.Errorf("failed to write key file: %w", err)
                 }
-                fmt.Printf("    Private key saved to: %s\n", keyFile)
+                if !quiet {
+                        fmt.Printf("    Private key saved to: %s\n", keyFile)
+                }
         }
         
         // Save to separate chain file if specified
@@ -1046,7 +1050,7 @@ func processPEMInstallation(certificate *api.Certificate, privateKeyPEM string, 
 }
 
 // processPKCS12Installation handles PKCS12 format certificate installation
-func processPKCS12Installation(certificate *api.Certificate, privateKeyPEM string, installation *config.CertificateInstall, certTask *config.CertificateTask) error {
+func processPKCS12Installation(certificate *api.Certificate, privateKeyPEM string, installation *config.CertificateInstall, certTask *config.CertificateTask, quiet bool) error {
         // PKCS12 installation would require additional implementation
         // For now, return an informative message
         fmt.Printf("    PKCS12 installation to %s (password: %s)\n", installation.File, installation.Password)
