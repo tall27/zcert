@@ -55,18 +55,26 @@ go build -o zcert.exe main.go
 
 ### 1. Configuration
 
-Create a configuration file at `~/.zcert.yaml`:
+Create a configuration file at `~/.zcert.cnf`:
 
-```yaml
-# ZTPKI API Configuration
-base_url: "https://your-ztpki-instance.com/api/v2"
-hawk_id: "your-hawk-id-here"
-hawk_key: "your-hawk-key-here"
+```ini
+[Default]
+base_url = https://your-ztpki-instance.com/api/v2
+hawk_id = your-hawk-id-here
+hawk_key = your-hawk-key-here
+verbose = false
+default_key_size = 2048
+default_key_type = rsa
+default_format = pem
+```
 
-# Default settings
-default_key_size: 2048
-default_key_type: "rsa"
-default_format: "pem"
+Or generate a template configuration:
+```bash
+# Generate basic configuration template
+zcert config --ini > zcert.cnf
+
+# Generate YAML playbook template
+zcert config --yaml > playbook.yaml
 ```
 
 Or use environment variables:
@@ -128,6 +136,61 @@ zcert revoke --id "cert-12345" --force --reason "keyCompromise"
 
 ## Commands
 
+### `zcert config`
+Generate configuration templates for setup and automation.
+
+**Flags:**
+- `--ini`: Generate INI configuration file template
+- `--yaml`: Generate YAML playbook template
+- `--comprehensive`: Include comprehensive examples and documentation
+
+**Examples:**
+```bash
+# Generate basic INI configuration
+zcert config --ini > zcert.cnf
+
+# Generate YAML playbook template
+zcert config --yaml > playbook.yaml
+
+# Generate comprehensive playbook with examples
+zcert config --yaml --comprehensive > full-playbook.yaml
+```
+
+### `zcert env`
+Display environment variable setup instructions and test connectivity.
+
+**Flags:**
+- `--test`: Test API connectivity and authentication
+
+**Examples:**
+```bash
+# Show environment setup instructions
+zcert env
+
+# Test API connectivity
+zcert env --test
+```
+
+### `zcert run`
+Execute YAML playbook for automated certificate operations.
+
+**Flags:**
+- `--file string`: Path to YAML playbook file
+- `--force`: Force renewal of certificates even if not needed
+- `--dry-run`: Show what would be executed without making changes
+
+**Examples:**
+```bash
+# Execute playbook
+zcert run --file playbook.yaml
+
+# Force renewal of all certificates in playbook
+zcert run --file playbook.yaml --force
+
+# Preview operations without executing
+zcert run --file playbook.yaml --dry-run
+```
+
 ### `zcert enroll`
 Request a new certificate from ZTPKI with complete workflow automation.
 
@@ -185,41 +248,86 @@ Renew an existing certificate (planned feature - currently shows placeholder).
 
 ### Configuration File
 
-The configuration file uses YAML format and can be placed at:
-- `~/.zcert.yaml`
+The configuration file uses INI format and can be placed at:
+- `~/.zcert.cnf` or `zcert.cnf` in current directory
 - Specified with `--config` flag
 
 Example configuration:
 
+```ini
+[Default]
+base_url = https://your-ztpki-instance.com/api/v2
+hawk_id = your-hawk-id-here
+hawk_key = your-hawk-key-here
+verbose = false
+
+# Certificate defaults
+default_key_size = 2048
+default_key_type = rsa
+default_format = pem
+
+# Output settings
+output_directory = ./certificates
+include_chain = true
+```
+
+### Profile-based Configuration
+
+Support multiple environments with profile sections:
+
+```ini
+[Default]
+base_url = https://dev-ztpki.example.com/api/v2
+hawk_id = dev-hawk-id
+hawk_key = dev-hawk-key
+
+[Production]
+base_url = https://prod-ztpki.example.com/api/v2
+hawk_id = prod-hawk-id
+hawk_key = prod-hawk-key
+verbose = false
+```
+
+Use profiles with the `--profile` flag:
+```bash
+zcert enroll --cn example.com --profile Production
+```
+
+### Playbook Configuration
+
+Generate YAML playbook templates for automated certificate operations:
+
+```bash
+# Generate basic playbook template
+zcert config --yaml > playbook.yaml
+
+# Generate comprehensive playbook with examples
+zcert config --yaml --comprehensive > comprehensive-playbook.yaml
+```
+
+Example playbook structure:
 ```yaml
-# API Configuration
-base_url: "https://your-ztpki-instance.com/api/v2"
-hawk_id: "your-hawk-id"
-hawk_key: "your-hawk-key"
+# ZCert Playbook Configuration
+version: "1.0"
+name: "Certificate Management Playbook"
 
-# Default Certificate Options
-default_key_size: 2048
-default_key_type: "rsa"
-default_format: "pem"
-default_policy_id: "default-policy"
+authentication:
+  base_url: "https://your-ztpki-instance.com/api/v2"
+  hawk_id: "{{ HAWK_ID }}"
+  hawk_key: "{{ HAWK_KEY }}"
 
-# Default Subject Information
-default_country: ["US"]
-default_province: ["CA"]
-default_locality: ["San Francisco"]
-default_org: ["Your Organization"]
-default_org_unit: ["IT Department"]
-
-# Behavior Settings
-poll_interval_seconds: 2
-poll_timeout_seconds: 300
-verbose: false
-force_revoke: false
-
-# Output Settings
-output_directory: "./certificates"
-no_key_output: false
-include_chain: true
+certificateTasks:
+  - name: "Web Server Certificate"
+    action: "enroll"
+    common_name: "www.example.com"
+    policy_id: "your-policy-id-here"
+    subject_alternative_names:
+      - "example.com"
+      - "api.example.com"
+    key_type: "rsa"
+    key_size: 2048
+    output_file: "webserver-cert"
+    format: "pem"
 ```
 
 ### Environment Variables
