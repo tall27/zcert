@@ -120,13 +120,15 @@ func runConfig(cmd *cobra.Command, args []string) error {
                         }
                 }
 
-                err := config.SaveExampleConfig(filename)
+                err := config.CreateExamplePlaybookConfig(filename)
                 if err != nil {
-                        return fmt.Errorf("failed to create example config: %w", err)
+                        return fmt.Errorf("failed to create example playbook config: %w", err)
                 }
 
-                fmt.Printf("Example YAML configuration created: %s\n", filename)
-                fmt.Println("\nEdit the file and add your ZTPKI credentials.")
+                fmt.Printf("Example playbook configuration created: %s\n", filename)
+                fmt.Println("\nUsage examples:")
+                fmt.Printf("  zcert run --file %s\n", filename)
+                fmt.Println("\nEdit the file and add your ZTPKI credentials and certificate tasks.")
         }
 
         return nil
