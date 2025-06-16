@@ -25,6 +25,7 @@ var (
         runDryRun bool
         runQuiet bool
         runVerbose bool
+        globalQuietMode bool // Global flag for quiet mode
 )
 
 // runCmd represents the run command
@@ -54,6 +55,9 @@ func init() {
 }
 
 func runPlaybook(cmd *cobra.Command, args []string) error {
+        // Set global quiet mode for use throughout the application
+        globalQuietMode = runQuiet
+        
         // Use default file if not specified
         playbookFile := runFile
 
@@ -172,33 +176,25 @@ func runPlaybook(cmd *cobra.Command, args []string) error {
         return nil
 }
 
-func executeTask(client *api.Client, task *config.PlaybookTask) error {
-        return executeTaskQuiet(client, task, false)
-}
 
-func executeTaskQuiet(client *api.Client, task *config.PlaybookTask, quiet bool) error {
+
+func executeTask(client *api.Client, task *config.PlaybookTask) error {
         switch strings.ToLower(task.Action) {
         case "enroll":
-                return executeEnrollTaskQuiet(client, task, quiet)
+                return executeEnrollTask(client, task)
         case "retrieve":
-                return executeRetrieveTaskQuiet(client, task, quiet)
+                return executeRetrieveTask(client, task)
         case "search":
-                return executeSearchTaskQuiet(client, task, quiet)
+                return executeSearchTask(client, task)
         case "revoke":
-                return executeRevokeTaskQuiet(client, task, quiet)
+                return executeRevokeTask(client, task)
         default:
                 return fmt.Errorf("unknown task action: %s", task.Action)
         }
 }
 
 func executeEnrollTask(client *api.Client, task *config.PlaybookTask) error {
-        return executeEnrollTaskQuiet(client, task, false)
-}
-
-func executeEnrollTaskQuiet(client *api.Client, task *config.PlaybookTask, quiet bool) error {
-        if !quiet {
-                fmt.Printf("    Enrolling certificate for CN: %s\n", task.CommonName)
-        }
+        fmt.Printf("    Enrolling certificate for CN: %s\n", task.CommonName)
 
         // Validate required fields
         if task.CommonName == "" {
@@ -259,7 +255,7 @@ func executeEnrollTaskQuiet(client *api.Client, task *config.PlaybookTask, quiet
                         return fmt.Errorf("failed to retrieve certificate PEM: %w", err)
                 }
                 
-                err = saveCertificateAndKey(task.OutputFile, pemResponse.Certificate, privateKeyPEM, pemResponse.Chain, task.BackupExisting)
+                err = saveCertificateAndKeyQuiet(task.OutputFile, pemResponse.Certificate, privateKeyPEM, pemResponse.Chain, task.BackupExisting, true) // Use quiet mode for legacy function
                 if err != nil {
                         return fmt.Errorf("failed to save certificate: %w", err)
                 }
@@ -542,7 +538,7 @@ func backupFileIfExistsQuiet(filePath string, quiet bool) error {
                 return fmt.Errorf("failed to write backup file %s: %w", backupPath, err)
         }
 
-        if !quiet {
+        if !globalQuietMode {
                 fmt.Printf("    Backed up existing file: %s -> %s\n", filePath, backupPath)
         }
         return nil
