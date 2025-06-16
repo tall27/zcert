@@ -52,7 +52,7 @@ build/
 .zcert.yaml
 config.yaml
 test*.yaml
-zcert.cnf
+*.cnf
 test-config.cnf
 *.cnf.orig
 
