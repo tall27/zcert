@@ -223,12 +223,14 @@ func (c *Client) SubmitCSR(csrPEM, policyID string, validity *ValidityPeriod) (s
                 }
         }
         
-        // Debug: Print the payload being sent to ZTPKI
-        if payload, err := json.MarshalIndent(requestBody, "", "  "); err == nil {
-                fmt.Printf("=== ZTPKI API Payload ===\n")
-                fmt.Printf("POST /csr\n")
-                fmt.Printf("%s\n", string(payload))
-                fmt.Printf("========================\n")
+        // Debug: Print the payload being sent to ZTPKI (only in verbose mode)
+        if os.Getenv("ZCERT_VERBOSE") == "true" {
+                if payload, err := json.MarshalIndent(requestBody, "", "  "); err == nil {
+                        fmt.Printf("=== ZTPKI API Payload ===\n")
+                        fmt.Printf("POST /csr\n")
+                        fmt.Printf("%s\n", string(payload))
+                        fmt.Printf("========================\n")
+                }
         }
         
         resp, err := c.makeRequest("POST", "/csr", requestBody)

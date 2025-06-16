@@ -315,7 +315,9 @@ func runEnroll(cmd *cobra.Command, args []string) error {
                 }
         }
 
+        // Set verbose environment variable for API debugging
         if viper.GetBool("verbose") {
+                os.Setenv("ZCERT_VERBOSE", "true")
                 fmt.Fprintf(os.Stderr, "Enrolling certificate with CN: %s, Policy: %s\n", cn, policyID)
         }
 
@@ -466,9 +468,17 @@ func runEnroll(cmd *cobra.Command, args []string) error {
                                         fmt.Fprintf(os.Stderr, "Request status: %s, Certificate ID: %s (attempt %d)\n", request.Status, request.CertificateID, attemptCount)
                                 }
 
-                                // Request completed, now get the actual certificate
+                                // Request completed, now get the actual certificate with chain
                                 certificate, err = client.GetCertificate(request.CertificateID)
                                 if err == nil && certificate != nil && certificate.Certificate != "" {
+                                        // Get certificate chain
+                                        chain, chainErr := client.GetCertificateChain(request.CertificateID)
+                                        if chainErr == nil {
+                                                certificate.Chain = chain
+                                        } else if viper.GetBool("verbose") {
+                                                fmt.Fprintf(os.Stderr, "Warning: Failed to retrieve certificate chain: %v\n", chainErr)
+                                        }
+                                        
                                         if viper.GetBool("verbose") {
                                                 fmt.Fprintf(os.Stderr, "Certificate retrieved successfully after %d attempts! Certificate ID: %s\n", attemptCount, request.CertificateID)
                                         }
@@ -492,6 +502,14 @@ certificate_ready:
                 }
                 certificate, err := client.GetCertificate(requestID)
                 if err == nil && certificate != nil && certificate.Certificate != "" {
+                        // Get certificate chain for fallback certificate too
+                        chain, chainErr := client.GetCertificateChain(requestID)
+                        if chainErr == nil {
+                                certificate.Chain = chain
+                        } else if viper.GetBool("verbose") {
+                                fmt.Fprintf(os.Stderr, "Warning: Failed to retrieve certificate chain: %v\n", chainErr)
+                        }
+                        
                         if viper.GetBool("verbose") {
                                 fmt.Fprintf(os.Stderr, "Certificate retrieved via fallback method!\n")
                         }
@@ -500,9 +518,7 @@ certificate_ready:
                 }
         }
 
-        if viper.GetBool("verbose") {
-                fmt.Fprintln(os.Stderr, "Certificate issued successfully!")
-        }
+        // Remove success message - will be shown by certificate output
 
         // Output certificate with enhanced options
         outputter := cert.NewOutputter(format, "", enrollP12Pass)
