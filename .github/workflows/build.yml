@@ -12,6 +12,9 @@ jobs:
     strategy:
       matrix:
         include:
+          - goos: linux
+            goarch: amd64
+            suffix: ""
           - goos: windows
             goarch: amd64
             suffix: ".exe"
