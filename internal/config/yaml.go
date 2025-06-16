@@ -140,6 +140,7 @@ type PlaybookTask struct {
         KeyType         string       `yaml:"key_type"`
         Subject         *SubjectInfo `yaml:"subject"`
         RenewBefore     string       `yaml:"renew_before"`
+        BackupExisting  bool         `yaml:"backup_existing"`
         Limit           int          `yaml:"limit"`
         ContinueOnError bool         `yaml:"continue_on_error"`
 }
@@ -228,9 +229,10 @@ func convertCertificatePlaybook(certPlaybook *CertificatePlaybook, filename stri
                         ContinueOnError: false,
                 }
 
-                // Set output file from installations if available
+                // Set output file and backup settings from installations if available
                 if len(certTask.Installations) > 0 {
                         task.OutputFile = certTask.Installations[0].File
+                        task.BackupExisting = certTask.Installations[0].BackupExisting
                 }
 
                 // Validate required fields

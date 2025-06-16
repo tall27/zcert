@@ -153,6 +153,12 @@ type Certificate struct {
         // Extended ZTPKI response fields
         Imported   bool `json:"imported"`
         Discovered bool `json:"discovered"`
+}
+
+// CertificatePEMResponse represents a certificate response in PEM format with optional chain
+type CertificatePEMResponse struct {
+        Certificate string `json:"certificate"`
+        Chain       string `json:"chain,omitempty"`
         SelfSigned bool `json:"selfSigned"`
 }
 

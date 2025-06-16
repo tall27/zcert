@@ -228,7 +228,7 @@ func executeEnrollTask(client *api.Client, task *config.PlaybookTask) error {
 
         // Save certificate and key if output file specified
         if task.OutputFile != "" {
-                err := saveCertificateAndKey(task.OutputFile, certificate.Certificate, privateKeyPEM)
+                err := saveCertificateAndKey(task.OutputFile, certificate.Certificate, privateKeyPEM, task.BackupExisting)
                 if err != nil {
                         return fmt.Errorf("failed to save certificate: %w", err)
                 }
@@ -418,7 +418,7 @@ timeout_reached:
         return certificate, nil
 }
 
-func saveCertificateAndKey(outputFile, certificate, privateKey string) error {
+func saveCertificateAndKey(outputFile, certificate, privateKey string, backupExisting bool) error {
         // Create directory if it doesn't exist
         dir := strings.Replace(outputFile, "\\", "/", -1) // Handle Windows paths
         if lastSlash := strings.LastIndex(dir, "/"); lastSlash != -1 {
@@ -429,6 +429,22 @@ func saveCertificateAndKey(outputFile, certificate, privateKey string) error {
                 }
         }
 
+        // Generate key file path
+        keyFile := strings.TrimSuffix(outputFile, ".crt") + ".key"
+
+        // Backup existing files if requested
+        if backupExisting {
+                err := backupFileIfExists(outputFile)
+                if err != nil {
+                        return fmt.Errorf("failed to backup certificate file: %w", err)
+                }
+                
+                err = backupFileIfExists(keyFile)
+                if err != nil {
+                        return fmt.Errorf("failed to backup key file: %w", err)
+                }
+        }
+
         // Save certificate to the specified output file
         err := os.WriteFile(outputFile, []byte(certificate), 0644)
         if err != nil {
@@ -436,12 +452,39 @@ func saveCertificateAndKey(outputFile, certificate, privateKey string) error {
         }
 
         // Save private key with .key extension
-        keyFile := strings.TrimSuffix(outputFile, ".crt") + ".key"
         err = os.WriteFile(keyFile, []byte(privateKey), 0600) // More restrictive permissions for private key
         if err != nil {
                 return fmt.Errorf("failed to write private key file: %w", err)
         }
 
+        return nil
+}
+
+// backupFileIfExists creates a backup copy of a file if it exists
+func backupFileIfExists(filePath string) error {
+        // Check if file exists
+        if _, err := os.Stat(filePath); os.IsNotExist(err) {
+                // File doesn't exist, no backup needed
+                return nil
+        }
+
+        // Generate backup filename with timestamp
+        timestamp := time.Now().Format("20060102-150405")
+        backupPath := filePath + ".backup." + timestamp
+
+        // Read original file
+        data, err := os.ReadFile(filePath)
+        if err != nil {
+                return fmt.Errorf("failed to read original file %s: %w", filePath, err)
+        }
+
+        // Write backup file
+        err = os.WriteFile(backupPath, data, 0644)
+        if err != nil {
+                return fmt.Errorf("failed to write backup file %s: %w", backupPath, err)
+        }
+
+        fmt.Printf("    Backed up existing file: %s -> %s\n", filePath, backupPath)
         return nil
 }
 

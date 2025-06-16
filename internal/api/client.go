@@ -258,6 +258,26 @@ func (c *Client) GetCertificate(id string) (*Certificate, error) {
         return &certificate, nil
 }
 
+// GetCertificatePEM retrieves a certificate in PEM format with optional chain
+func (c *Client) GetCertificatePEM(id string, includeChain bool) (*CertificatePEMResponse, error) {
+        endpoint := fmt.Sprintf("/certificates/%s/pem", url.PathEscape(id))
+        if includeChain {
+                endpoint += "?chain=true"
+        }
+        
+        resp, err := c.makeRequest("GET", endpoint, nil)
+        if err != nil {
+                return nil, err
+        }
+        
+        var pemResponse CertificatePEMResponse
+        if err := c.handleResponse(resp, &pemResponse); err != nil {
+                return nil, err
+        }
+        
+        return &pemResponse, nil
+}
+
 // GetCertificateRequest retrieves the status of a certificate request
 func (c *Client) GetCertificateRequest(requestID string) (*CertificateRequest, error) {
         endpoint := fmt.Sprintf("/csr/%s/status", url.PathEscape(requestID))
