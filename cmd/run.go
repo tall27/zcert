@@ -23,11 +23,13 @@ var (
         runFile string
         runForceRenew bool
         runDryRun bool
+        runQuiet bool
+        runVerbose bool
 )
 
 // runCmd represents the run command
 var runCmd = &cobra.Command{
-        Use:   "run [--file PLAYBOOK] [--force-renew]",
+        Use:   "run [--file PLAYBOOK] [--force-renew] [--quiet] [--verbose]",
         Short: "Execute a YAML playbook for automated certificate operations",
         Long: `Execute a YAML playbook that defines a series of certificate operations.
 The playbook contains connection settings and one or more certificate tasks to
@@ -47,6 +49,8 @@ func init() {
         runCmd.Flags().StringVarP(&runFile, "file", "f", "playbook.yaml", "Playbook YAML file to execute (default \"playbook.yaml\")")
         runCmd.Flags().BoolVar(&runForceRenew, "force-renew", false, "Force renew certificates regardless of current expiration")
         runCmd.Flags().BoolVar(&runDryRun, "dry-run", false, "Show what would be executed without running")
+        runCmd.Flags().BoolVarP(&runQuiet, "quiet", "q", false, "Script-friendly output mode: exit 0 on success, 1 on error")
+        runCmd.Flags().BoolVarP(&runVerbose, "verbose", "v", false, "Detailed output including debug information")
 }
 
 func runPlaybook(cmd *cobra.Command, args []string) error {
@@ -58,16 +62,21 @@ func runPlaybook(cmd *cobra.Command, args []string) error {
                 return fmt.Errorf("playbook file does not exist: %s", playbookFile)
         }
 
-        fmt.Printf("Executing playbook: %s\n", playbookFile)
-        if runDryRun {
-                fmt.Println("DRY RUN MODE - No actual operations will be performed")
+        // Output mode logic: quiet overrides verbose, default is normal
+        if !runQuiet {
+                fmt.Printf("Executing playbook: %s\n", playbookFile)
+                if runDryRun {
+                        fmt.Println("DRY RUN MODE - No actual operations will be performed")
+                }
+                if !runVerbose {
+                        fmt.Println()
+                }
         }
-        fmt.Println()
 
         // Try to load as certificate playbook format first (comprehensive YAML)
         certPlaybook, err := config.LoadCertificatePlaybook(playbookFile)
         if err == nil && certPlaybook != nil {
-                return executeCertificatePlaybook(certPlaybook, playbookFile)
+                return executeCertificatePlaybook(certPlaybook, playbookFile, runQuiet, runVerbose)
         }
         
         // Fall back to simple playbook format
@@ -622,9 +631,14 @@ func saveSearchResults(outputFile string, certificates []api.Certificate) error 
 }
 
 // executeCertificatePlaybook executes a certificate playbook with comprehensive ZTPKI API payloads
-func executeCertificatePlaybook(certPlaybook *config.CertificatePlaybook, playbookFile string) error {
-        fmt.Printf("Loaded certificate playbook with %d certificate tasks\n", len(certPlaybook.CertificateTasks))
-        fmt.Println()
+func executeCertificatePlaybook(certPlaybook *config.CertificatePlaybook, playbookFile string, quiet, verbose bool) error {
+        renewedCount := 0
+        processedCount := 0
+        
+        if verbose {
+                fmt.Printf("Loaded certificate playbook with %d certificate tasks\n", len(certPlaybook.CertificateTasks))
+                fmt.Println()
+        }
 
         // Create API client using credentials from playbook or environment
         cfg := config.GetConfig()
@@ -672,30 +686,198 @@ func executeCertificatePlaybook(certPlaybook *config.CertificatePlaybook, playbo
 
         // Execute each certificate task
         for i, certTask := range certPlaybook.CertificateTasks {
-                fmt.Printf("Executing certificate task %d/%d: %s\n", i+1, len(certPlaybook.CertificateTasks), certTask.Name)
+                if verbose {
+                        fmt.Printf("Executing certificate task %d/%d: %s\n", i+1, len(certPlaybook.CertificateTasks), certTask.Name)
+                }
                 
                 if runDryRun {
-                        fmt.Printf("  [DRY RUN] Would process certificate for CN: %s\n", certTask.Request.Subject.CommonName)
+                        if verbose {
+                                fmt.Printf("  [DRY RUN] Would process certificate for CN: %s\n", certTask.Request.Subject.CommonName)
+                        }
                         continue
                 }
                 
-                err := executeCertificateTask(client, &certTask)
+                taskResult, err := executeCertificateTaskWithResult(client, &certTask, quiet, verbose)
                 if err != nil {
-                        fmt.Printf("  ❌ Task failed: %v\n", err)
-                        return fmt.Errorf("certificate task %d failed: %w", i+1, err)
-                } else {
-                        fmt.Printf("  ✅ Certificate task completed successfully\n")
+                        if quiet {
+                                return fmt.Errorf("certificate task failed")
+                        } else if verbose {
+                                fmt.Printf("  Task failed: %v\n", err)
+                                return fmt.Errorf("certificate task %d failed: %w", i+1, err)
+                        } else {
+                                fmt.Printf("🟥 Playbook execution failed: run with --verbose flag for more information.\n")
+                                return fmt.Errorf("certificate task failed")
+                        }
                 }
-                fmt.Println()
+                
+                processedCount++
+                if taskResult.Renewed {
+                        renewedCount++
+                }
+                
+                if verbose {
+                        fmt.Println()
+                }
         }
 
+        // Final status output
         if runDryRun {
-                fmt.Println("DRY RUN completed - no actual operations performed")
-        } else {
-                fmt.Printf("Certificate playbook execution completed: %d tasks processed\n", len(certPlaybook.CertificateTasks))
+                if !quiet {
+                        if verbose {
+                                fmt.Println("DRY RUN completed - no actual operations performed")
+                        } else {
+                                fmt.Printf("DRY RUN completed - no actual operations performed\n")
+                        }
+                }
+        } else if !quiet {
+                if renewedCount == 0 {
+                        fmt.Printf("🟨 Playbook execution completed: no certificate renewed.\n")
+                } else {
+                        fmt.Printf("✅ Playbook execution completed: %d certificate renewed.\n", renewedCount)
+                }
         }
 
         return nil
+}
+
+// TaskResult represents the result of executing a certificate task
+type TaskResult struct {
+        Renewed bool
+        Skipped bool
+        Error   error
+}
+
+// executeCertificateTaskWithResult executes a single certificate task and returns detailed results
+func executeCertificateTaskWithResult(client *api.Client, certTask *config.CertificateTask, quiet, verbose bool) (*TaskResult, error) {
+        result := &TaskResult{Renewed: false, Skipped: false}
+        
+        if !quiet && !verbose {
+                fmt.Printf("    Enrolling certificate for CN: %s\n", certTask.Request.Subject.CommonName)
+        } else if verbose {
+                fmt.Printf("    Processing certificate for CN: %s\n", certTask.Request.Subject.CommonName)
+        }
+
+        // Check for existing certificate renewal needs if renewBefore is specified
+        if certTask.RenewBefore != "" && !runForceRenew {
+                needsRenewal, err := checkCertificateRenewalFromTask(certTask)
+                if err != nil {
+                        if verbose {
+                                fmt.Printf("    Warning: Could not check renewal status: %v\n", err)
+                        }
+                } else if !needsRenewal {
+                        // Get expiry information for clean output
+                        expiryInfo := getExpiryInfoFromTask(certTask)
+                        if !quiet && !verbose {
+                                fmt.Printf("    Local certificate expires %s, renewal not needed (threshold: %s)\n", 
+                                        expiryInfo.ExpiryDate, expiryInfo.ThresholdDate)
+                        } else if verbose {
+                                fmt.Printf("    Certificate does not need renewal (expires more than %s from now)\n", certTask.RenewBefore)
+                        }
+                        result.Skipped = true
+                        return result, nil
+                }
+        }
+
+        // Generate CSR with comprehensive subject information
+        keySize := 2048 // Default key size
+        keyType := "rsa" // Default key type
+        
+        // Create certificate request with full subject details
+        csr, privateKeyPEM, err := generateCSRFromCertTask(certTask, keySize, keyType)
+        if err != nil {
+                return nil, fmt.Errorf("failed to generate CSR: %w", err)
+        }
+
+        // Submit CSR using comprehensive ZTPKI API payload
+        requestID, err := client.SubmitCSRWithFullPayload(csr, certTask)
+        if err != nil {
+                return nil, fmt.Errorf("failed to submit CSR: %w", err)
+        }
+
+        if verbose {
+                fmt.Printf("    CSR submitted with comprehensive payload, request ID: %s\n", requestID)
+        }
+
+        // Poll for certificate
+        certificate, err := pollForCertificate(client, requestID)
+        if err != nil {
+                return nil, fmt.Errorf("failed to retrieve certificate: %w", err)
+        }
+
+        // Process each installation configuration
+        for _, installation := range certTask.Installations {
+                err := processCertificateInstallation(certificate, privateKeyPEM, &installation, certTask)
+                if err != nil {
+                        return nil, fmt.Errorf("failed to install certificate: %w", err)
+                }
+        }
+
+        result.Renewed = true
+        return result, nil
+}
+
+// ExpiryInfo contains certificate expiry information for display
+type ExpiryInfo struct {
+        ExpiryDate    string
+        ThresholdDate string
+}
+
+// getExpiryInfoFromTask extracts expiry information from certificate task for display
+func getExpiryInfoFromTask(certTask *config.CertificateTask) *ExpiryInfo {
+        // Check local certificate files from installations
+        for _, installation := range certTask.Installations {
+                if installation.Format == "PEM" && installation.File != "" {
+                        certFile := installation.File
+                        
+                        // Check if certificateLocation overrides the installation file path
+                        if certTask.CertificateLocation != "" {
+                                certFile = certTask.CertificateLocation
+                        }
+                        
+                        if expiry, threshold := extractExpiryDates(certFile, certTask.RenewBefore); expiry != "" {
+                                return &ExpiryInfo{
+                                        ExpiryDate:    expiry,
+                                        ThresholdDate: threshold,
+                                }
+                        }
+                }
+        }
+        
+        return &ExpiryInfo{
+                ExpiryDate:    "unknown",
+                ThresholdDate: "unknown",
+        }
+}
+
+// extractExpiryDates extracts certificate expiry and threshold dates for display
+func extractExpiryDates(certFile, renewBefore string) (string, string) {
+        // Read certificate file
+        certData, err := os.ReadFile(certFile)
+        if err != nil {
+                return "", ""
+        }
+
+        // Parse PEM certificate
+        block, _ := pem.Decode(certData)
+        if block == nil || block.Type != "CERTIFICATE" {
+                return "", ""
+        }
+
+        cert, err := x509.ParseCertificate(block.Bytes)
+        if err != nil {
+                return "", ""
+        }
+
+        // Parse renewal threshold - use existing function from the file
+        threshold, err := parseDuration(renewBefore)
+        if err != nil {
+                return "", ""
+        }
+
+        expiryDate := cert.NotAfter.Format("2006-01-02")
+        thresholdDate := cert.NotAfter.Add(-threshold).Format("2006-01-02")
+
+        return expiryDate, thresholdDate
 }
 
 // executeCertificateTask executes a single certificate task with comprehensive ZTPKI API payload
