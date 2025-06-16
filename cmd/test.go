@@ -108,9 +108,7 @@ func runTest(cmd *cobra.Command, args []string) error {
         // Test 3: Available Policies
         fmt.Println("3. Available Policies:")
         if policyID != "" {
-                // Show policy with masked ID (showing first 4 and last 4 characters)
-                maskedID := policyID[:4] + strings.Repeat("*", len(policyID)-8) + policyID[len(policyID)-4:]
-                fmt.Printf("   • OCP Dev ICA 1 SSL 75 SAN (%s)\n", maskedID)
+                fmt.Printf("   • OCP Dev ICA 1 SSL 75 SAN (%s)\n", policyID)
         } else {
                 fmt.Printf("   • No specific policy configured\n")
         }
