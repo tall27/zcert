@@ -172,47 +172,4 @@ func ValidateConfig() error {
         return nil
 }
 
-// GetExampleConfig returns an example configuration file content
-func GetExampleConfig() string {
-        return `# zcert configuration file
-# This file can be placed at ~/.zcert.yaml or specified with --config
 
-# ZTPKI API Configuration
-base_url: "https://your-ztpki-instance.com/api/v2"
-hawk_id: "your-hawk-id-here"
-hawk_key: "your-hawk-key-here"
-
-# Default Certificate Options
-default_key_size: 2048
-default_key_type: "rsa"
-default_format: "pem"
-default_policy_id: ""
-default_p12_password: ""
-
-# Default Certificate Subject Information
-default_cn: ""
-default_country: []
-default_province: []
-default_locality: []
-default_org: []
-default_org_unit: []
-
-# Behavior Settings
-poll_interval_seconds: 2
-poll_timeout_seconds: 300
-skip_tls_verify: false
-verbose: false
-force_revoke: false
-
-# Output Settings
-output_directory: ""
-no_key_output: false
-include_chain: true
-`
-}
-
-// SaveExampleConfig saves an example configuration file
-func SaveExampleConfig(filename string) error {
-        content := GetExampleConfig()
-        return os.WriteFile(filename, []byte(content), 0600) // Restrict to owner only
-}
