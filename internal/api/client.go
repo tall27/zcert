@@ -772,11 +772,10 @@ func (c *Client) RevokeCertificate(id, reason string) error {
         // Current time in ISO format for revocationDate
         revocationDate := time.Now().UTC().Format(time.RFC3339)
         
-        // ZTPKI revocation request format - try multiple field combinations
+        // ZTPKI revocation request format per API specification
         requestBody := map[string]interface{}{
-                "revocationReason": reasonCode,
-                "revocationDate":   revocationDate,
-                "reason":           reasonCode, // Fallback field name
+                "reason":         reasonCode,
+                "revocationDate": revocationDate,
         }
         
         // Always show the payload format for revocation (for debugging)
