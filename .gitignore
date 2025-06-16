@@ -86,3 +86,6 @@ setup-completion.sh
 
 # Large temporary files
 zi*
+
+# Attached assets and documentation
+attached_assets/
