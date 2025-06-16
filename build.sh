@@ -5,7 +5,7 @@
 set -e
 
 # Get version information
-VERSION="1.1.0"
+VERSION="1.2.0"
 GIT_COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 BUILD_TIME=$(date -u '+%Y-%m-%d_%H:%M:%S_UTC')
 GO_VERSION=$(go version | awk '{print $3}')

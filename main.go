@@ -9,7 +9,7 @@ import (
 
 // Version information - set at build time via ldflags
 var (
-        Version   = "1.0.0"    // Version number
+        Version   = "1.2.0"    // Version number
         GitCommit = "unknown"  // Git commit hash
         BuildTime = "unknown"  // Build timestamp
         GoVersion = "unknown"  // Go version used for build

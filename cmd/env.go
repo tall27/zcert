@@ -3,11 +3,15 @@ package cmd
 import (
         "fmt"
         "os"
+        "strings"
 
         "github.com/spf13/cobra"
+        "zcert/internal/api"
+        "zcert/internal/config"
 )
 
 var showExamples bool
+var runTest bool
 
 // envCmd represents the env command
 var envCmd = &cobra.Command{
@@ -24,7 +28,8 @@ Configuration:
   Use --profile to select a specific profile from the config file
   Environment variables override config file settings`,
         Example: `  zcert env                    # Show current status and basic usage
-  zcert env --examples         # Show platform-specific setup instructions`,
+  zcert env --examples         # Show platform-specific setup instructions
+  zcert env --test             # Test ZTPKI API connectivity and authentication`,
         RunE: runEnv,
 }
 
