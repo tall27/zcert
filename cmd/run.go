@@ -750,28 +750,16 @@ func executeCertificateTask(client *api.Client, certTask *config.CertificateTask
 
 // generateCSRFromCertTask generates a CSR from a certificate task with complete subject information
 func generateCSRFromCertTask(certTask *config.CertificateTask, keySize int, keyType string) (string, string, error) {
-        // Build subject from certificate task
-        subject := map[string]interface{}{
-                "commonName": certTask.Request.Subject.CommonName,
+        // Convert to SubjectInfo format
+        subjectInfo := &config.SubjectInfo{
+                Country:      []string{certTask.Request.Subject.Country},
+                Province:     []string{certTask.Request.Subject.State},
+                Locality:     []string{certTask.Request.Subject.Locality},
+                Organization: []string{certTask.Request.Subject.Organization},
+                OrgUnit:      certTask.Request.Subject.OrgUnits,
         }
         
-        if certTask.Request.Subject.Country != "" {
-                subject["country"] = certTask.Request.Subject.Country
-        }
-        if certTask.Request.Subject.State != "" {
-                subject["state"] = certTask.Request.Subject.State
-        }
-        if certTask.Request.Subject.Locality != "" {
-                subject["locality"] = certTask.Request.Subject.Locality
-        }
-        if certTask.Request.Subject.Organization != "" {
-                subject["organization"] = certTask.Request.Subject.Organization
-        }
-        if len(certTask.Request.Subject.OrgUnits) > 0 {
-                subject["orgUnits"] = certTask.Request.Subject.OrgUnits
-        }
-        
-        return generateCSR(certTask.Request.Subject.CommonName, keySize, keyType, subject)
+        return generateCSR(certTask.Request.Subject.CommonName, keySize, keyType, subjectInfo)
 }
 
 // checkCertificateRenewalFromTask checks if a certificate needs renewal based on certificate task
@@ -786,7 +774,10 @@ func checkCertificateRenewalFromTask(certTask *config.CertificateTask) (bool, er
                                 certFile = certTask.CertificateLocation
                         }
                         
-                        needsRenewal, err := checkLocalCertificateRenewal(certFile, certTask.RenewBefore)
+                        needsRenewal, err := checkCertificateRenewal(nil, &config.PlaybookTask{
+                                OutputFile: certFile,
+                                RenewBefore: certTask.RenewBefore,
+                        })
                         if err != nil {
                                 continue // Try next installation
                         }
@@ -818,8 +809,11 @@ func processPEMInstallation(certificate *api.Certificate, privateKeyPEM string, 
 
         // Parse chain certificate if present
         chainCertificate := ""
-        if certificate.ChainCertificate != "" {
-                chainCertificate = certificate.ChainCertificate
+        if len(certificate.Chain) > 0 {
+                // Join chain certificates into a single PEM block
+                for _, chainCert := range certificate.Chain {
+                        chainCertificate += chainCert + "\n"
+                }
         }
 
         // Save certificate and key with backup if requested
