@@ -23,7 +23,6 @@ import (
 var (
         runFile string
         runForceRenew bool
-        runDryRun bool
         runQuiet bool
         runVerbose bool
         globalQuietMode bool // Global flag for quiet mode
@@ -52,7 +51,7 @@ func init() {
         
         runCmd.Flags().StringVarP(&runFile, "file", "f", "playbook.yaml", "Playbook YAML file to execute (default \"playbook.yaml\")")
         runCmd.Flags().BoolVar(&runForceRenew, "force-renew", false, "Force renew certificates regardless of current expiration")
-        runCmd.Flags().BoolVar(&runDryRun, "dry-run", false, "Show what would be executed without running")
+
         runCmd.Flags().BoolVarP(&runQuiet, "quiet", "q", false, "Script-friendly output mode: exit 0 on success, 1 on error")
         runCmd.Flags().BoolVarP(&runVerbose, "verbose", "v", false, "Detailed output including debug information")
 }
@@ -72,9 +71,6 @@ func runPlaybook(cmd *cobra.Command, args []string) error {
         // Output mode logic: quiet overrides verbose, default is normal
         if !runQuiet {
                 fmt.Printf("Executing playbook: %s\n", playbookFile)
-                if runDryRun {
-                        fmt.Println("DRY RUN MODE - No actual operations will be performed")
-                }
                 if !runVerbose {
                         fmt.Println()
                 }
@@ -146,38 +142,20 @@ func runPlaybook(cmd *cobra.Command, args []string) error {
         for i, task := range playbook.Tasks {
                 fmt.Printf("Task %d: %s\n", i+1, task.Name)
                 
-                if runDryRun {
-                        fmt.Printf("  Action: %s\n", task.Action)
-                        if task.CommonName != "" {
-                                fmt.Printf("  CN: %s\n", task.CommonName)
+                err := executeTask(client, &task)
+                if err != nil {
+                        fmt.Printf("  ❌ Task failed: %v\n", err)
+                        if !task.ContinueOnError {
+                                return fmt.Errorf("task %d failed: %w", i+1, err)
                         }
-                        if task.PolicyID != "" {
-                                fmt.Printf("  Policy: %s\n", task.PolicyID)
-                        }
-                        if task.OutputFile != "" {
-                                fmt.Printf("  Output: %s\n", task.OutputFile)
-                        }
-                        fmt.Println("  [DRY RUN - would execute here]")
+                        fmt.Println("  ⚠️  Continuing despite error...")
                 } else {
-                        err := executeTask(client, &task)
-                        if err != nil {
-                                fmt.Printf("  ❌ Task failed: %v\n", err)
-                                if !task.ContinueOnError {
-                                        return fmt.Errorf("task %d failed: %w", i+1, err)
-                                }
-                                fmt.Println("  ⚠️  Continuing despite error...")
-                        } else {
-                                fmt.Printf("  ✅ Task completed successfully\n")
-                        }
+                        fmt.Printf("  ✅ Task completed successfully\n")
                 }
                 fmt.Println()
         }
 
-        if runDryRun {
-                fmt.Println("DRY RUN completed - no actual operations performed")
-        } else {
-                fmt.Printf("Playbook execution completed: %d tasks processed\n", len(playbook.Tasks))
-        }
+        fmt.Printf("Playbook execution completed: %d tasks processed\n", len(playbook.Tasks))
 
         return nil
 }
@@ -829,13 +807,6 @@ func executeCertificatePlaybook(certPlaybook *config.CertificatePlaybook, playbo
                         fmt.Printf("Executing certificate task %d/%d: %s\n", i+1, len(certPlaybook.CertificateTasks), certTask.Name)
                 }
                 
-                if runDryRun {
-                        if verbose {
-                                fmt.Printf("  [DRY RUN] Would process certificate for CN: %s\n", certTask.Request.Subject.CommonName)
-                        }
-                        continue
-                }
-                
                 taskResult, err := executeCertificateTaskWithResult(client, &certTask, quiet, verbose)
                 if err != nil {
                         if quiet {
@@ -860,15 +831,7 @@ func executeCertificatePlaybook(certPlaybook *config.CertificatePlaybook, playbo
         }
 
         // Final status output
-        if runDryRun {
-                if !quiet {
-                        if verbose {
-                                fmt.Println("DRY RUN completed - no actual operations performed")
-                        } else {
-                                fmt.Printf("DRY RUN completed - no actual operations performed\n")
-                        }
-                }
-        } else if !quiet {
+        if !quiet {
                 if renewedCount == 0 {
                         fmt.Printf("🟨 Playbook execution completed: no certificate renewed.\n")
                 } else {
