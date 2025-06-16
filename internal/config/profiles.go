@@ -4,6 +4,7 @@ import (
         "bufio"
         "fmt"
         "os"
+        "path/filepath"
         "regexp"
         "strconv"
         "strings"
@@ -353,4 +354,43 @@ func MergeProfileWithFlags(profile *Profile, flagURL, flagKeyID, flagSecret, fla
         }
 
         return &merged
+}
+
+// LoadConfig loads configuration from either YAML or CNF format based on file extension
+func LoadConfig(filename string) (*ProfileConfig, error) {
+        if filename == "" {
+                return nil, fmt.Errorf("no configuration file specified")
+        }
+
+        ext := filepath.Ext(filename)
+        switch ext {
+        case ".yaml", ".yml":
+                return LoadYAMLConfig(filename)
+        case ".cnf", ".conf", ".ini":
+                return LoadProfileConfig(filename)
+        default:
+                // Try to detect format by content
+                file, err := os.Open(filename)
+                if err != nil {
+                        return nil, fmt.Errorf("failed to open config file %s: %w", filename, err)
+                }
+                defer file.Close()
+
+                // Read first few bytes to detect format
+                buf := make([]byte, 100)
+                n, err := file.Read(buf)
+                if err != nil && n == 0 {
+                        return nil, fmt.Errorf("failed to read config file: %w", err)
+                }
+
+                content := string(buf[:n])
+                
+                // Check for YAML indicators
+                if strings.Contains(content, "profiles:") || strings.Contains(content, "base_url:") {
+                        return LoadYAMLConfig(filename)
+                }
+                
+                // Default to CNF format
+                return LoadProfileConfig(filename)
+        }
 }
