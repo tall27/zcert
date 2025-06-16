@@ -1,0 +1,43 @@
+config:
+  connection:
+    platform: vaas
+    credentials:
+      apiKey: '{{ Env "ZCERT_APIKEY" }}'
+
+certificateTasks:
+  - name: "WebServerCert"
+    renewBefore: 30d
+    request:
+      csr: service
+      subject:
+        commonName: "example.com"
+        country: US
+        state: Utah
+        locality: Salt Lake City
+        organization: Example Corp
+        orgUnits: ["IT Ops"]
+      zone: "5fe6d368-896a-4883-97eb-f87148c90896"
+    installations:
+      - format: PEM
+        file: "/etc/nginx/tls/example.crt"
+        chainFile: "/etc/nginx/tls/example.chain.crt"
+        keyFile: "/etc/nginx/tls/example.key"
+        afterInstallAction: "systemctl reload nginx"
+  - name: "DatabaseCert"
+    renewBefore: 15d
+    request:
+      csr: service
+      subject:
+        commonName: "db.example.com"
+        country: US
+        state: Utah
+        locality: Salt Lake City
+        organization: Example Corp
+        orgUnits: ["Database Team"]
+      zone: "5fe6d368-896a-4883-97eb-f87148c90896"
+    installations:
+      - format: PKCS12
+        file: "/opt/database/certs/db.p12"
+        password: "{{ Env \"DB_CERT_PASSWORD\" }}"
+        backupExisting: true
+        afterInstallAction: "systemctl restart postgresql"

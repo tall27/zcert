@@ -18,7 +18,7 @@ certificateTasks:
         locality: Salt Lake City
         organization: Example Corp
         orgUnits: ["IT Ops"]
-      policy: "My Application\\Default"
+      policy: "5fe6d368-896a-4883-97eb-f87148c90896"
     installations:
       - format: PEM
         file: "/etc/nginx/tls/example.crt"
