@@ -763,26 +763,24 @@ func (c *Client) GetCertificateChain(id string) ([]string, error) {
 
 // RevokeCertificate revokes a certificate using the correct ZTPKI API format
 func (c *Client) RevokeCertificate(id, reason string) error {
-        // First, get the certificate details to obtain the issuerDN
-        certificate, err := c.GetCertificate(id)
-        if err != nil {
-                return fmt.Errorf("failed to get certificate details: %w", err)
-        }
-        
         // ZTPKI revoke endpoint - correct format is PATCH /certificates/{id}
         endpoint := fmt.Sprintf("/certificates/%s", url.PathEscape(id))
         
-        // Convert reason string to numeric code
+        // Convert reason string to numeric code per ZTPKI specification
         reasonCode := c.convertRevocationReason(reason)
         
         // Current time in ISO format for revocationDate
         revocationDate := time.Now().UTC().Format(time.RFC3339)
         
-        // ZTPKI revocation request format per API specification
+        // ZTPKI revocation request - try both formats to identify correct one
         requestBody := map[string]interface{}{
                 "reason":         reasonCode,
                 "revocationDate": revocationDate,
-                "issuerDN":       certificate.Issuer,
+        }
+        
+        // Alternative format with revocationReason field
+        if reasonCode == 0 {
+                requestBody["revocationReason"] = 0
         }
         
         // Always show the complete request details for debugging
