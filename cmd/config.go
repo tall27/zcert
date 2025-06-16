@@ -120,7 +120,7 @@ func runConfig(cmd *cobra.Command, args []string) error {
                         }
                 }
 
-                err := config.CreateExamplePlaybookConfig(filename)
+                err := config.CreateExampleYAMLConfig(filename)
                 if err != nil {
                         return fmt.Errorf("failed to create example playbook config: %w", err)
                 }
