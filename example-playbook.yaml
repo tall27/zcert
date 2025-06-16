@@ -4,7 +4,7 @@ tasks:
   - name: "Enroll new certificate"
     action: "enroll"
     common_name: "test.example.com"
-    policy_id: "5fe6d368-896a-4883-97eb-f87148c90896"
+    policy_id: "your-policy-id-here"
     key_size: 2048
     key_type: "rsa"
     output_file: "test-cert.pem"

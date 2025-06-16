@@ -9,7 +9,7 @@ certificateTasks:
     request:
       subject:
         commonName: "web.example.com"
-      policy: 5fe6d368-896a-4883-97eb-f87148c90896
+      policy: your-policy-id-here
       sans:
         - "www.example.com" 
         - "api.example.com"
@@ -27,7 +27,7 @@ certificateTasks:
     request:
       subject:
         commonName: "db.example.com"
-      policy: 5fe6d368-896a-4883-97eb-f87148c90896
+      policy: your-policy-id-here
     installations:
       - format: PEM
         file: "./certs/database.crt"

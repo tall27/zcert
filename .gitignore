@@ -68,3 +68,17 @@ setup-completion.sh
 *.tar.gz
 *.zip
 *.tar.xz
+
+# Cache and local files
+.cache/
+.local/
+.replit_stop
+
+# Environment variables and secrets
+.env
+.env.local
+.env.production
+
+# Backup files
+*.backup
+*.bak

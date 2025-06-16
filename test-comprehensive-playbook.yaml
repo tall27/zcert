@@ -20,7 +20,7 @@ certificateTasks:
         orgUnits: ["IT Ops", "Security"]
         domainComponents: ["example", "com"]
         email: "admin@example.com"
-      policy: '5fe6d368-896a-4883-97eb-f87148c90896'
+      policy: 'your-policy-id-here'
       sans:
         dns:
           - "www.example.com"

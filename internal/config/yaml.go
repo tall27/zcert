@@ -292,7 +292,7 @@ certificateTasks:
         # Additional DN components supported by ZTPKI:
         domainComponents: ["example", "com"]  # DC fields
         email: "admin@example.com"           # EMAIL field
-      policy: '5fe6d368-896a-4883-97eb-f87148c90896'
+      policy: 'your-policy-id-here'
       # Enhanced SAN support matching ZTPKI schema
       sans:
         dns:
@@ -353,7 +353,7 @@ certificateTasks:
       csr: local
       subject:
         commonName: "api.example.com"
-      policy: '5fe6d368-896a-4883-97eb-f87148c90896'
+      policy: 'your-policy-id-here'
       sans:
         dns:
           - "api-v2.example.com"

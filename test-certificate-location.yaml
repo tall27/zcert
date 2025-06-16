@@ -9,7 +9,7 @@ certificateTasks:
     request:
       subject:
         commonName: "abc.example.com"
-      policy: 5fe6d368-896a-4883-97eb-f87148c90896
+      policy: your-policy-id-here
       sans:
         - "www.example.com"
         - "api.example.com"

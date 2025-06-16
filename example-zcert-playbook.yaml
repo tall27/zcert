@@ -16,7 +16,7 @@ certificateTasks:
         locality: Salt Lake City
         organization: Example Corp
         orgUnits: ["IT Ops"]
-      zone: "5fe6d368-896a-4883-97eb-f87148c90896"
+      zone: "your-policy-id-here"
     installations:
       - format: PEM
         file: "/etc/nginx/tls/example.crt"
@@ -34,7 +34,7 @@ certificateTasks:
         locality: Salt Lake City
         organization: Example Corp
         orgUnits: ["Database Team"]
-      zone: "5fe6d368-896a-4883-97eb-f87148c90896"
+      zone: "your-policy-id-here"
     installations:
       - format: PKCS12
         file: "/opt/database/certs/db.p12"
