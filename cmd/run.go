@@ -1028,10 +1028,7 @@ func processPEMInstallation(certificate *api.Certificate, privateKeyPEM string, 
                 keyFileAbs, _ := filepath.Abs(keyFile)
                 defaultKeyFileAbs, _ := filepath.Abs(defaultKeyFile)
                 
-                // Debug: Print paths for comparison
-                if !globalQuietMode && runVerbose {
-                        fmt.Printf("    Debug: keyFile=%s, defaultKeyFile=%s\n", keyFileAbs, defaultKeyFileAbs)
-                }
+
                 
                 // Only create separate key file if it's different from the default one
                 if keyFileAbs != defaultKeyFileAbs {
