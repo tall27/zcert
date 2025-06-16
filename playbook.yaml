@@ -1,27 +1,32 @@
 config:
   connection:
-    platform: ztpki
-    url: "{{ZTPKI_URL}}"
     credentials:
-      hawk-id: "{{ZTPKI_HAWK_ID}}"
-      hawk-api: "{{ZTPKI_HAWK_SECRET}}"
+      hawk-id: '{{ZTPKI_HAWK_ID}}'
+      hawk-api: '{{ZTPKI_HAWK_SECRET}}'
+      platform: '{{ZTPKI_URL}}'
 
 certificateTasks:
   - name: "WebServerCert"
     renewBefore: 30d
     request:
-      csr: service
+      csr: local
       subject:
-        commonName: "example.com"
+        commonName: "abc.example.com"
         country: US
-        state: Utah
-        locality: Salt Lake City
+        state: IL
+        locality: Chicago
         organization: Example Corp
         orgUnits: ["IT Ops"]
-      policy: "5fe6d368-896a-4883-97eb-f87148c90896"
+      policy: 5fe6d368-896a-4883-97eb-f87148c90896
+      sans:
+        - "www.example.com"
+        - "api.example.com"
     installations:
       - format: PEM
-        file: "/etc/nginx/tls/example.crt"
-        chainFile: "/etc/nginx/tls/example.chain.crt"
-        keyFile: "/etc/nginx/tls/example.key"
-        afterInstallAction: "systemctl reload nginx"
+        file: "./certs/example.crt"
+        chainFile: "./certs/example.chain.crt"
+        keyFile: "./certs/example.key"
+        backupExisting: true
+        afterInstallAction: "echo 'Certificate installed successfully!'"
+        #afterInstallAction: ('', (gc .\certs\example.crt -Raw)) | ac .\certs\example.chain.crt
+

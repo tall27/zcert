@@ -53,7 +53,7 @@ type CertificateRequest struct {
         CSR               string                 `yaml:"csr"`
         Subject           CertificateSubject     `yaml:"subject"`
         Policy            string                 `yaml:"policy"`
-        SANs              *SubjectAltNames       `yaml:"sans,omitempty"`
+        SANs              *FlexibleSANs          `yaml:"sans,omitempty"`
         Validity          *ValidityConfig        `yaml:"validity,omitempty"`
         CustomFields      map[string]string      `yaml:"customFields,omitempty"`
         CustomExtensions  map[string]string      `yaml:"customExtensions,omitempty"`
@@ -81,6 +81,33 @@ type SubjectAltNames struct {
         Email []string `yaml:"email,omitempty"`
         UPN   []string `yaml:"upn,omitempty"`
         URI   []string `yaml:"uri,omitempty"`
+}
+
+// FlexibleSANs handles both simple array and structured SAN formats
+type FlexibleSANs struct {
+        *SubjectAltNames
+        SimpleList []string
+}
+
+// UnmarshalYAML implements custom unmarshaling for flexible SAN formats
+func (f *FlexibleSANs) UnmarshalYAML(value *yaml.Node) error {
+        // Try to unmarshal as a simple array first
+        var simpleList []string
+        if err := value.Decode(&simpleList); err == nil {
+                f.SimpleList = simpleList
+                f.SubjectAltNames = &SubjectAltNames{
+                        DNS: simpleList, // Assume all entries are DNS names by default
+                }
+                return nil
+        }
+        
+        // Fall back to structured format
+        var sans SubjectAltNames
+        if err := value.Decode(&sans); err != nil {
+                return err
+        }
+        f.SubjectAltNames = &sans
+        return nil
 }
 
 // ValidityConfig represents certificate validity period
