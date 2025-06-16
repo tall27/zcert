@@ -43,6 +43,7 @@ Example usage:
   zcert run --force-renew                # Force renewal of all certificates`,
         Args: cobra.NoArgs,
         RunE: runPlaybook,
+        SilenceUsage: true, // Don't show usage on error
 }
 
 func init() {
@@ -1226,6 +1227,7 @@ func processPEMInstallation(certificate *api.Certificate, privateKeyPEM string, 
         if installation.AfterInstallAction != "" {
                 if !quiet {
                         fmt.Printf("    Executing after-install action: %s\n", installation.AfterInstallAction)
+                        fmt.Println() // Add empty line after after-install action
                 }
                 // Note: Actual execution would require shell command execution
                 // For now, just log the action that would be performed
