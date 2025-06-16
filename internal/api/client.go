@@ -772,20 +772,18 @@ func (c *Client) RevokeCertificate(id, reason string) error {
         // Current time in ISO format for revocationDate
         revocationDate := time.Now().UTC().Format(time.RFC3339)
         
-        // ZTPKI revocation request format per API specification
+        // ZTPKI revocation request format - try revocationReason field
         requestBody := map[string]interface{}{
-                "reason":         reasonCode,
-                "revocationDate": revocationDate,
+                "revocationReason": reasonCode,
+                "revocationDate":   revocationDate,
         }
         
-        // Debug: Print the payload being sent to ZTPKI (only in verbose mode)
-        if os.Getenv("ZCERT_VERBOSE") == "true" {
-                if payload, err := json.MarshalIndent(requestBody, "", "  "); err == nil {
-                        fmt.Printf("=== ZTPKI Revoke API Payload ===\n")
-                        fmt.Printf("PATCH %s\n", endpoint)
-                        fmt.Printf("%s\n", string(payload))
-                        fmt.Printf("===============================\n")
-                }
+        // Always show the payload format for revocation (for debugging)
+        if payload, err := json.MarshalIndent(requestBody, "", "  "); err == nil {
+                fmt.Printf("=== ZTPKI Revoke API Request ===\n")
+                fmt.Printf("PATCH %s\n", endpoint)
+                fmt.Printf("%s\n", string(payload))
+                fmt.Printf("================================\n")
         }
         
         requestBodyBytes, err := json.Marshal(requestBody)
