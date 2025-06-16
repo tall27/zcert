@@ -12,45 +12,37 @@ import (
 
 var (
         runFile string
-        runDryRun bool
-        runVerbose bool
         runForceRenew bool
+        runDryRun bool
 )
 
 // runCmd represents the run command
 var runCmd = &cobra.Command{
-        Use:   "run [playbook.yaml]",
+        Use:   "run [--file PLAYBOOK] [--force-renew]",
         Short: "Execute a YAML playbook for automated certificate operations",
         Long: `Execute a YAML playbook that defines a series of certificate operations.
-The playbook can include multiple tasks for enrollment, retrieval, and management
-of certificates with different configurations.
+The playbook contains connection settings and one or more certificate tasks to
+automate end-to-end certificate enrollment and deployment.
 
 Example usage:
-  zcert run playbook.yaml
-  zcert run --dry-run playbook.yaml
-  zcert run --file playbook.yaml --verbose`,
-        Args: cobra.MaximumNArgs(1),
+  zcert run
+  zcert run --file myplaybook.yaml
+  zcert run --force-renew`,
+        Args: cobra.NoArgs,
         RunE: runPlaybook,
 }
 
 func init() {
         rootCmd.AddCommand(runCmd)
         
-        runCmd.Flags().StringVarP(&runFile, "file", "f", "", "YAML playbook file to execute")
+        runCmd.Flags().StringVarP(&runFile, "file", "f", "playbook.yaml", "Playbook YAML file to execute (default \"playbook.yaml\")")
+        runCmd.Flags().BoolVar(&runForceRenew, "force-renew", false, "Force renew certificates regardless of current expiration")
         runCmd.Flags().BoolVar(&runDryRun, "dry-run", false, "Show what would be executed without running")
-        runCmd.Flags().BoolVar(&runVerbose, "verbose", false, "Verbose output during execution")
 }
 
 func runPlaybook(cmd *cobra.Command, args []string) error {
-        // Determine playbook file
-        var playbookFile string
-        if len(args) > 0 {
-                playbookFile = args[0]
-        } else if runFile != "" {
-                playbookFile = runFile
-        } else {
-                return fmt.Errorf("playbook file is required")
-        }
+        // Use default file if not specified
+        playbookFile := runFile
 
         // Check if file exists
         if _, err := os.Stat(playbookFile); os.IsNotExist(err) {
@@ -69,10 +61,8 @@ func runPlaybook(cmd *cobra.Command, args []string) error {
                 return fmt.Errorf("failed to load playbook: %w", err)
         }
 
-        if runVerbose {
-                fmt.Printf("Loaded playbook with %d tasks\n", len(playbook.Tasks))
-                fmt.Println()
-        }
+        fmt.Printf("Loaded playbook with %d tasks\n", len(playbook.Tasks))
+        fmt.Println()
 
         // Create API client using global configuration
         cfg := config.GetConfig()
@@ -110,7 +100,7 @@ func runPlaybook(cmd *cobra.Command, args []string) error {
                         }
                         fmt.Println("  [DRY RUN - would execute here]")
                 } else {
-                        err := executeTask(client, &task, runVerbose)
+                        err := executeTask(client, &task)
                         if err != nil {
                                 fmt.Printf("  ❌ Task failed: %v\n", err)
                                 if !task.ContinueOnError {
@@ -133,25 +123,23 @@ func runPlaybook(cmd *cobra.Command, args []string) error {
         return nil
 }
 
-func executeTask(client *api.Client, task *config.PlaybookTask, verbose bool) error {
+func executeTask(client *api.Client, task *config.PlaybookTask) error {
         switch strings.ToLower(task.Action) {
         case "enroll":
-                return executeEnrollTask(client, task, verbose)
+                return executeEnrollTask(client, task)
         case "retrieve":
-                return executeRetrieveTask(client, task, verbose)
+                return executeRetrieveTask(client, task)
         case "search":
-                return executeSearchTask(client, task, verbose)
+                return executeSearchTask(client, task)
         case "revoke":
-                return executeRevokeTask(client, task, verbose)
+                return executeRevokeTask(client, task)
         default:
                 return fmt.Errorf("unknown task action: %s", task.Action)
         }
 }
 
-func executeEnrollTask(client *api.Client, task *config.PlaybookTask, verbose bool) error {
-        if verbose {
-                fmt.Printf("    Enrolling certificate for CN: %s\n", task.CommonName)
-        }
+func executeEnrollTask(client *api.Client, task *config.PlaybookTask) error {
+        fmt.Printf("    Enrolling certificate for CN: %s\n", task.CommonName)
 
         // Validate required fields
         if task.CommonName == "" {
@@ -184,12 +172,10 @@ func executeEnrollTask(client *api.Client, task *config.PlaybookTask, verbose bo
                 return fmt.Errorf("failed to submit CSR: %w", err)
         }
 
-        if verbose {
-                fmt.Printf("    CSR submitted, request ID: %s\n", requestID)
-        }
+        fmt.Printf("    CSR submitted, request ID: %s\n", requestID)
 
         // Poll for certificate
-        certificate, err := pollForCertificate(client, requestID, verbose)
+        certificate, err := pollForCertificate(client, requestID)
         if err != nil {
                 return fmt.Errorf("failed to retrieve certificate: %w", err)
         }
