@@ -10,6 +10,7 @@ import (
         "net/http"
         "net/url"
         "os"
+        "strings"
         "time"
 
         "zcert/internal/auth"
@@ -285,6 +286,45 @@ func (c *Client) GetCertificatePEM(id string, includeChain bool) (*CertificatePE
         
         // Parse the PEM data to separate certificate and chain
         return parsePEMResponse(pemData), nil
+}
+
+// parsePEMResponse parses PEM data and separates the first certificate from the chain
+func parsePEMResponse(pemData string) *CertificatePEMResponse {
+        var certificates []string
+        
+        // Parse all PEM blocks
+        remaining := []byte(pemData)
+        for {
+                block, rest := pem.Decode(remaining)
+                if block == nil {
+                        break
+                }
+                
+                if block.Type == "CERTIFICATE" {
+                        certPEM := pem.EncodeToMemory(block)
+                        certificates = append(certificates, string(certPEM))
+                }
+                
+                remaining = rest
+        }
+        
+        response := &CertificatePEMResponse{}
+        
+        if len(certificates) > 0 {
+                // First certificate is the end-entity certificate
+                response.Certificate = certificates[0]
+                
+                // Remaining certificates form the chain
+                if len(certificates) > 1 {
+                        var chainBuilder strings.Builder
+                        for i := 1; i < len(certificates); i++ {
+                                chainBuilder.WriteString(certificates[i])
+                        }
+                        response.Chain = chainBuilder.String()
+                }
+        }
+        
+        return response
 }
 
 // GetCertificateRequest retrieves the status of a certificate request
