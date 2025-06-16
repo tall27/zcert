@@ -1,0 +1,30 @@
+# Demo playbook for testing new output modes
+config:
+  connection:
+    credentials:
+      hawk-id: '{{ZTPKI_HAWK_ID}}'
+      hawk-api: '{{ZTPKI_HAWK_SECRET}}'
+      platform: '{{ZTPKI_URL}}'
+
+certificateTasks:
+  - name: "WebServerCert"
+    renewBefore: 30d
+    request:
+      csr: local
+      subject:
+        commonName: "abc.example.com"
+        country: US
+        state: Utah
+        locality: Salt Lake City
+        organization: Example Corp
+        orgUnits: ["IT Ops"]
+      policy: '5fe6d368-896a-4883-97eb-f87148c90896'
+      sans:
+        dns:
+          - "www.example.com"
+          - "api.example.com"
+    installations:
+      - format: PEM
+        file: "./test-cert.crt"
+        keyFile: "./test-cert.key"
+        backupExisting: true
