@@ -424,9 +424,19 @@ func pollForCertificate(client *api.Client, requestID string) (*api.Certificate,
                         }
 
                         if request != nil && request.CertificateID != "" {
-                                // Request completed, now get the actual certificate
-                                certificate, err = client.GetCertificate(request.CertificateID)
-                                if err == nil && certificate != nil && certificate.Certificate != "" {
+                                // Request completed, now get the actual certificate with chain
+                                pemResp, err := client.GetCertificatePEM(request.CertificateID, true)
+                                if err == nil && pemResp != nil && pemResp.Certificate != "" {
+                                        // Convert PEM response to Certificate struct
+                                        certificate = &api.Certificate{
+                                                ID:          request.CertificateID,
+                                                Certificate: pemResp.Certificate,
+                                                Chain:       []string{},
+                                        }
+                                        // Parse chain if present
+                                        if pemResp.Chain != "" {
+                                                certificate.Chain = append(certificate.Chain, pemResp.Chain)
+                                        }
                                         return certificate, nil
                                 }
                         }
@@ -435,9 +445,17 @@ func pollForCertificate(client *api.Client, requestID string) (*api.Certificate,
 
 timeout_reached:
         if certificate == nil {
-                // Fallback: Try to get certificate directly by request ID
-                certificate, err := client.GetCertificate(requestID)
-                if err == nil && certificate != nil && certificate.Certificate != "" {
+                // Fallback: Try to get certificate directly by request ID with chain
+                pemResp, err := client.GetCertificatePEM(requestID, true)
+                if err == nil && pemResp != nil && pemResp.Certificate != "" {
+                        certificate = &api.Certificate{
+                                ID:          requestID,
+                                Certificate: pemResp.Certificate,
+                                Chain:       []string{},
+                        }
+                        if pemResp.Chain != "" {
+                                certificate.Chain = append(certificate.Chain, pemResp.Chain)
+                        }
                         return certificate, nil
                 }
                 return nil, fmt.Errorf("certificate was not issued within the expected time frame. The certificate may still be processing on the server")
@@ -1006,6 +1024,8 @@ func processPEMInstallation(certificate *api.Certificate, privateKeyPEM string, 
                         chainCertificate += chainCert + "\n"
                 }
         }
+        
+
 
         // Save certificate and key with backup if requested
         err := saveCertificateAndKeyQuiet(outputFile, certificate.Certificate, privateKeyPEM, chainCertificate, installation.BackupExisting, quiet)
