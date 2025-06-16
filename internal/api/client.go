@@ -772,15 +772,10 @@ func (c *Client) RevokeCertificate(id, reason string) error {
         // Current time in ISO format for revocationDate
         revocationDate := time.Now().UTC().Format(time.RFC3339)
         
-        // ZTPKI revocation request - try both formats to identify correct one
+        // ZTPKI revocation request format
         requestBody := map[string]interface{}{
                 "reason":         reasonCode,
                 "revocationDate": revocationDate,
-        }
-        
-        // Alternative format with revocationReason field
-        if reasonCode == 0 {
-                requestBody["revocationReason"] = 0
         }
         
         // Always show the complete request details for debugging
@@ -800,6 +795,7 @@ func (c *Client) RevokeCertificate(id, reason string) error {
                 return fmt.Errorf("failed to marshal revocation request: %w", err)
         }
         
+        // Use PATCH method as documented in ZTPKI API
         resp, err := c.makeRequest("PATCH", endpoint, bytes.NewReader(requestBodyBytes))
         if err != nil {
                 return err
