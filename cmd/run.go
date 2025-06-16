@@ -468,6 +468,47 @@ func saveCertificateAndKey(outputFile, certificate, privateKey, chainCertificate
         return saveCertificateAndKeyQuiet(outputFile, certificate, privateKey, chainCertificate, backupExisting, false)
 }
 
+func saveCertificateAndKeyQuietNoBackup(outputFile, certificate, privateKey, chainCertificate string, quiet bool) error {
+        // Create directory if it doesn't exist
+        dir := strings.Replace(outputFile, "\\", "/", -1) // Handle Windows paths
+        if lastSlash := strings.LastIndex(dir, "/"); lastSlash != -1 {
+                dir = dir[:lastSlash]
+                err := os.MkdirAll(dir, 0755)
+                if err != nil {
+                        return fmt.Errorf("failed to create directory %s: %w", dir, err)
+                }
+        }
+
+        // Generate key file path
+        keyFile := strings.TrimSuffix(outputFile, ".crt") + ".key"
+        chainFile := strings.TrimSuffix(outputFile, ".crt") + ".chain.crt"
+
+        // Save certificate to the specified output file
+        err := os.WriteFile(outputFile, []byte(certificate), 0644)
+        if err != nil {
+                return fmt.Errorf("failed to write certificate file: %w", err)
+        }
+
+        // Save private key with .key extension
+        err = os.WriteFile(keyFile, []byte(privateKey), 0600) // More restrictive permissions for private key
+        if err != nil {
+                return fmt.Errorf("failed to write private key file: %w", err)
+        }
+
+        // Save chain certificate if provided
+        if chainCertificate != "" && strings.TrimSpace(chainCertificate) != "" {
+                err = os.WriteFile(chainFile, []byte(chainCertificate), 0644)
+                if err != nil {
+                        return fmt.Errorf("failed to write chain certificate file: %w", err)
+                }
+                if !quiet {
+                        fmt.Printf("    Chain certificate saved to: %s\n", chainFile)
+                }
+        }
+
+        return nil
+}
+
 func saveCertificateAndKeyQuiet(outputFile, certificate, privateKey, chainCertificate string, backupExisting bool, quiet bool) error {
         // Create directory if it doesn't exist
         dir := strings.Replace(outputFile, "\\", "/", -1) // Handle Windows paths
@@ -1044,17 +1085,51 @@ func processPEMInstallation(certificate *api.Certificate, privateKeyPEM string, 
                 }
         }
         
+        // STEP 1: Perform all backup operations first if requested
+        if installation.BackupExisting {
+                // Backup main certificate file
+                err := backupFileIfExistsQuiet(outputFile, quiet)
+                if err != nil {
+                        return fmt.Errorf("failed to backup certificate file: %w", err)
+                }
+                
+                // Backup key file
+                defaultKeyFile := strings.TrimSuffix(outputFile, ".crt") + ".key"
+                err = backupFileIfExistsQuiet(defaultKeyFile, quiet)
+                if err != nil {
+                        return fmt.Errorf("failed to backup key file: %w", err)
+                }
+                
+                // Backup chain file if custom chain file specified
+                if installation.ChainFile != "" && chainCertificate != "" {
+                        err = backupFileIfExistsQuiet(installation.ChainFile, quiet)
+                        if err != nil {
+                                return fmt.Errorf("failed to backup chain file: %w", err)
+                        }
+                }
+                
+                // Backup separate key file if specified and different from default
+                if installation.KeyFile != "" {
+                        keyFileAbs, _ := filepath.Abs(installation.KeyFile)
+                        defaultKeyFileAbs, _ := filepath.Abs(strings.TrimSuffix(outputFile, ".crt") + ".key")
+                        if keyFileAbs != defaultKeyFileAbs {
+                                err = backupFileIfExistsQuiet(installation.KeyFile, quiet)
+                                if err != nil {
+                                        return fmt.Errorf("failed to backup separate key file: %w", err)
+                                }
+                        }
+                }
+        }
 
-
-        // Determine if we should pass chain to default save function
+        // STEP 2: Save certificate and key files
         chainForDefaultSave := chainCertificate
         if installation.ChainFile != "" {
                 // Custom chain file specified, don't save to default location
                 chainForDefaultSave = ""
         }
         
-        // Save certificate and key with backup if requested
-        err := saveCertificateAndKeyQuiet(outputFile, certificate.Certificate, privateKeyPEM, chainForDefaultSave, installation.BackupExisting, quiet)
+        // Save certificate and key without backup operations (already done above)
+        err := saveCertificateAndKeyQuietNoBackup(outputFile, certificate.Certificate, privateKeyPEM, chainForDefaultSave, quiet)
         if err != nil {
                 return err
         }
@@ -1067,25 +1142,15 @@ func processPEMInstallation(certificate *api.Certificate, privateKeyPEM string, 
         if installation.KeyFile != "" {
                 keyFile := installation.KeyFile
                 
-                // Check if this is the same key file already created by saveCertificateAndKeyQuiet
+                // Check if this is the same key file already created by saveCertificateAndKeyQuietNoBackup
                 defaultKeyFile := strings.TrimSuffix(outputFile, ".crt") + ".key"
                 
                 // Normalize paths for comparison
                 keyFileAbs, _ := filepath.Abs(keyFile)
                 defaultKeyFileAbs, _ := filepath.Abs(defaultKeyFile)
                 
-
-                
                 // Only create separate key file if it's different from the default one
                 if keyFileAbs != defaultKeyFileAbs {
-                        // Backup existing key file if requested
-                        if installation.BackupExisting {
-                                err := backupFileIfExistsQuiet(keyFile, quiet)
-                                if err != nil {
-                                        return fmt.Errorf("failed to backup key file: %w", err)
-                                }
-                        }
-                        
                         err := os.WriteFile(keyFile, []byte(privateKeyPEM), 0600)
                         if err != nil {
                                 return fmt.Errorf("failed to write key file: %w", err)
@@ -1099,14 +1164,6 @@ func processPEMInstallation(certificate *api.Certificate, privateKeyPEM string, 
         // Save to separate chain file if specified
         if installation.ChainFile != "" && chainCertificate != "" {
                 chainFile := installation.ChainFile
-                
-                // Backup existing chain file if requested
-                if installation.BackupExisting {
-                        err := backupFileIfExistsQuiet(chainFile, quiet)
-                        if err != nil {
-                                return fmt.Errorf("failed to backup chain file: %w", err)
-                        }
-                }
                 
                 err := os.WriteFile(chainFile, []byte(chainCertificate), 0644)
                 if err != nil {
