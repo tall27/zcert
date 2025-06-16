@@ -1,0 +1,164 @@
+name: Build and Release
+
+on:
+  push:
+    branches: [ main, 6-15 ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          # Linux builds
+          - goos: linux
+            goarch: amd64
+            suffix: ""
+          - goos: linux
+            goarch: arm64
+            suffix: ""
+          
+          # macOS builds
+          - goos: darwin
+            goarch: amd64
+            suffix: ""
+          - goos: darwin
+            goarch: arm64
+            suffix: ""
+          
+          # Windows builds
+          - goos: windows
+            goarch: amd64
+            suffix: ".exe"
+          - goos: windows
+            goarch: arm64
+            suffix: ".exe"
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.21'
+
+    - name: Get version info
+      id: version
+      run: |
+        if [[ $GITHUB_REF == refs/tags/* ]]; then
+          VERSION=${GITHUB_REF#refs/tags/}
+        else
+          VERSION="v1.2.0-${GITHUB_SHA::7}"
+        fi
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "commit=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+        echo "timestamp=$(date -u +%Y%m%d.%H%M%S)" >> $GITHUB_OUTPUT
+
+    - name: Build binary
+      env:
+        GOOS: ${{ matrix.goos }}
+        GOARCH: ${{ matrix.goarch }}
+        CGO_ENABLED: 0
+      run: |
+        # Build with version information
+        go build -ldflags="
+          -X 'main.Version=${{ steps.version.outputs.version }}'
+          -X 'main.GitCommit=${{ steps.version.outputs.commit }}'
+          -X 'main.BuildTime=${{ steps.version.outputs.timestamp }}'
+          -w -s
+        " -o zcert-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.suffix }} main.go
+
+    - name: Create archive
+      run: |
+        if [ "${{ matrix.goos }}" = "windows" ]; then
+          zip zcert-${{ steps.version.outputs.version }}-${{ matrix.goos }}-${{ matrix.goarch }}.zip \
+              zcert-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.suffix }} \
+              README.md \
+              SECURITY.md \
+              DEPLOYMENT.md
+        else
+          tar -czf zcert-${{ steps.version.outputs.version }}-${{ matrix.goos }}-${{ matrix.goarch }}.tar.gz \
+              zcert-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.suffix }} \
+              README.md \
+              SECURITY.md \
+              DEPLOYMENT.md
+        fi
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: zcert-${{ matrix.goos }}-${{ matrix.goarch }}
+        path: |
+          zcert-${{ steps.version.outputs.version }}-${{ matrix.goos }}-${{ matrix.goarch }}.*
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    
+    steps:
+    - name: Download all artifacts
+      uses: actions/download-artifact@v3
+      with:
+        path: artifacts
+
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: artifacts/*/*
+        draft: false
+        prerelease: false
+        generate_release_notes: true
+        body: |
+          ## ZCert CLI ${{ github.ref_name }}
+          
+          Cross-platform certificate management tool for CyberArk Zero Touch PKI.
+          
+          ### Download for your platform:
+          
+          **macOS:**
+          - Intel: `zcert-*-darwin-amd64.tar.gz`
+          - Apple Silicon: `zcert-*-darwin-arm64.tar.gz`
+          
+          **Linux:**
+          - x86_64: `zcert-*-linux-amd64.tar.gz`
+          - ARM64: `zcert-*-linux-arm64.tar.gz`
+          
+          **Windows:**
+          - x86_64: `zcert-*-windows-amd64.zip`
+          - ARM64: `zcert-*-windows-arm64.zip`
+          
+          ### Installation:
+          1. Download the appropriate archive for your platform
+          2. Extract the archive
+          3. Make the binary executable (Unix/macOS): `chmod +x zcert`
+          4. Run: `./zcert --version`
+          
+          See [README.md](README.md) for configuration and usage instructions.
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.21'
+    
+    - name: Run tests
+      run: |
+        go mod tidy
+        go test -v ./...
+    
+    - name: Build test
+      run: |
+        go build -o zcert main.go
+        ./zcert --version
