@@ -117,6 +117,90 @@ type Playbook struct {
         Tasks   []PlaybookTask  `yaml:"tasks"`
 }
 
+// CertificatePlaybook represents a certificate management playbook
+type CertificatePlaybook struct {
+        Config           PlaybookConfig      `yaml:"config"`
+        CertificateTasks []CertificateTask   `yaml:"certificateTasks"`
+}
+
+// PlaybookConfig represents the configuration section
+type PlaybookConfig struct {
+        Connection ConnectionConfig `yaml:"connection"`
+}
+
+// ConnectionConfig represents connection credentials
+type ConnectionConfig struct {
+        Credentials CredentialsConfig `yaml:"credentials"`
+}
+
+// CredentialsConfig represents authentication credentials
+type CredentialsConfig struct {
+        HawkID   string `yaml:"hawk-id"`
+        HawkAPI  string `yaml:"hawk-api"`
+        Platform string `yaml:"platform"`
+}
+
+// CertificateTask represents a certificate management task
+type CertificateTask struct {
+        Name         string                 `yaml:"name"`
+        RenewBefore  string                 `yaml:"renewBefore"`
+        Request      CertificateRequest     `yaml:"request"`
+        Installations []CertificateInstall  `yaml:"installations"`
+}
+
+// CertificateRequest represents certificate request details
+type CertificateRequest struct {
+        CSR               string                 `yaml:"csr"`
+        Subject           CertificateSubject     `yaml:"subject"`
+        Policy            string                 `yaml:"policy"`
+        SANs              *SubjectAltNames       `yaml:"sans,omitempty"`
+        Validity          *ValidityConfig        `yaml:"validity,omitempty"`
+        CustomFields      map[string]string      `yaml:"customFields,omitempty"`
+        CustomExtensions  map[string]string      `yaml:"customExtensions,omitempty"`
+        Comment           string                 `yaml:"comment,omitempty"`
+        ExpiryEmails      []string               `yaml:"expiryEmails,omitempty"`
+        ClearRemindersID  string                 `yaml:"clearRemindersCertificateId,omitempty"`
+}
+
+// CertificateSubject represents certificate subject information
+type CertificateSubject struct {
+        CommonName       string   `yaml:"commonName"`
+        Country          string   `yaml:"country"`
+        State            string   `yaml:"state"`
+        Locality         string   `yaml:"locality"`
+        Organization     string   `yaml:"organization"`
+        OrgUnits         []string `yaml:"orgUnits"`
+        DomainComponents []string `yaml:"domainComponents,omitempty"`
+        Email            string   `yaml:"email,omitempty"`
+}
+
+// SubjectAltNames represents subject alternative names
+type SubjectAltNames struct {
+        DNS   []string `yaml:"dns,omitempty"`
+        IP    []string `yaml:"ip,omitempty"`
+        Email []string `yaml:"email,omitempty"`
+        UPN   []string `yaml:"upn,omitempty"`
+        URI   []string `yaml:"uri,omitempty"`
+}
+
+// ValidityConfig represents certificate validity period
+type ValidityConfig struct {
+        Years  int `yaml:"years"`
+        Months int `yaml:"months"`
+        Days   int `yaml:"days"`
+}
+
+// CertificateInstall represents certificate installation configuration
+type CertificateInstall struct {
+        Format            string `yaml:"format"`
+        File              string `yaml:"file"`
+        ChainFile         string `yaml:"chainFile,omitempty"`
+        KeyFile           string `yaml:"keyFile,omitempty"`
+        Password          string `yaml:"password,omitempty"`
+        BackupExisting    bool   `yaml:"backupExisting,omitempty"`
+        AfterInstallAction string `yaml:"afterInstallAction,omitempty"`
+}
+
 // PlaybookTask represents a single task in a playbook
 type PlaybookTask struct {
         Name            string       `yaml:"name"`
@@ -141,7 +225,7 @@ type SubjectInfo struct {
         OrgUnit      []string `yaml:"organizational_unit"`
 }
 
-// LoadPlaybook loads a YAML playbook from file
+// LoadPlaybook loads a YAML playbook from file and supports both formats
 func LoadPlaybook(filename string) (*Playbook, error) {
         file, err := os.Open(filename)
         if err != nil {
@@ -149,8 +233,19 @@ func LoadPlaybook(filename string) (*Playbook, error) {
         }
         defer file.Close()
 
-        var playbook Playbook
+        // First, try to load as certificate playbook format
+        file.Seek(0, 0)
+        var certPlaybook CertificatePlaybook
         decoder := yaml.NewDecoder(file)
+        if err := decoder.Decode(&certPlaybook); err == nil && len(certPlaybook.CertificateTasks) > 0 {
+                // Convert certificate tasks to simple tasks for compatibility
+                return convertCertificatePlaybook(&certPlaybook, filename)
+        }
+
+        // Fall back to simple playbook format
+        file.Seek(0, 0)
+        var playbook Playbook
+        decoder = yaml.NewDecoder(file)
         if err := decoder.Decode(&playbook); err != nil {
                 return nil, fmt.Errorf("failed to parse playbook YAML: %w", err)
         }
@@ -175,6 +270,56 @@ func LoadPlaybook(filename string) (*Playbook, error) {
         }
 
         return &playbook, nil
+}
+
+// convertCertificatePlaybook converts a certificate playbook to a simple playbook format
+func convertCertificatePlaybook(certPlaybook *CertificatePlaybook, filename string) (*Playbook, error) {
+        playbook := &Playbook{
+                Name:    "Certificate Management Playbook",
+                Version: "1.0",
+                Tasks:   make([]PlaybookTask, 0, len(certPlaybook.CertificateTasks)),
+        }
+
+        for i, certTask := range certPlaybook.CertificateTasks {
+                // Convert certificate task to simple enrollment task
+                task := PlaybookTask{
+                        Name:       certTask.Name,
+                        Action:     "enroll",
+                        CommonName: certTask.Request.Subject.CommonName,
+                        PolicyID:   certTask.Request.Policy,
+                        KeySize:    2048, // Default
+                        KeyType:    "rsa", // Default
+                        Subject: &SubjectInfo{
+                                Country:      []string{certTask.Request.Subject.Country},
+                                Province:     []string{certTask.Request.Subject.State},
+                                Locality:     []string{certTask.Request.Subject.Locality},
+                                Organization: []string{certTask.Request.Subject.Organization},
+                                OrgUnit:      certTask.Request.Subject.OrgUnits,
+                        },
+                        ContinueOnError: false,
+                }
+
+                // Set output file from installations if available
+                if len(certTask.Installations) > 0 {
+                        task.OutputFile = certTask.Installations[0].File
+                }
+
+                // Validate required fields
+                if task.Name == "" {
+                        return nil, fmt.Errorf("certificate task %d must have a name", i+1)
+                }
+                if task.CommonName == "" {
+                        return nil, fmt.Errorf("certificate task %d (%s) must have a commonName", i+1, task.Name)
+                }
+
+                playbook.Tasks = append(playbook.Tasks, task)
+        }
+
+        if len(playbook.Tasks) == 0 {
+                return nil, fmt.Errorf("playbook must contain at least one certificate task")
+        }
+
+        return playbook, nil
 }
 
 // CreateExampleYAMLConfig creates an example YAML configuration file
