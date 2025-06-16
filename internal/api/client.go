@@ -250,6 +250,94 @@ func (c *Client) SubmitCSR(csrPEM, policyID string, validity *ValidityPeriod) (s
         return requestID, nil
 }
 
+// SubmitCSRWithCompletePayload submits a CSR with complete ZTPKI payload including SANs, DN components, etc.
+func (c *Client) SubmitCSRWithCompletePayload(csrPEM string, task interface{}) (string, error) {
+        // We need to import the config package to access PlaybookTask
+        // For now, let's use interface{} and type assertion
+        
+        // Extract CN from CSR
+        cn, err := extractCNFromCSR(csrPEM)
+        if err != nil {
+                return "", fmt.Errorf("failed to extract CN from CSR: %w", err)
+        }
+        
+        // Start building the complete request payload
+        requestBody := CSRSubmissionRequest{
+                CSR:    csrPEM,
+                CN:     cn,
+        }
+        
+        // We'll need to access task fields through type assertion or interface
+        // For now, build basic payload and extend it
+        if taskData, ok := task.(map[string]interface{}); ok {
+                if policy, exists := taskData["policy"]; exists {
+                        requestBody.Policy = policy.(string)
+                }
+                
+                // Build DN Components from subject data
+                dnComponents := map[string]interface{}{
+                        "CN": cn,
+                }
+                
+                if subject, exists := taskData["subject"]; exists {
+                        if subjectMap, ok := subject.(map[string]interface{}); ok {
+                                if country, exists := subjectMap["country"]; exists {
+                                        dnComponents["C"] = country
+                                }
+                                if state, exists := subjectMap["state"]; exists {
+                                        dnComponents["ST"] = state
+                                }
+                                if locality, exists := subjectMap["locality"]; exists {
+                                        dnComponents["L"] = locality
+                                }
+                                if organization, exists := subjectMap["organization"]; exists {
+                                        dnComponents["O"] = organization
+                                }
+                                if orgUnits, exists := subjectMap["orgUnits"]; exists {
+                                        dnComponents["OU"] = orgUnits
+                                }
+                        }
+                }
+                requestBody.DNComponents = dnComponents
+                
+                // Build Subject Alternative Names
+                if sans, exists := taskData["sans"]; exists {
+                        if sansList, ok := sans.([]interface{}); ok {
+                                sanMap := map[string]interface{}{
+                                        "dnsNames": sansList,
+                                }
+                                requestBody.SubjectAltNames = sanMap
+                        }
+                }
+        }
+        
+        // Debug: Print the complete payload being sent to ZTPKI
+        if payload, err := json.MarshalIndent(requestBody, "", "  "); err == nil {
+                fmt.Printf("=== COMPLETE ZTPKI API Payload ===\n")
+                fmt.Printf("POST /csr\n")
+                fmt.Printf("%s\n", string(payload))
+                fmt.Printf("=================================\n")
+        }
+        
+        resp, err := c.makeRequest("POST", "/csr", requestBody)
+        if err != nil {
+                return "", err
+        }
+        
+        var result CSRSubmissionResponse
+        if err := c.handleResponse(resp, &result); err != nil {
+                return "", err
+        }
+        
+        // Use ID field (new format) or fall back to RequestID (legacy)
+        requestID := result.ID
+        if requestID == "" {
+                requestID = result.RequestID
+        }
+        
+        return requestID, nil
+}
+
 // GetCertificate retrieves a certificate by ID
 func (c *Client) GetCertificate(id string) (*Certificate, error) {
         endpoint := fmt.Sprintf("/certificates/%s", url.PathEscape(id))
