@@ -578,15 +578,6 @@ func checkCertificateRenewal(client *api.Client, task *config.PlaybookTask) (boo
 
         // Check if we're within the renewal window
         needsRenewal := currentTime.After(renewalThreshold)
-        
-        if needsRenewal {
-                fmt.Printf("    Local certificate expires %s, renewing due to %s threshold\n", 
-                        expiryTime.Format("2006-01-02"), task.RenewBefore)
-        } else {
-                fmt.Printf("    Local certificate expires %s, renewal not needed (threshold: %s)\n", 
-                        expiryTime.Format("2006-01-02"), renewalThreshold.Format("2006-01-02"))
-        }
-
         return needsRenewal, nil
 }
 
