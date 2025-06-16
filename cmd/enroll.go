@@ -159,14 +159,31 @@ func runEnroll(cmd *cobra.Command, args []string) error {
                         enrollKeySize, enrollKeyType,
                 )
         } else {
-                // No profile config, use command-line flags or defaults
+                // No profile config, use command-line flags or environment variables
+                url := enrollURL
+                if url == "" {
+                        url = os.Getenv("ZTPKI_URL")
+                }
+                hawkID := enrollHawkID
+                if hawkID == "" {
+                        hawkID = os.Getenv("ZTPKI_HAWK_ID")
+                }
+                hawkKey := enrollHawkKey
+                if hawkKey == "" {
+                        hawkKey = os.Getenv("ZTPKI_HAWK_SECRET")
+                }
+                policy := enrollPolicy
+                if policy == "" {
+                        policy = os.Getenv("ZTPKI_POLICY_ID")
+                }
+
                 finalProfile = &config.Profile{
-                        URL:      enrollURL,
-                        KeyID:    enrollHawkID,
-                        Secret:   enrollHawkKey,
+                        URL:      url,
+                        KeyID:    hawkID,
+                        Secret:   hawkKey,
                         Algo:     "sha256", // Default algorithm
                         Format:   enrollFormat,
-                        PolicyID: enrollPolicy,
+                        PolicyID: policy,
                         P12Pass:  enrollP12Pass,
                         KeySize:  enrollKeySize,
                         KeyType:  enrollKeyType,
