@@ -165,7 +165,7 @@ func LoadPlaybook(filename string) (*Playbook, error) {
         defer file.Close()
 
         // First, try to load as certificate playbook format
-        file.Seek(0, 0)
+        _, _ = file.Seek(0, 0)
         var certPlaybook CertificatePlaybook
         decoder := yaml.NewDecoder(file)
         if err := decoder.Decode(&certPlaybook); err == nil && len(certPlaybook.CertificateTasks) > 0 {
@@ -174,7 +174,7 @@ func LoadPlaybook(filename string) (*Playbook, error) {
         }
 
         // Fall back to simple playbook format
-        file.Seek(0, 0)
+        _, _ = file.Seek(0, 0)
         var playbook Playbook
         decoder = yaml.NewDecoder(file)
         if err := decoder.Decode(&playbook); err != nil {
