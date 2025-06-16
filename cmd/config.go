@@ -10,6 +10,7 @@ import (
 
 var (
         configCnf    bool
+        configYaml   bool
         configOutput string
 )
 
@@ -25,7 +26,8 @@ func init() {
         rootCmd.AddCommand(configCmd)
 
         configCmd.Flags().BoolVar(&configCnf, "cnf", false, "Generate profile-based configuration file (zcert.cnf)")
-        configCmd.Flags().StringVar(&configOutput, "output", "", "Output filename (default: zcert.cnf)")
+        configCmd.Flags().BoolVar(&configYaml, "yaml", false, "Generate YAML playbook configuration file")
+        configCmd.Flags().StringVar(&configOutput, "output", "", "Output filename (default: zcert.cnf or playbook.yaml)")
 
         // Set custom help template to include usage examples
         configCmd.SetHelpTemplate(`{{.Short}}{{if .Long}}
@@ -40,6 +42,7 @@ Available Commands:{{range .Commands}}{{if (or .IsAvailableCommand (eq .Name "he
 
 Examples:
   zcert config --cnf                                                      # Generate zcert.cnf
+  zcert config --yaml                                                     # Generate playbook.yaml
   zcert enroll --config zcert.cnf --cn "cert.test.com"                    # Engage the default profile
   zcert enroll --config zcert.cnf --profile prod --cn "cert.prod.com"     # Use specific profile
 {{if .HasAvailableLocalFlags}}
@@ -59,7 +62,7 @@ Use "{{.CommandPath}} [command] --help" for more information about a command.{{e
 
 func runConfig(cmd *cobra.Command, args []string) error {
         // If no flags are specified, show help using the custom template
-        if !configCnf {
+        if !configCnf && !configYaml {
                 return cmd.Help()
         }
 
@@ -95,7 +98,37 @@ func runConfig(cmd *cobra.Command, args []string) error {
                 return nil
         }
 
+        if configYaml {
+                // Generate YAML playbook configuration
+                filename := configOutput
+                if filename == "" {
+                        filename = "playbook.yaml"
+                }
 
+                // Check if file exists
+                if _, err := os.Stat(filename); err == nil {
+                        fmt.Printf("File %s already exists. Overwrite? (y/N): ", filename)
+                        var response string
+                        fmt.Scanln(&response)
+                        if response != "y" && response != "Y" {
+                                fmt.Println("Configuration file generation cancelled.")
+                                return nil
+                        }
+                }
+
+                err := config.CreateExamplePlaybookYAML(filename)
+                if err != nil {
+                        return fmt.Errorf("failed to create example YAML playbook: %w", err)
+                }
+
+                fmt.Printf("Example YAML playbook created: %s\n", filename)
+                fmt.Println("\nUsage examples:")
+                fmt.Printf("  zcert run --file %s\n", filename)
+                fmt.Printf("  zcert run --file %s --dry-run\n", filename)
+                fmt.Printf("  zcert run --file %s --force-renew\n", filename)
+                fmt.Println("\nEdit the file and add your ZTPKI credentials and certificate requirements.")
+                return nil
+        }
 
         return nil
 }
