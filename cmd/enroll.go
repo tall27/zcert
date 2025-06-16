@@ -502,10 +502,10 @@ certificate_ready:
                 }
                 certificate, err := client.GetCertificate(requestID)
                 if err == nil && certificate != nil && certificate.Certificate != "" {
-                        // Get certificate chain for fallback certificate too
-                        chain, chainErr := client.GetCertificateChain(requestID)
-                        if chainErr == nil {
-                                certificate.Chain = chain
+                        // Get certificate with chain using PEM endpoint for fallback too
+                        pemResp, chainErr := client.GetCertificatePEM(requestID, true)
+                        if chainErr == nil && pemResp != nil && pemResp.Chain != "" {
+                                certificate.Chain = []string{pemResp.Chain}
                         } else if viper.GetBool("verbose") {
                                 fmt.Fprintf(os.Stderr, "Warning: Failed to retrieve certificate chain: %v\n", chainErr)
                         }
