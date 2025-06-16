@@ -1,6 +1,11 @@
 package cmd
 
 import (
+        "crypto/rand"
+        "crypto/rsa"
+        "crypto/x509"
+        "crypto/x509/pkix"
+        "encoding/pem"
         "fmt"
         "os"
         "strings"
@@ -186,7 +191,7 @@ func executeEnrollTask(client *api.Client, task *config.PlaybookTask) error {
         }
 
         // Create certificate request
-        csr, privateKey, err := generateCSR(task.CommonName, keySize, keyType, task.Subject)
+        csr, privateKeyPEM, err := generateCSR(task.CommonName, keySize, keyType, task.Subject)
         if err != nil {
                 return fmt.Errorf("failed to generate CSR: %w", err)
         }
@@ -207,7 +212,7 @@ func executeEnrollTask(client *api.Client, task *config.PlaybookTask) error {
 
         // Save certificate and key if output file specified
         if task.OutputFile != "" {
-                err := saveCertificateAndKey(task.OutputFile, certificate.Certificate, privateKey)
+                err := saveCertificateAndKey(task.OutputFile, certificate.Certificate, privateKeyPEM)
                 if err != nil {
                         return fmt.Errorf("failed to save certificate: %w", err)
                 }
@@ -282,13 +287,71 @@ func executeRevokeTask(client *api.Client, task *config.PlaybookTask) error {
         return fmt.Errorf("revocation not yet implemented in API client")
 }
 
-// Helper functions
-
+// generateCSR creates a Certificate Signing Request with the given parameters
 func generateCSR(commonName string, keySize int, keyType string, subject *config.SubjectInfo) (string, string, error) {
-        // This would use the existing CSR generation logic from the enroll command
-        // For now, return an error indicating this needs to be implemented
-        return "", "", fmt.Errorf("CSR generation not yet implemented in run command")
+        // Generate private key
+        var privateKey interface{}
+        var err error
+        
+        if keyType == "rsa" {
+                privateKey, err = rsa.GenerateKey(rand.Reader, keySize)
+                if err != nil {
+                        return "", "", fmt.Errorf("failed to generate RSA private key: %w", err)
+                }
+        } else {
+                return "", "", fmt.Errorf("unsupported key type: %s", keyType)
+        }
+
+        // Prepare subject information
+        var country, province, locality, organization []string
+        var orgUnit []string
+        
+        if subject != nil {
+                country = subject.Country
+                province = subject.Province  
+                locality = subject.Locality
+                organization = subject.Organization
+                orgUnit = subject.OrgUnit
+        }
+        
+        // Create certificate request template
+        template := x509.CertificateRequest{
+                Subject: pkix.Name{
+                        CommonName:         commonName,
+                        Country:            country,
+                        Province:           province,
+                        Locality:           locality,
+                        Organization:       organization,
+                        OrganizationalUnit: orgUnit,
+                },
+        }
+
+        // Create the CSR
+        csrBytes, err := x509.CreateCertificateRequest(rand.Reader, &template, privateKey)
+        if err != nil {
+                return "", "", fmt.Errorf("failed to create CSR: %w", err)
+        }
+
+        // Encode CSR to PEM format
+        csrPEM := pem.EncodeToMemory(&pem.Block{
+                Type:  "CERTIFICATE REQUEST",
+                Bytes: csrBytes,
+        })
+
+        // Encode private key to PEM format
+        var privateKeyPEM []byte
+        if rsaKey, ok := privateKey.(*rsa.PrivateKey); ok {
+                privateKeyBytes := x509.MarshalPKCS1PrivateKey(rsaKey)
+                privateKeyPEM = pem.EncodeToMemory(&pem.Block{
+                        Type:  "RSA PRIVATE KEY",
+                        Bytes: privateKeyBytes,
+                })
+        }
+
+        return string(csrPEM), string(privateKeyPEM), nil
 }
+
+// Helper functions
 
 func pollForCertificate(client *api.Client, requestID string) (*api.Certificate, error) {
         // This would poll the certificate request status until ready
