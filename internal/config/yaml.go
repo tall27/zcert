@@ -139,6 +139,7 @@ type PlaybookTask struct {
         KeySize         int          `yaml:"key_size"`
         KeyType         string       `yaml:"key_type"`
         Subject         *SubjectInfo `yaml:"subject"`
+        RenewBefore     string       `yaml:"renew_before"`
         Limit           int          `yaml:"limit"`
         ContinueOnError bool         `yaml:"continue_on_error"`
 }
@@ -210,12 +211,13 @@ func convertCertificatePlaybook(certPlaybook *CertificatePlaybook, filename stri
         for i, certTask := range certPlaybook.CertificateTasks {
                 // Convert certificate task to simple enrollment task
                 task := PlaybookTask{
-                        Name:       certTask.Name,
-                        Action:     "enroll",
-                        CommonName: certTask.Request.Subject.CommonName,
-                        PolicyID:   certTask.Request.Policy,
-                        KeySize:    2048, // Default
-                        KeyType:    "rsa", // Default
+                        Name:        certTask.Name,
+                        Action:      "enroll",
+                        CommonName:  certTask.Request.Subject.CommonName,
+                        PolicyID:    certTask.Request.Policy,
+                        KeySize:     2048, // Default
+                        KeyType:     "rsa", // Default
+                        RenewBefore: certTask.RenewBefore,
                         Subject: &SubjectInfo{
                                 Country:      []string{certTask.Request.Subject.Country},
                                 Province:     []string{certTask.Request.Subject.State},

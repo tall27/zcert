@@ -9,6 +9,8 @@ import (
         "encoding/pem"
         "fmt"
         "os"
+        "regexp"
+        "strconv"
         "strings"
         "time"
 
@@ -179,6 +181,18 @@ func executeEnrollTask(client *api.Client, task *config.PlaybookTask) error {
         }
         if task.PolicyID == "" {
                 return fmt.Errorf("policy ID is required for enrollment")
+        }
+
+        // Check for existing certificate renewal needs if renewBefore is specified
+        if task.RenewBefore != "" && !runForceRenew {
+                needsRenewal, err := checkCertificateRenewal(client, task)
+                if err != nil {
+                        fmt.Printf("    Warning: Could not check renewal status: %v\n", err)
+                        // Continue with enrollment as fallback
+                } else if !needsRenewal {
+                        fmt.Printf("    Certificate does not need renewal yet (expires later than %s)\n", task.RenewBefore)
+                        return nil
+                }
         }
 
         // Generate key pair and CSR
@@ -429,6 +443,88 @@ func saveCertificateAndKey(outputFile, certificate, privateKey string) error {
         }
 
         return nil
+}
+
+// checkCertificateRenewal checks if an existing certificate needs renewal based on renewBefore period
+func checkCertificateRenewal(client *api.Client, task *config.PlaybookTask) (bool, error) {
+        // Parse the renewBefore duration (e.g., "30d", "7d", "1h")
+        renewBeforeDuration, err := parseDuration(task.RenewBefore)
+        if err != nil {
+                return true, fmt.Errorf("invalid renewBefore format: %w", err)
+        }
+
+        // Search for existing certificates with the same common name
+        searchParams := api.CertificateSearchParams{
+                CommonName: task.CommonName,
+                Status:     "VALID",
+                Limit:      10,
+        }
+
+        certificates, err := client.SearchCertificates(searchParams)
+        if err != nil {
+                return true, fmt.Errorf("failed to search for existing certificates: %w", err)
+        }
+
+        if len(certificates) == 0 {
+                // No existing certificate found, needs enrollment
+                return true, nil
+        }
+
+        // Find the certificate with the latest expiration date
+        var latestCert *api.Certificate
+        for i, cert := range certificates {
+                if latestCert == nil || cert.ExpiryDate.After(latestCert.ExpiryDate) {
+                        latestCert = &certificates[i]
+                }
+        }
+
+        if latestCert == nil {
+                return true, nil
+        }
+
+        // Use the certificate expiration date directly (already parsed as time.Time)
+        expiryTime := latestCert.ExpiryDate
+
+        // Calculate renewal threshold time
+        renewalThreshold := expiryTime.Add(-renewBeforeDuration)
+        currentTime := time.Now()
+
+        // Check if we're within the renewal window
+        needsRenewal := currentTime.After(renewalThreshold)
+        
+        if needsRenewal {
+                fmt.Printf("    Certificate expires %s, renewing due to %s threshold\n", 
+                        expiryTime.Format("2006-01-02"), task.RenewBefore)
+        }
+
+        return needsRenewal, nil
+}
+
+// parseDuration parses duration strings like "30d", "7d", "24h", "60m"
+func parseDuration(durationStr string) (time.Duration, error) {
+        re := regexp.MustCompile(`^(\d+)([dhm])$`)
+        matches := re.FindStringSubmatch(durationStr)
+        
+        if len(matches) != 3 {
+                return 0, fmt.Errorf("invalid duration format, expected format: 30d, 24h, 60m")
+        }
+        
+        value, err := strconv.Atoi(matches[1])
+        if err != nil {
+                return 0, fmt.Errorf("invalid numeric value: %w", err)
+        }
+        
+        unit := matches[2]
+        switch unit {
+        case "d":
+                return time.Duration(value) * 24 * time.Hour, nil
+        case "h":
+                return time.Duration(value) * time.Hour, nil
+        case "m":
+                return time.Duration(value) * time.Minute, nil
+        default:
+                return 0, fmt.Errorf("unsupported time unit: %s", unit)
+        }
 }
 
 func saveSearchResults(outputFile string, certificates []api.Certificate) error {
