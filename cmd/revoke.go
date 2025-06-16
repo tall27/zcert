@@ -51,7 +51,7 @@ func init() {
 
         
         // Revocation options
-        revokeCmd.Flags().StringVar(&revokeReason, "reason", "unspecified", "Revocation reason")
+        revokeCmd.Flags().StringVar(&revokeReason, "reason", "unspecified", "Revocation reason (unspecified, keyCompromise, affiliationChanged, superseded, cessationOfOperation)")
         revokeCmd.Flags().BoolVar(&revokeForce, "force", false, "Skip confirmation prompt")
 
         // Set custom help and usage functions to group flags consistently

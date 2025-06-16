@@ -808,28 +808,19 @@ func (c *Client) RevokeCertificate(id, reason string) error {
 }
 
 // convertRevocationReason converts string reason to numeric code expected by ZTPKI
+// Valid codes per ZTPKI API specification: [0, 1, 3, 4, 5]
 func (c *Client) convertRevocationReason(reason string) int {
         switch reason {
         case "unspecified":
                 return 0
         case "keyCompromise":
                 return 1
-        case "caCompromise":
-                return 2
         case "affiliationChanged":
                 return 3
         case "superseded":
                 return 4
         case "cessationOfOperation":
                 return 5
-        case "certificateHold":
-                return 6
-        case "removeFromCRL":
-                return 8
-        case "privilegeWithdrawn":
-                return 9
-        case "aaCompromise":
-                return 10
         default:
                 return 0 // Default to unspecified
         }
