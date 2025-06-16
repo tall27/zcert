@@ -24,6 +24,39 @@ var (
 
 )
 
+// promptRevocationReason displays an interactive menu for selecting revocation reason
+func promptRevocationReason() (string, error) {
+        fmt.Fprintf(os.Stderr, "\nSelect revocation reason:\n")
+        fmt.Fprintf(os.Stderr, "0. Unspecified\n")
+        fmt.Fprintf(os.Stderr, "1. Key Compromise\n")
+        fmt.Fprintf(os.Stderr, "3. Affiliation Changed\n")
+        fmt.Fprintf(os.Stderr, "4. Superseded\n")
+        fmt.Fprintf(os.Stderr, "5. Cessation Of Operation\n")
+        fmt.Fprintf(os.Stderr, "Enter your choice (0-5): ")
+        
+        var choice string
+        _, err := fmt.Scanln(&choice)
+        if err != nil {
+                return "", fmt.Errorf("failed to read input: %w", err)
+        }
+        
+        switch choice {
+        case "0":
+                return "unspecified", nil
+        case "1":
+                return "keyCompromise", nil
+        case "3":
+                return "affiliationChanged", nil
+        case "4":
+                return "superseded", nil
+        case "5":
+                return "cessationOfOperation", nil
+        default:
+                fmt.Fprintf(os.Stderr, "Invalid choice '%s', using 'unspecified'\n", choice)
+                return "unspecified", nil
+        }
+}
+
 // revokeCmd represents the revoke command
 var revokeCmd = &cobra.Command{
         Use:   "revoke",
@@ -195,6 +228,15 @@ func runRevoke(cmd *cobra.Command, args []string) error {
                 if !confirmed {
                         fmt.Fprintln(os.Stderr, "Revocation cancelled.")
                         return nil
+                }
+                
+                // After confirmation, prompt for revocation reason if not specified
+                if revokeReason == "unspecified" {
+                        selectedReason, err := promptRevocationReason()
+                        if err != nil {
+                                return fmt.Errorf("failed to get revocation reason: %w", err)
+                        }
+                        revokeReason = selectedReason
                 }
         }
 
