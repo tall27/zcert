@@ -1,3 +1,6 @@
+//go:build integration
+// +build integration
+
 package api
 
 import (
@@ -16,7 +19,7 @@ func TestClientCreationRegression(t *testing.T) {
                 {
                         name: "Valid complete config",
                         config: &config.Config{
-                                BaseURL: "https://ztpki-dev.venafi.com/api/v2",
+                                BaseURL: "https://test-ztpki-instance.com/api/v2",
                                 HawkID:  "test-hawk-id",
                                 HawkKey: "test-hawk-key",
                         },
@@ -41,7 +44,7 @@ func TestClientCreationRegression(t *testing.T) {
                 {
                         name: "Empty HawkID should fail",
                         config: &config.Config{
-                                BaseURL: "https://ztpki-dev.venafi.com/api/v2",
+                                BaseURL: "https://test-ztpki-instance.com/api/v2",
                                 HawkID:  "",
                                 HawkKey: "test-hawk-key",
                         },
@@ -51,7 +54,7 @@ func TestClientCreationRegression(t *testing.T) {
                 {
                         name: "Empty HawkKey should fail",
                         config: &config.Config{
-                                BaseURL: "https://ztpki-dev.venafi.com/api/v2",
+                                BaseURL: "https://test-ztpki-instance.com/api/v2",
                                 HawkID:  "test-hawk-id",
                                 HawkKey: "",
                         },
@@ -102,7 +105,7 @@ func TestClientCreationRegression(t *testing.T) {
 // TestClientHTTPClientRegression ensures HTTP client is properly configured
 func TestClientHTTPClientRegression(t *testing.T) {
         cfg := &config.Config{
-                BaseURL: "https://ztpki-dev.venafi.com/api/v2",
+                BaseURL: "https://test-ztpki-instance.com/api/v2",
                 HawkID:  "test-hawk-id",
                 HawkKey: "test-hawk-key",
         }
@@ -124,7 +127,7 @@ func TestClientHTTPClientRegression(t *testing.T) {
 // TestClientHawkAuthRegression ensures HAWK authentication is properly initialized
 func TestClientHawkAuthRegression(t *testing.T) {
         cfg := &config.Config{
-                BaseURL: "https://ztpki-dev.venafi.com/api/v2",
+                BaseURL: "https://test-ztpki-instance.com/api/v2",
                 HawkID:  "test-hawk-id",
                 HawkKey: "test-hawk-key",
         }

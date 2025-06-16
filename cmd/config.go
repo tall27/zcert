@@ -91,9 +91,9 @@ func runConfig(cmd *cobra.Command, args []string) error {
 
                 fmt.Printf("Example profile configuration created: %s\n", filename)
                 fmt.Println("\nUsage examples:")
-                fmt.Printf("  zcert --config %s enroll --cn \"example.com\"\n", filename)
-                fmt.Printf("  zcert --config %s --profile prod enroll --cn \"example.com\"\n", filename)
-                fmt.Printf("  zcert --config %s search --expiring 30\n", filename)
+                fmt.Printf("  zcert enroll --config %s --cn \"example.com\"\n", filename)
+                fmt.Printf("  zcert enroll --config %s --profile prod --cn \"example.com\"\n", filename)
+                fmt.Printf("  zcert search --config %s --expiring 30\n", filename)
 
                 return nil
         }
@@ -120,7 +120,7 @@ func runConfig(cmd *cobra.Command, args []string) error {
                         }
                 }
 
-                err := config.SaveExampleConfig(filename)
+                err := config.CreateExampleYAMLConfig(filename)
                 if err != nil {
                         return fmt.Errorf("failed to create example config: %w", err)
                 }

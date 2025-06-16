@@ -47,7 +47,7 @@ var globalConfig *Config
 // InitDefaults initializes default configuration values
 func InitDefaults() {
         // API defaults
-        viper.SetDefault("base_url", "https://ztpki-dev.venafi.com/api/v2")
+        viper.SetDefault("base_url", "https://your-ztpki-instance.com/api/v2")
         viper.SetDefault("hawk_id", "")
         viper.SetDefault("hawk_key", "")
         
@@ -178,7 +178,7 @@ func GetExampleConfig() string {
 # This file can be placed at ~/.zcert.yaml or specified with --config
 
 # ZTPKI API Configuration
-base_url: "https://ztpki-dev.venafi.com/api/v2"
+base_url: "https://your-ztpki-instance.com/api/v2"
 hawk_id: "your-hawk-id-here"
 hawk_key: "your-hawk-key-here"
 

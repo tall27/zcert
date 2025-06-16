@@ -60,6 +60,9 @@ func init() {
         
         // Bind flags to viper
         viper.BindPFlag("verbose", rootCmd.PersistentFlags().Lookup("verbose"))
+        
+        // Setup custom completions for root command
+        setupRootCompletions()
 }
 
 // initConfig reads in config file and ENV variables.

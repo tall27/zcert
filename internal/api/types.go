@@ -212,12 +212,15 @@ type RevocationRequest struct {
 
 // CertificateSearchParams represents search parameters for certificates
 type CertificateSearchParams struct {
+        Account       string     `json:"account,omitempty"`
         CommonName    string     `json:"commonName,omitempty"`
         Serial        string     `json:"serial,omitempty"`
         Issuer        string     `json:"issuer,omitempty"`
         PolicyID      string     `json:"policyId,omitempty"`
         Status        string     `json:"status,omitempty"`
+        Expired       *bool      `json:"expired,omitempty"`       // Pointer to distinguish null vs false
         Limit         int        `json:"limit,omitempty"`
+        Offset        int        `json:"offset,omitempty"`
         NotAfter      string     `json:"not_after,omitempty"`
         NotBefore     string     `json:"not_before,omitempty"`
         ExpiresBefore *time.Time `json:"expiresBefore,omitempty"` // For client-side filtering

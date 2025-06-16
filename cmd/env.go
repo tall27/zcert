@@ -14,6 +14,7 @@ var envCmd = &cobra.Command{
         Use:   "env",
         Short: "Show environment variable setup instructions",
         Long: `Environment Variables:
+  ZTPKI_URL          ZTPKI API base URL (e.g., https://your-ztpki-instance.com/api/v2)
   ZTPKI_HAWK_ID      HAWK authentication ID for ZTPKI API
   ZTPKI_POLICY_ID    Default policy ID for certificate enrollment  
   ZTPKI_HAWK_SECRET  HAWK authentication secret for ZTPKI API
@@ -50,6 +51,7 @@ func runEnv(cmd *cobra.Command, args []string) error {
         } else {
                 // Show current status
                 fmt.Println("Current Status:")
+                checkEnvVar("ZTPKI_URL")
                 checkEnvVar("ZTPKI_HAWK_ID")
                 checkEnvVar("ZTPKI_POLICY_ID") 
                 checkEnvVar("ZTPKI_HAWK_SECRET")
@@ -75,12 +77,14 @@ func checkEnvVar(name string) {
 
 func showWindowsInstructions() {
         fmt.Println("Option 1: Command Prompt (Current Session)")
+        fmt.Println("  set ZTPKI_URL=https://your-ztpki-instance.com/api/v2")
         fmt.Println("  set ZTPKI_HAWK_ID=your_hawk_id_here")
         fmt.Println("  set ZTPKI_POLICY_ID=your_policy_id_here")
         fmt.Println("  set ZTPKI_HAWK_SECRET=your_hawk_secret_here")
         fmt.Println()
         
         fmt.Println("Option 2: PowerShell (Current Session)")
+        fmt.Println("  $env:ZTPKI_URL=\"https://your-ztpki-instance.com/api/v2\"")
         fmt.Println("  $env:ZTPKI_HAWK_ID=\"your_hawk_id_here\"")
         fmt.Println("  $env:ZTPKI_POLICY_ID=\"your_policy_id_here\"")
         fmt.Println("  $env:ZTPKI_HAWK_SECRET=\"your_hawk_secret_here\"")

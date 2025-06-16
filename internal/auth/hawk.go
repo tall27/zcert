@@ -31,6 +31,11 @@ func NewHawkAuth(id, key string) *HawkAuth {
 
 // SignRequest adds HAWK authentication header to the HTTP request
 func (h *HawkAuth) SignRequest(req *http.Request) error {
+        // Validate credentials first
+        if h.ID == "" || h.Key == "" {
+                return fmt.Errorf("HAWK credentials missing - ID length: %d, Key length: %d", len(h.ID), len(h.Key))
+        }
+        
         // Generate timestamp and nonce
         timestamp := time.Now().Unix()
         nonce := generateNonce()

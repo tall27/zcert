@@ -50,7 +50,7 @@ func init() {
         retrieveCmd.Flags().StringVar(&retrievePolicy, "policy", "", "Policy ID or name to filter by")
         
         // ZTPKI Authentication flags
-        retrieveCmd.Flags().StringVar(&retrieveURL, "url", "", "ZTPKI API base URL (e.g., https://ztpki.venafi.com/api/v2)")
+        retrieveCmd.Flags().StringVar(&retrieveURL, "url", "", "ZTPKI API base URL (e.g., https://your-ztpki-instance.com/api/v2)")
         retrieveCmd.Flags().StringVar(&retrieveHawkID, "hawk-id", "", "HAWK authentication ID")
         retrieveCmd.Flags().StringVar(&retrieveHawkKey, "hawk-key", "", "HAWK authentication key")
 
@@ -68,6 +68,9 @@ func init() {
         // Bind flags to viper
         viper.BindPFlag("retrieve.format", retrieveCmd.Flags().Lookup("format"))
         viper.BindPFlag("retrieve.chain", retrieveCmd.Flags().Lookup("chain"))
+        
+        // Setup custom completions for retrieve command
+        setupRetrieveCompletions()
 }
 
 func runRetrieve(cmd *cobra.Command, args []string) error {
@@ -215,7 +218,7 @@ func runRetrieve(cmd *cobra.Command, args []string) error {
 func getRetrieveUsageFunc() func(*cobra.Command) error {
         return func(cmd *cobra.Command) error {
                 fmt.Printf("Usage:\n  %s\n\nServer & Authentication:\n", cmd.UseLine())
-                fmt.Printf("      --url string        ZTPKI API base URL (e.g., https://ztpki.venafi.com/api/v2)\n")
+                fmt.Printf("      --url string        ZTPKI API base URL (e.g., https://your-ztpki-instance.com/api/v2)\n")
                 fmt.Printf("      --hawk-id string    HAWK authentication ID\n")
                 fmt.Printf("      --hawk-key string   HAWK authentication key\n\n")
                 
@@ -260,7 +263,7 @@ Usage:
   zcert retrieve [flags]
 
 Server & Authentication:
-      --url string        ZTPKI API base URL (e.g., https://ztpki.venafi.com/api/v2)
+      --url string        ZTPKI API base URL (e.g., https://your-ztpki-instance.com/api/v2)
       --hawk-id string    HAWK authentication ID
       --hawk-key string   HAWK authentication key
 

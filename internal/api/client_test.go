@@ -1,3 +1,6 @@
+//go:build integration
+// +build integration
+
 package api
 
 import (
@@ -8,7 +11,7 @@ import (
 
 func TestNewClient(t *testing.T) {
         cfg := &config.Config{
-                BaseURL: "https://ztpki-dev.venafi.com/api/v2",
+                BaseURL: "https://test-ztpki-instance.com/api/v2",
                 HawkID:  "test-hawk-id",
                 HawkKey: "test-hawk-key",
         }
@@ -37,7 +40,7 @@ func TestNewClientValidation(t *testing.T) {
                 {
                         name: "Valid config",
                         config: &config.Config{
-                                BaseURL: "https://ztpki-dev.venafi.com/api/v2",
+                                BaseURL: "https://test-ztpki-instance.com/api/v2",
                                 HawkID:  "test-hawk-id",
                                 HawkKey: "test-hawk-key",
                         },
@@ -54,7 +57,7 @@ func TestNewClientValidation(t *testing.T) {
                 {
                         name: "Missing HawkID",
                         config: &config.Config{
-                                BaseURL: "https://ztpki-dev.venafi.com/api/v2",
+                                BaseURL: "https://test-ztpki-instance.com/api/v2",
                                 HawkKey: "test-hawk-key",
                         },
                         expectError: true,
@@ -62,7 +65,7 @@ func TestNewClientValidation(t *testing.T) {
                 {
                         name: "Missing HawkKey",
                         config: &config.Config{
-                                BaseURL: "https://ztpki-dev.venafi.com/api/v2",
+                                BaseURL: "https://test-ztpki-instance.com/api/v2",
                                 HawkID:  "test-hawk-id",
                         },
                         expectError: true,

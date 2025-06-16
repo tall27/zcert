@@ -45,7 +45,7 @@ func init() {
         revokeCmd.Flags().StringVar(&revokeSerial, "serial", "", "Certificate serial number")
         
         // ZTPKI Authentication flags
-        revokeCmd.Flags().StringVar(&revokeURL, "url", "", "ZTPKI API base URL (e.g., https://ztpki.venafi.com/api/v2)")
+        revokeCmd.Flags().StringVar(&revokeURL, "url", "", "ZTPKI API base URL (e.g., https://your-ztpki-instance.com/api/v2)")
         revokeCmd.Flags().StringVar(&revokeHawkID, "hawk-id", "", "HAWK authentication ID")
         revokeCmd.Flags().StringVar(&revokeHawkKey, "hawk-key", "", "HAWK authentication key")
 
@@ -212,7 +212,7 @@ func runRevoke(cmd *cobra.Command, args []string) error {
 func getRevokeUsageFunc() func(*cobra.Command) error {
         return func(cmd *cobra.Command) error {
                 fmt.Printf("Usage:\n  %s\n\nServer & Authentication:\n", cmd.UseLine())
-                fmt.Printf("      --url string        ZTPKI API base URL (e.g., https://ztpki.venafi.com/api/v2)\n")
+                fmt.Printf("      --url string        ZTPKI API base URL (e.g., https://your-ztpki-instance.com/api/v2)\n")
                 fmt.Printf("      --hawk-id string    HAWK authentication ID\n")
                 fmt.Printf("      --hawk-key string   HAWK authentication key\n\n")
                 
@@ -253,7 +253,7 @@ Usage:
   zcert revoke [flags]
 
 Server & Authentication:
-      --url string        ZTPKI API base URL (e.g., https://ztpki.venafi.com/api/v2)
+      --url string        ZTPKI API base URL (e.g., https://your-ztpki-instance.com/api/v2)
       --hawk-id string    HAWK authentication ID
       --hawk-key string   HAWK authentication key
 

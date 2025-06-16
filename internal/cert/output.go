@@ -10,6 +10,7 @@ import (
         "path/filepath"
         "strings"
 
+        "software.sslmate.com/src/go-pkcs12"
         "zcert/internal/api"
 )
 
@@ -95,7 +96,7 @@ func (o *Outputter) outputPEM(cert *api.Certificate, privateKey interface{}, inc
                 
                 // Include private key if requested
                 if includeKey && privateKey != nil {
-                        keyPEM, err := EncodePrivateKeyToPEM(privateKey)
+                        keyPEM, err := o.encodePrivateKeyToPEM(privateKey, o.password)
                         if err != nil {
                                 return fmt.Errorf("failed to encode private key: %w", err)
                         }
@@ -140,7 +141,7 @@ func (o *Outputter) outputPEM(cert *api.Certificate, privateKey interface{}, inc
         // Write private key file if requested and available
         if includeKey && privateKey != nil {
                 keyFile := strings.TrimSuffix(certFile, filepath.Ext(certFile)) + "-key.pem"
-                keyPEM, err := EncodePrivateKeyToPEM(privateKey)
+                keyPEM, err := o.encodePrivateKeyToPEM(privateKey, o.password)
                 if err != nil {
                         return fmt.Errorf("failed to encode private key: %w", err)
                 }
@@ -160,38 +161,58 @@ func (o *Outputter) outputPKCS12(cert *api.Certificate, privateKey interface{}) 
                 return fmt.Errorf("private key is required for PKCS#12 output")
         }
 
-        // For now, provide instructions for manual PKCS#12 creation
-        fmt.Println("PKCS#12 output requires external tools. To create a PKCS#12 file:")
-        fmt.Println("")
-        fmt.Println("1. First, save the certificate and key as PEM files:")
-        
-        // Create a temporary PEM outputter
-        pemOutputter := &Outputter{
-                format:   FormatPEM,
-                outfile:  o.outfile,
-                password: o.password,
+        // Parse the certificate PEM
+        certBlock, _ := pem.Decode([]byte(cert.Certificate))
+        if certBlock == nil {
+                return fmt.Errorf("failed to decode certificate PEM")
         }
         
-        if err := pemOutputter.outputPEM(cert, privateKey, true); err != nil {
-                return err
+        x509Cert, err := x509.ParseCertificate(certBlock.Bytes)
+        if err != nil {
+                return fmt.Errorf("failed to parse certificate: %w", err)
         }
-        
-        // Generate example commands
-        baseName := o.outfile
-        if baseName == "" {
-                baseName = strings.ReplaceAll(cert.CommonName, "*", "wildcard")
+
+        // Parse certificate chain if available
+        var caCerts []*x509.Certificate
+        for _, chainCertPEM := range cert.Chain {
+                chainBlock, _ := pem.Decode([]byte(chainCertPEM))
+                if chainBlock != nil {
+                        chainCert, err := x509.ParseCertificate(chainBlock.Bytes)
+                        if err == nil {
+                                caCerts = append(caCerts, chainCert)
+                        }
+                }
         }
-        if strings.HasSuffix(baseName, ".p12") || strings.HasSuffix(baseName, ".pfx") {
-                baseName = strings.TrimSuffix(baseName, filepath.Ext(baseName))
+
+        // Create PKCS#12 data
+        pfxData, err := pkcs12.Encode(rand.Reader, privateKey, x509Cert, caCerts, o.password)
+        if err != nil {
+                return fmt.Errorf("failed to create PKCS#12 data: %w", err)
         }
-        
-        certFile := baseName + ".pem"
-        keyFile := baseName + "-key.pem"
-        p12File := baseName + ".p12"
-        
-        fmt.Printf("\n2. Use OpenSSL to create PKCS#12:\n")
-        fmt.Printf("openssl pkcs12 -export -out %s -inkey %s -in %s\n", p12File, keyFile, certFile)
-        fmt.Printf("(You will be prompted for an export password)\n")
+
+        // Determine output file
+        outfile := o.outfile
+        if outfile == "" {
+                outfile = strings.ReplaceAll(cert.CommonName, "*", "wildcard") + ".p12"
+        }
+        if !strings.HasSuffix(outfile, ".p12") && !strings.HasSuffix(outfile, ".pfx") {
+                outfile += ".p12"
+        }
+
+        if o.outfile == "" {
+                // Output to stdout as base64 (since P12 is binary)
+                fmt.Printf("-----BEGIN PKCS12-----\n")
+                // Note: For binary data, we could implement base64 output, but P12 files are typically saved to disk
+                fmt.Printf("PKCS#12 data created (%d bytes)\n", len(pfxData))
+                fmt.Printf("Use --bundle-file to save to a file\n")
+                fmt.Printf("-----END PKCS12-----\n")
+        } else {
+                // Write to file
+                if err := os.WriteFile(outfile, pfxData, 0644); err != nil {
+                        return fmt.Errorf("failed to write PKCS#12 file: %w", err)
+                }
+                fmt.Printf("PKCS#12 bundle written to: %s\n", outfile)
+        }
         
         return nil
 }
@@ -349,38 +370,41 @@ func (o *Outputter) outputPKCS12ToFiles(cert *api.Certificate, privateKey interf
                 bundleFile = strings.ReplaceAll(cert.CommonName, "*", "wildcard") + ".p12"
         }
 
-        // For now, provide instructions for manual PKCS#12 creation
-        fmt.Printf("PKCS#12 output requires external tools. To create %s:\n", bundleFile)
-        fmt.Println("")
-        
-        // Create temporary PEM files for conversion
-        tempCertFile := bundleFile + ".tmp.crt"
-        tempKeyFile := bundleFile + ".tmp.key"
-        
-        // Write temporary certificate file
-        if err := os.WriteFile(tempCertFile, []byte(cert.Certificate), 0644); err != nil {
-                return fmt.Errorf("failed to write temporary certificate file: %w", err)
+        // Parse the certificate PEM
+        certBlock, _ := pem.Decode([]byte(cert.Certificate))
+        if certBlock == nil {
+                return fmt.Errorf("failed to decode certificate PEM")
         }
-        defer os.Remove(tempCertFile)
         
-        // Write temporary key file
-        keyPEM, err := o.encodePrivateKeyToPEM(privateKey, "")
+        x509Cert, err := x509.ParseCertificate(certBlock.Bytes)
         if err != nil {
-                return fmt.Errorf("failed to encode private key: %w", err)
+                return fmt.Errorf("failed to parse certificate: %w", err)
         }
-        if err := os.WriteFile(tempKeyFile, keyPEM, 0600); err != nil {
-                return fmt.Errorf("failed to write temporary key file: %w", err)
+
+        // Parse certificate chain if available
+        var caCerts []*x509.Certificate
+        for _, chainCertPEM := range cert.Chain {
+                chainBlock, _ := pem.Decode([]byte(chainCertPEM))
+                if chainBlock != nil {
+                        chainCert, err := x509.ParseCertificate(chainBlock.Bytes)
+                        if err == nil {
+                                caCerts = append(caCerts, chainCert)
+                        }
+                }
         }
-        defer os.Remove(tempKeyFile)
+
+        // Create PKCS#12 data
+        pfxData, err := pkcs12.Encode(rand.Reader, privateKey, x509Cert, caCerts, o.password)
+        if err != nil {
+                return fmt.Errorf("failed to create PKCS#12 data: %w", err)
+        }
+
+        // Write PKCS#12 file
+        if err := os.WriteFile(bundleFile, pfxData, 0644); err != nil {
+                return fmt.Errorf("failed to write PKCS#12 file: %w", err)
+        }
         
-        fmt.Printf("Use OpenSSL to create PKCS#12:\n")
-        fmt.Printf("openssl pkcs12 -export -out %s -inkey %s -in %s", bundleFile, tempKeyFile, tempCertFile)
-        if o.password != "" {
-                fmt.Printf(" -passout pass:%s", o.password)
-        }
-        fmt.Println()
-        fmt.Printf("(You will be prompted for an export password if not specified)\n")
-        
+        fmt.Printf("PKCS#12 bundle written to: %s\n", bundleFile)
         return nil
 }
 

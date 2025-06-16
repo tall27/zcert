@@ -10,8 +10,6 @@ import (
         "fmt"
         "net"
         "os"
-        "regexp"
-        "strconv"
         "strings"
         "time"
 
@@ -21,6 +19,7 @@ import (
         "zcert/internal/cert"
         "zcert/internal/config"
         policyselect "zcert/internal/policy"
+        "zcert/internal/utils"
 )
 
 var (
@@ -77,7 +76,7 @@ Examples:
   zcert -config zcert.cnf --cn "example.com"
   
   # Command-line authentication
-  zcert enroll --cn "example.com" --url "https://ztpki.venafi.com/api/v2" --hawk-id "your-id" --hawk-key "your-key"
+  zcert enroll --cn "example.com" --url "https://your-ztpki-instance.com/api/v2" --hawk-id "your-id" --hawk-key "your-key"
   
   # With multiple SANs and OUs
   zcert enroll --cn "api.example.com" --san-dns "example.com" --san-dns "www.example.com" --ou "IT" --ou "Security" --validity "90d"
@@ -91,7 +90,7 @@ func init() {
         rootCmd.AddCommand(enrollCmd)
 
         // Server & Authentication
-        enrollCmd.Flags().StringVar(&enrollURL, "url", "", "ZTPKI API base URL (e.g., https://ztpki.venafi.com/api/v2)")
+        enrollCmd.Flags().StringVar(&enrollURL, "url", "", "ZTPKI API base URL (e.g., https://your-ztpki-instance.com/api/v2)")
         enrollCmd.Flags().StringVar(&enrollHawkID, "hawk-id", "", "HAWK authentication ID")
         enrollCmd.Flags().StringVar(&enrollHawkKey, "hawk-key", "", "HAWK authentication key")
 
@@ -144,6 +143,9 @@ func init() {
         viper.BindPFlag("ztpki.url", enrollCmd.Flags().Lookup("url"))
         viper.BindPFlag("ztpki.hawk_id", enrollCmd.Flags().Lookup("hawk-id"))
         viper.BindPFlag("ztpki.hawk_key", enrollCmd.Flags().Lookup("hawk-key"))
+        
+        // Setup custom completions for enrollment command
+        setupEnrollCompletions()
 }
 
 func runEnroll(cmd *cobra.Command, args []string) error {
@@ -249,7 +251,7 @@ func runEnroll(cmd *cobra.Command, args []string) error {
         // Parse validity period if provided, otherwise use template maximum
         var validityPeriod *api.ValidityPeriod
         if enrollValidity != "" {
-                validityPeriod, err = parseValidityPeriod(enrollValidity)
+                validityPeriod, err = utils.ParseValidityPeriod(enrollValidity)
                 if err != nil {
                         return fmt.Errorf("invalid validity format: %w", err)
                 }
@@ -489,7 +491,14 @@ certificate_ready:
         }
 
         // Output certificate with enhanced options
-        outputter := cert.NewOutputter(format, "", enrollP12Pass)
+        // Use appropriate password based on output format
+        var outputPassword string
+        if format == "p12" || format == "pfx" {
+                outputPassword = enrollP12Pass
+        } else {
+                outputPassword = enrollKeyPass
+        }
+        outputter := cert.NewOutputter(format, "", outputPassword)
 
         // Set custom file paths if provided
         if enrollCertFile != "" || enrollKeyFile != "" || enrollChainFile != "" || enrollBundleFile != "" {
@@ -540,7 +549,7 @@ Examples:
   zcert -config zcert.cnf --cn "example.com"
   
   # Command-line authentication
-  zcert enroll --cn "example.com" --url "https://ztpki.venafi.com/api/v2" --hawk-id "your-id" --hawk-key "your-key"
+  zcert enroll --cn "example.com" --url "https://your-ztpki-instance.com/api/v2" --hawk-id "your-id" --hawk-key "your-key"
   
   # With multiple SANs and OUs
   zcert enroll --cn "api.example.com" --san-dns "example.com" --san-dns "www.example.com" --ou "IT" --ou "Security" --validity "90d"
@@ -554,7 +563,7 @@ Usage:
 Server & Authentication:
       --hawk-id string    HAWK authentication ID
       --hawk-key string   HAWK authentication key
-      --url string        ZTPKI API base URL (e.g., https://ztpki.venafi.com/api/v2)
+      --url string        ZTPKI API base URL (e.g., https://your-ztpki-instance.com/api/v2)
 
 Certificate Request:
       --cn string                Common Name for the certificate (required)
@@ -607,7 +616,7 @@ func getEnrollUsageFunc() func(*cobra.Command) error {
                 fmt.Printf("Usage:\n  %s\n\nServer & Authentication:\n", cmd.UseLine())
                 fmt.Printf("      --hawk-id string    HAWK authentication ID\n")
                 fmt.Printf("      --hawk-key string   HAWK authentication key\n")
-                fmt.Printf("      --url string        ZTPKI API base URL (e.g., https://ztpki.venafi.com/api/v2)\n\n")
+                fmt.Printf("      --url string        ZTPKI API base URL (e.g., https://your-ztpki-instance.com/api/v2)\n\n")
 
                 fmt.Printf("Certificate Request:\n")
                 fmt.Printf("      --cn string                Common Name for the certificate (required)\n")
@@ -653,61 +662,4 @@ func getEnrollUsageFunc() func(*cobra.Command) error {
         }
 }
 
-// parseValidityPeriod parses a validity period string into an api.ValidityPeriod
-func parseValidityPeriod(validityStr string) (*api.ValidityPeriod, error) {
-        if validityStr == "" {
-                return nil, fmt.Errorf("validity period cannot be empty")
-        }
 
-        // Initialize result
-        validity := &api.ValidityPeriod{}
-
-        // Check if it's a plain number (from config file) - assume days
-        if matched, _ := regexp.MatchString(`^\d+$`, validityStr); matched {
-                days, err := strconv.Atoi(validityStr)
-                if err != nil {
-                        return nil, fmt.Errorf("invalid numeric validity value: %v", err)
-                }
-                validity.Days = days
-                return validity, nil
-        }
-
-        // Regular expressions for parsing different components
-        dayRe := regexp.MustCompile(`(\d+)d`)
-        monthRe := regexp.MustCompile(`(\d+)m`)
-        yearRe := regexp.MustCompile(`(\d+)y`)
-
-        // Parse days
-        if matches := dayRe.FindStringSubmatch(validityStr); len(matches) > 1 {
-                days, err := strconv.Atoi(matches[1])
-                if err != nil {
-                        return nil, fmt.Errorf("invalid day value: %v", err)
-                }
-                validity.Days = days
-        }
-
-        // Parse months
-        if matches := monthRe.FindStringSubmatch(validityStr); len(matches) > 1 {
-                months, err := strconv.Atoi(matches[1])
-                if err != nil {
-                        return nil, fmt.Errorf("invalid month value: %v", err)
-                }
-                validity.Months = months
-        }
-
-        // Parse years
-        if matches := yearRe.FindStringSubmatch(validityStr); len(matches) > 1 {
-                years, err := strconv.Atoi(matches[1])
-                if err != nil {
-                        return nil, fmt.Errorf("invalid year value: %v", err)
-                }
-                validity.Years = years
-        }
-
-        // Validate that at least one component was parsed
-        if validity.Days == 0 && validity.Months == 0 && validity.Years == 0 {
-                return nil, fmt.Errorf("invalid validity format: %s (expected formats: 30d, 6m, 1y, 30d6m, 1y6m, or plain number for days)", validityStr)
-        }
-
-        return validity, nil
-}
