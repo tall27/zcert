@@ -195,7 +195,6 @@ func executeTask(client *api.Client, task *config.PlaybookTask) error {
 }
 
 func executeEnrollTask(client *api.Client, task *config.PlaybookTask) error {
-        fmt.Printf("    Enrolling certificate for CN: %s\n", task.CommonName)
 
         // Validate required fields
         if task.CommonName == "" {
@@ -496,6 +495,51 @@ func saveCertificateAndKeyQuietNoBackup(outputFile, certificate, privateKey, cha
         }
         if !quiet {
                 fmt.Printf("    Private key generated and saved to: %s\n", keyFile)
+        }
+
+        // Save chain certificate if provided
+        if chainCertificate != "" && strings.TrimSpace(chainCertificate) != "" {
+                err = os.WriteFile(chainFile, []byte(chainCertificate), 0644)
+                if err != nil {
+                        return fmt.Errorf("failed to write chain certificate file: %w", err)
+                }
+                if !quiet {
+                        fmt.Printf("    Chain certificate saved to: %s\n", chainFile)
+                }
+        }
+
+        return nil
+}
+
+func saveCertificateAndKeyQuietNoBackupWithEnrollment(outputFile, certificate, privateKey, chainCertificate string, quiet bool, commonName string) error {
+        // Create directory if it doesn't exist
+        dir := strings.Replace(outputFile, "\\", "/", -1) // Handle Windows paths
+        if lastSlash := strings.LastIndex(dir, "/"); lastSlash != -1 {
+                dir = dir[:lastSlash]
+                err := os.MkdirAll(dir, 0755)
+                if err != nil {
+                        return fmt.Errorf("failed to create directory %s: %w", dir, err)
+                }
+        }
+
+        // Generate key file path
+        keyFile := strings.TrimSuffix(outputFile, ".crt") + ".key"
+        chainFile := strings.TrimSuffix(outputFile, ".crt") + ".chain.crt"
+
+        // Save certificate to the specified output file
+        err := os.WriteFile(outputFile, []byte(certificate), 0644)
+        if err != nil {
+                return fmt.Errorf("failed to write certificate file: %w", err)
+        }
+
+        // Save private key with .key extension
+        err = os.WriteFile(keyFile, []byte(privateKey), 0600) // More restrictive permissions for private key
+        if err != nil {
+                return fmt.Errorf("failed to write private key file: %w", err)
+        }
+        if !quiet {
+                fmt.Printf("    Private key generated and saved to: %s\n", keyFile)
+                fmt.Printf("    Enrolling certificate for CN: %s\n", commonName)
         }
 
         // Save chain certificate if provided
@@ -841,9 +885,7 @@ type TaskResult struct {
 func executeCertificateTaskWithResult(client *api.Client, certTask *config.CertificateTask, quiet, verbose bool) (*TaskResult, error) {
         result := &TaskResult{Renewed: false, Skipped: false}
         
-        if !quiet && !verbose {
-                fmt.Printf("    Enrolling certificate for CN: %s\n", certTask.Request.Subject.CommonName)
-        } else if verbose {
+        if verbose {
                 fmt.Printf("    Processing certificate for CN: %s\n", certTask.Request.Subject.CommonName)
         }
 
@@ -993,8 +1035,6 @@ func executeCertificateTask(client *api.Client, certTask *config.CertificateTask
                 return fmt.Errorf("failed to generate CSR: %w", err)
         }
 
-        fmt.Printf("    Enrolling certificate for CN: %s\n", certTask.Request.Subject.CommonName)
-
         // Submit CSR using comprehensive ZTPKI API payload
         requestID, err := client.SubmitCSRWithFullPayload(csr, certTask, false) // Never show verbose output in legacy function
         if err != nil {
@@ -1136,8 +1176,8 @@ func processPEMInstallation(certificate *api.Certificate, privateKeyPEM string, 
                 chainForDefaultSave = ""
         }
         
-        // Save certificate and key without backup operations (already done above)
-        err := saveCertificateAndKeyQuietNoBackup(outputFile, certificate.Certificate, privateKeyPEM, chainForDefaultSave, quiet)
+        // Save certificate and key without backup operations (already done above)  
+        err := saveCertificateAndKeyQuietNoBackupWithEnrollment(outputFile, certificate.Certificate, privateKeyPEM, chainForDefaultSave, quiet, certTask.Request.Subject.CommonName)
         if err != nil {
                 return err
         }
