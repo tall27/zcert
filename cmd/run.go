@@ -228,7 +228,13 @@ func executeEnrollTask(client *api.Client, task *config.PlaybookTask) error {
 
         // Save certificate and key if output file specified
         if task.OutputFile != "" {
-                err := saveCertificateAndKey(task.OutputFile, certificate.Certificate, privateKeyPEM, task.BackupExisting)
+                // Retrieve certificate with chain using PEM endpoint
+                pemResponse, err := client.GetCertificatePEM(certificate.ID, true)
+                if err != nil {
+                        return fmt.Errorf("failed to retrieve certificate PEM: %w", err)
+                }
+                
+                err = saveCertificateAndKey(task.OutputFile, pemResponse.Certificate, privateKeyPEM, pemResponse.Chain, task.BackupExisting)
                 if err != nil {
                         return fmt.Errorf("failed to save certificate: %w", err)
                 }
@@ -418,7 +424,7 @@ timeout_reached:
         return certificate, nil
 }
 
-func saveCertificateAndKey(outputFile, certificate, privateKey string, backupExisting bool) error {
+func saveCertificateAndKey(outputFile, certificate, privateKey, chainCertificate string, backupExisting bool) error {
         // Create directory if it doesn't exist
         dir := strings.Replace(outputFile, "\\", "/", -1) // Handle Windows paths
         if lastSlash := strings.LastIndex(dir, "/"); lastSlash != -1 {
@@ -431,6 +437,7 @@ func saveCertificateAndKey(outputFile, certificate, privateKey string, backupExi
 
         // Generate key file path
         keyFile := strings.TrimSuffix(outputFile, ".crt") + ".key"
+        chainFile := strings.TrimSuffix(outputFile, ".crt") + ".chain.crt"
 
         // Backup existing files if requested
         if backupExisting {
@@ -442,6 +449,14 @@ func saveCertificateAndKey(outputFile, certificate, privateKey string, backupExi
                 err = backupFileIfExists(keyFile)
                 if err != nil {
                         return fmt.Errorf("failed to backup key file: %w", err)
+                }
+                
+                // Backup chain file if it exists
+                if chainCertificate != "" {
+                        err = backupFileIfExists(chainFile)
+                        if err != nil {
+                                return fmt.Errorf("failed to backup chain file: %w", err)
+                        }
                 }
         }
 
@@ -455,6 +470,15 @@ func saveCertificateAndKey(outputFile, certificate, privateKey string, backupExi
         err = os.WriteFile(keyFile, []byte(privateKey), 0600) // More restrictive permissions for private key
         if err != nil {
                 return fmt.Errorf("failed to write private key file: %w", err)
+        }
+
+        // Save chain certificate if provided
+        if chainCertificate != "" && strings.TrimSpace(chainCertificate) != "" {
+                err = os.WriteFile(chainFile, []byte(chainCertificate), 0644)
+                if err != nil {
+                        return fmt.Errorf("failed to write chain certificate file: %w", err)
+                }
+                fmt.Printf("    Chain certificate saved to: %s\n", chainFile)
         }
 
         return nil

@@ -269,13 +269,22 @@ func (c *Client) GetCertificatePEM(id string, includeChain bool) (*CertificatePE
         if err != nil {
                 return nil, err
         }
+        defer resp.Body.Close()
         
-        var pemResponse CertificatePEMResponse
-        if err := c.handleResponse(resp, &pemResponse); err != nil {
-                return nil, err
+        // Read the response body as raw PEM data
+        body, err := io.ReadAll(resp.Body)
+        if err != nil {
+                return nil, fmt.Errorf("failed to read response body: %w", err)
         }
         
-        return &pemResponse, nil
+        if resp.StatusCode != http.StatusOK {
+                return nil, fmt.Errorf("API request failed with status %d: %s", resp.StatusCode, string(body))
+        }
+        
+        pemData := string(body)
+        
+        // Parse the PEM data to separate certificate and chain
+        return parsePEMResponse(pemData), nil
 }
 
 // GetCertificateRequest retrieves the status of a certificate request
