@@ -9,6 +9,7 @@ import (
         "encoding/pem"
         "fmt"
         "os"
+        "path/filepath"
         "regexp"
         "strconv"
         "strings"
@@ -1020,20 +1021,35 @@ func processPEMInstallation(certificate *api.Certificate, privateKeyPEM string, 
         if installation.KeyFile != "" {
                 keyFile := installation.KeyFile
                 
-                // Backup existing key file if requested
-                if installation.BackupExisting {
-                        err := backupFileIfExistsQuiet(keyFile, quiet)
-                        if err != nil {
-                                return fmt.Errorf("failed to backup key file: %w", err)
-                        }
+                // Check if this is the same key file already created by saveCertificateAndKeyQuiet
+                defaultKeyFile := strings.TrimSuffix(outputFile, ".crt") + ".key"
+                
+                // Normalize paths for comparison
+                keyFileAbs, _ := filepath.Abs(keyFile)
+                defaultKeyFileAbs, _ := filepath.Abs(defaultKeyFile)
+                
+                // Debug: Print paths for comparison
+                if !globalQuietMode && runVerbose {
+                        fmt.Printf("    Debug: keyFile=%s, defaultKeyFile=%s\n", keyFileAbs, defaultKeyFileAbs)
                 }
                 
-                err := os.WriteFile(keyFile, []byte(privateKeyPEM), 0600)
-                if err != nil {
-                        return fmt.Errorf("failed to write key file: %w", err)
-                }
-                if !quiet {
-                        fmt.Printf("    Private key saved to: %s\n", keyFile)
+                // Only create separate key file if it's different from the default one
+                if keyFileAbs != defaultKeyFileAbs {
+                        // Backup existing key file if requested
+                        if installation.BackupExisting {
+                                err := backupFileIfExistsQuiet(keyFile, quiet)
+                                if err != nil {
+                                        return fmt.Errorf("failed to backup key file: %w", err)
+                                }
+                        }
+                        
+                        err := os.WriteFile(keyFile, []byte(privateKeyPEM), 0600)
+                        if err != nil {
+                                return fmt.Errorf("failed to write key file: %w", err)
+                        }
+                        if !quiet {
+                                fmt.Printf("    Private key saved to: %s\n", keyFile)
+                        }
                 }
         }
         
