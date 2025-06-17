@@ -171,6 +171,59 @@ func runPlaybook(cmd *cobra.Command, args []string) error {
                 defaultPolicy = runPolicy
         }
 
+        // Show variable hierarchy in verbose mode
+        if runVerbose && !runQuiet {
+                fmt.Printf("\n=== Variable Hierarchy (CLI > Config > Environment) ===\n")
+                fmt.Printf("ZTPKI URL:\n")
+                if runURL != "" {
+                        fmt.Printf("  ✓ CLI: %s\n", runURL)
+                } else if profile != nil && profile.URL != "" {
+                        fmt.Printf("  ✓ Config: %s\n", profile.URL)
+                } else if envURL := os.Getenv("ZTPKI_URL"); envURL != "" {
+                        fmt.Printf("  ✓ Environment: %s\n", envURL)
+                } else {
+                        fmt.Printf("  ✗ Not set\n")
+                }
+                fmt.Printf("  Final value: %s\n\n", cfg.BaseURL)
+
+                fmt.Printf("HAWK ID:\n")
+                if runHawkID != "" {
+                        fmt.Printf("  ✓ CLI: %s\n", runHawkID)
+                } else if profile != nil && profile.KeyID != "" {
+                        fmt.Printf("  ✓ Config: %s\n", profile.KeyID)
+                } else if envHawkID := os.Getenv("ZTPKI_HAWK_ID"); envHawkID != "" {
+                        fmt.Printf("  ✓ Environment: %s\n", envHawkID)
+                } else {
+                        fmt.Printf("  ✗ Not set\n")
+                }
+                fmt.Printf("  Final value: %s\n\n", cfg.HawkID)
+
+                fmt.Printf("HAWK Secret:\n")
+                if runHawkKey != "" {
+                        fmt.Printf("  ✓ CLI: %s\n", maskSecret(runHawkKey))
+                } else if profile != nil && profile.Secret != "" {
+                        fmt.Printf("  ✓ Config: %s\n", maskSecret(profile.Secret))
+                } else if envHawkKey := os.Getenv("ZTPKI_HAWK_SECRET"); envHawkKey != "" {
+                        fmt.Printf("  ✓ Environment: %s\n", maskSecret(envHawkKey))
+                } else {
+                        fmt.Printf("  ✗ Not set\n")
+                }
+                fmt.Printf("  Final value: %s\n\n", maskSecret(cfg.HawkKey))
+
+                fmt.Printf("Policy ID:\n")
+                if runPolicy != "" {
+                        fmt.Printf("  ✓ CLI: %s\n", runPolicy)
+                } else if profile != nil && profile.PolicyID != "" {
+                        fmt.Printf("  ✓ Config: %s\n", profile.PolicyID)
+                } else if envPolicy := os.Getenv("ZTPKI_POLICY_ID"); envPolicy != "" {
+                        fmt.Printf("  ✓ Environment: %s\n", envPolicy)
+                } else {
+                        fmt.Printf("  ✗ Not set\n")
+                }
+                fmt.Printf("  Final value: %s\n", defaultPolicy)
+                fmt.Printf("===============================================\n\n")
+        }
+
         // Validate required credentials before proceeding
         if cfg.BaseURL == "" {
                 return fmt.Errorf("ZTPKI URL is required (set ZTPKI_URL environment variable or use --config with profile)")

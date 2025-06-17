@@ -1,0 +1,34 @@
+# zcert Playbook Configuration File
+# This file defines certificate management workflows with automated deployment
+# Usage: zcert run --file playbook.yaml
+
+config:
+  connection:
+    credentials:
+      hawk-id: '{{ZTPKI_HAWK_ID}}'
+      hawk-api: '{{ZTPKI_HAWK_SECRET}}'
+      platform: '{{ZTPKI_URL}}'
+certificateTasks:
+  - name: "WebServerCert"
+    renewBefore: 30d
+    request:
+      csr: local
+      subject:
+        commonName: "abc.example.com"
+        country: US
+        state: Utah
+        locality: Salt Lake City
+        organization: Example Corp
+      policy: '{{ZTPKI_POLICY_ID}}'
+      # Enhanced SAN support matching ZTPKI schema
+      sans:
+        dns:
+          - "www.example.com"
+          - "api.example.com"
+    installations:
+      - format: PEM
+        file: "./certs/example.crt"
+        chainFile: "./certs/example.chain.crt"
+        keyFile: "./certs/example.key"
+        backupExisting: true
+        #afterInstallAction: "echo 'Certificate installed successfully'"
