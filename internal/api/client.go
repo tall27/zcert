@@ -366,7 +366,6 @@ func (c *Client) SubmitCSRWithFullPayload(csrPEM string, certTask *config.Certif
                 requestBody.ExpiryEmails = certTask.Request.ExpiryEmails
         }
         
-        // Debug: Print the complete payload being sent to ZTPKI (only in verbose mode)
         if verbose {
                 if payload, err := json.MarshalIndent(requestBody, "", "  "); err == nil {
                         fmt.Printf("=== COMPLETE ZTPKI API Payload ===\n")

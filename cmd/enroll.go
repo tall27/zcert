@@ -504,14 +504,7 @@ func runEnroll(cmd *cobra.Command, args []string) error {
                 }
         }
 
-        verboseMode := viper.GetBool("verbose")
-        if verboseMode {
-                fmt.Printf("DEBUG: About to call SubmitCSRWithFullPayload with verbose=%v\n", verboseMode)
-                fmt.Printf("DEBUG: CertTask.Request.Policy=%s\n", certTask.Request.Policy)
-                fmt.Printf("DEBUG: CertTask.Request.Subject.CommonName=%s\n", certTask.Request.Subject.CommonName)
-        }
-        
-        requestID, err := client.SubmitCSRWithFullPayload(string(csrPEM), certTask, verboseMode)
+        requestID, err := client.SubmitCSRWithFullPayload(string(csrPEM), certTask, enrollVerbose)
         if err != nil {
                 return fmt.Errorf("failed to submit CSR: %w", err)
         }
