@@ -329,9 +329,7 @@ func MergeProfileWithFlags(profile *Profile, flagURL, flagKeyID, flagSecret, fla
         if envSecret := os.Getenv("ZTPKI_HAWK_SECRET"); envSecret != "" {
                 envProfile.Secret = envSecret
         }
-        if envPolicy := os.Getenv("ZTPKI_POLICY_ID"); envPolicy != "" {
-                envProfile.PolicyID = envPolicy
-        }
+        // Don't apply ZTPKI_POLICY_ID here - handle it with proper priority later
 
         // Override with configuration file values (medium priority)
         merged := *envProfile
