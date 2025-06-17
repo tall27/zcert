@@ -8,7 +8,7 @@ set -e
 # Configuration
 APP_NAME="zcert"
 VERSION=${VERSION:-"1.2.0"}
-BUILD_TIME=$(date -u +%Y%m%d.%H%M%S)
+BUILD_TIME=$(env TZ=America/Chicago date '+%Y%m%d.%H%M%S')
 GIT_COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 
 # Build information
@@ -39,24 +39,24 @@ build_target() {
     local goos=$(echo $target | cut -d'/' -f1)
     local goarch=$(echo $target | cut -d'/' -f2)
     local suffix=""
-    
+
     if [ "$goos" = "windows" ]; then
         suffix=".exe"
     fi
-    
+
     local binary_name="${APP_NAME}${suffix}"
     local archive_name="${APP_NAME}-${VERSION}-${goos}-${goarch}"
-    
+
     echo "Building $target..."
-    
+
     # Set environment variables for cross-compilation
     export GOOS=$goos
     export GOARCH=$goarch
     export CGO_ENABLED=0
-    
+
     # Build with version information
     go build -ldflags="-X 'main.Version=$VERSION' -X 'main.GitCommit=$GIT_COMMIT' -X 'main.BuildTime=$BUILD_TIME' -w -s" -o "dist/$binary_name" main.go
-    
+
     # Create archive
     cd dist/
     if [ "$goos" = "windows" ]; then
@@ -67,7 +67,7 @@ build_target() {
         echo "Created: ${archive_name}.tar.gz"
     fi
     cd ..
-    
+
     # Reset environment
     unset GOOS GOARCH CGO_ENABLED
 }

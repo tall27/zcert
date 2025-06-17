@@ -7,7 +7,7 @@ set -e
 # Get version information
 VERSION="1.2.0"
 GIT_COMMIT=$(git rev-parse --short HEAD 2>/dev/null || echo "unknown")
-BUILD_TIME=$(date -u '+%Y%m%d.%H%M%S')
+BUILD_TIME=$(env TZ=America/Chicago date '+%Y%m%d.%H%M%S')
 GO_VERSION=$(go version | awk '{print $3}')
 PLATFORM="$(go env GOOS)/$(go env GOARCH)"
 
