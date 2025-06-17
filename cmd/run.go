@@ -249,7 +249,7 @@ func runPlaybook(cmd *cobra.Command, args []string) error {
                         task.PolicyID = defaultPolicy
                 }
                 
-                err := executeTask(client, &task)
+                err := executeTask(client, &task, defaultPolicy)
                 if err != nil {
                         fmt.Printf("  ❌ Task failed: %v\n", err)
                         if !task.ContinueOnError {
@@ -267,24 +267,44 @@ func runPlaybook(cmd *cobra.Command, args []string) error {
         return nil
 }
 
+// expandTemplateVariables expands template variables like {{ZTPKI_POLICY_ID}}
+func expandTemplateVariables(value string, defaultPolicy string) string {
+        // Handle {{ZTPKI_POLICY_ID}} expansion
+        if value == "{{ZTPKI_POLICY_ID}}" {
+                if defaultPolicy != "" {
+                        return defaultPolicy
+                }
+                // Fallback to environment variable if no default policy
+                if envPolicy := os.Getenv("ZTPKI_POLICY_ID"); envPolicy != "" {
+                        return envPolicy
+                }
+                return value // Return as-is if no expansion possible
+        }
+        
+        // Handle other template variables
+        value = strings.ReplaceAll(value, "{{ZTPKI_URL}}", os.Getenv("ZTPKI_URL"))
+        value = strings.ReplaceAll(value, "{{ZTPKI_HAWK_ID}}", os.Getenv("ZTPKI_HAWK_ID"))
+        value = strings.ReplaceAll(value, "{{ZTPKI_HAWK_SECRET}}", os.Getenv("ZTPKI_HAWK_SECRET"))
+        
+        return value
+}
 
-
-func executeTask(client *api.Client, task *config.PlaybookTask) error {
+func executeTask(client *api.Client, task *config.PlaybookTask, defaultPolicy string) error {
         switch strings.ToLower(task.Action) {
         case "enroll":
-                return executeEnrollTask(client, task)
+                return executeEnrollTask(client, task, defaultPolicy)
         case "retrieve":
-                return executeRetrieveTask(client, task)
+                return executeRetrieveTask(client, task, defaultPolicy)
         case "search":
-                return executeSearchTask(client, task)
+                return executeSearchTask(client, task, defaultPolicy)
         case "revoke":
-                return executeRevokeTask(client, task)
+                return executeRevokeTask(client, task, defaultPolicy)
         default:
                 return fmt.Errorf("unknown task action: %s", task.Action)
         }
 }
 
-func executeEnrollTask(client *api.Client, task *config.PlaybookTask) error {
+func executeEnrollTask(client *api.Client, task *config.PlaybookTask, defaultPolicy string) error {
 
         // Validate required fields
         if task.CommonName == "" {
@@ -323,8 +343,11 @@ func executeEnrollTask(client *api.Client, task *config.PlaybookTask) error {
                 return fmt.Errorf("failed to generate CSR: %w", err)
         }
 
+        // Expand template variables in PolicyID
+        expandedPolicyID := expandTemplateVariables(task.PolicyID, defaultPolicy)
+        
         // Submit CSR to ZTPKI
-        requestID, err := client.SubmitCSR(csr, task.PolicyID, nil)
+        requestID, err := client.SubmitCSR(csr, expandedPolicyID, nil)
         if err != nil {
                 return fmt.Errorf("failed to submit CSR: %w", err)
         }
@@ -355,7 +378,7 @@ func executeEnrollTask(client *api.Client, task *config.PlaybookTask) error {
         return nil
 }
 
-func executeRetrieveTask(client *api.Client, task *config.PlaybookTask) error {
+func executeRetrieveTask(client *api.Client, task *config.PlaybookTask, defaultPolicy string) error {
         fmt.Printf("    Retrieving certificate ID: %s\n", task.CertificateID)
 
         if task.CertificateID == "" {
@@ -378,7 +401,7 @@ func executeRetrieveTask(client *api.Client, task *config.PlaybookTask) error {
         return nil
 }
 
-func executeSearchTask(client *api.Client, task *config.PlaybookTask) error {
+func executeSearchTask(client *api.Client, task *config.PlaybookTask, defaultPolicy string) error {
         fmt.Printf("    Searching certificates with criteria\n")
 
         searchParams := api.CertificateSearchParams{
