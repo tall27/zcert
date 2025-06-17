@@ -31,6 +31,7 @@ var (
         runURL      string
         runHawkID   string
         runHawkKey  string
+        runPolicy   string
 )
 
 // runCmd represents the run command
@@ -64,6 +65,7 @@ func init() {
         runCmd.Flags().StringVar(&runURL, "url", "", "ZTPKI API base URL (e.g., https://your-ztpki-instance.com/api/v2)")
         runCmd.Flags().StringVar(&runHawkID, "hawk-id", "", "HAWK authentication ID")
         runCmd.Flags().StringVar(&runHawkKey, "hawk-key", "", "HAWK authentication key")
+        runCmd.Flags().StringVar(&runPolicy, "policy", "", "Default policy ID for certificate operations")
 }
 
 func runPlaybook(cmd *cobra.Command, args []string) error {
@@ -109,6 +111,8 @@ func runPlaybook(cmd *cobra.Command, args []string) error {
         
         // Start with environment variables (lowest priority)
         cfg := &config.Config{}
+        var defaultPolicy string
+        
         if url := os.Getenv("ZTPKI_URL"); url != "" {
                 cfg.BaseURL = url
         }
@@ -117,6 +121,9 @@ func runPlaybook(cmd *cobra.Command, args []string) error {
         }
         if hawkKey := os.Getenv("ZTPKI_HAWK_SECRET"); hawkKey != "" {
                 cfg.HawkKey = hawkKey
+        }
+        if envPolicy := os.Getenv("ZTPKI_POLICY_ID"); envPolicy != "" {
+                defaultPolicy = envPolicy
         }
         
         // Override with playbook credentials (medium priority - configuration file)
@@ -145,6 +152,9 @@ func runPlaybook(cmd *cobra.Command, args []string) error {
                 if profile.Secret != "" {
                         cfg.HawkKey = profile.Secret
                 }
+                if profile.PolicyID != "" {
+                        defaultPolicy = profile.PolicyID
+                }
         }
         
         // Override with CLI parameters (highest priority)
@@ -156,6 +166,9 @@ func runPlaybook(cmd *cobra.Command, args []string) error {
         }
         if runHawkKey != "" {
                 cfg.HawkKey = runHawkKey
+        }
+        if runPolicy != "" {
+                defaultPolicy = runPolicy
         }
 
         // Validate required credentials before proceeding
@@ -177,6 +190,11 @@ func runPlaybook(cmd *cobra.Command, args []string) error {
         // Execute each task in the playbook
         for i, task := range playbook.Tasks {
                 fmt.Printf("Task %d: %s\n", i+1, task.Name)
+                
+                // Apply default policy if task doesn't specify one
+                if task.PolicyID == "" && defaultPolicy != "" {
+                        task.PolicyID = defaultPolicy
+                }
                 
                 err := executeTask(client, &task)
                 if err != nil {

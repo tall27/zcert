@@ -18,6 +18,7 @@ var (
         renewURL      string
         renewHawkID   string
         renewHawkKey  string
+        renewPolicy   string
 )
 
 // renewCmd represents the renew command
@@ -54,6 +55,7 @@ func init() {
         renewCmd.Flags().StringVar(&renewURL, "url", "", "ZTPKI API base URL (e.g., https://your-ztpki-instance.com/api/v2)")
         renewCmd.Flags().StringVar(&renewHawkID, "hawk-id", "", "HAWK authentication ID")
         renewCmd.Flags().StringVar(&renewHawkKey, "hawk-key", "", "HAWK authentication key")
+        renewCmd.Flags().StringVar(&renewPolicy, "policy", "", "Policy ID for certificate renewal")
 }
 
 func runRenew(cmd *cobra.Command, args []string) error {
@@ -65,7 +67,7 @@ func runRenew(cmd *cobra.Command, args []string) error {
         // finalProfile := config.MergeProfileWithFlags(
         //     profile,
         //     renewURL, renewHawkID, renewHawkKey,
-        //     renewFormat, "", "", // policy not needed for renewal
+        //     renewFormat, renewPolicy, "", // policy and format flags
         //     0, "", // keysize, keytype inherited from existing cert
         // )
         
