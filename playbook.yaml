@@ -30,5 +30,5 @@ certificateTasks:
         file: "./certs/example.crt"
         chainFile: "./certs/example.chain.crt"
         keyFile: "./certs/example.key"
-        backupExisting: true
+        backupExisting: false
         #afterInstallAction: "echo 'Certificate installed successfully'"

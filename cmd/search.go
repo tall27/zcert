@@ -33,6 +33,7 @@ var (
         searchURL      string
         searchHawkID   string
         searchHawkKey  string
+        searchVerbose  bool
 
 )
 
@@ -74,6 +75,7 @@ func init() {
         searchCmd.Flags().StringVar(&searchURL, "url", "", "ZTPKI API base URL (e.g., https://your-ztpki-instance.com/api/v2)")
         searchCmd.Flags().StringVar(&searchHawkID, "hawk-id", "", "HAWK authentication ID")
         searchCmd.Flags().StringVar(&searchHawkKey, "hawk-key", "", "HAWK authentication key")
+        searchCmd.Flags().BoolVarP(&searchVerbose, "verbose", "v", false, "Verbose output including variable hierarchy")
 
         
         // Output options
@@ -189,6 +191,66 @@ func runSearch(cmd *cobra.Command, args []string) error {
         client, err := api.NewClient(cfg)
         if err != nil {
                 return fmt.Errorf("failed to initialize API client: %w", err)
+        }
+
+        // Show variable hierarchy in verbose mode
+        if searchVerbose {
+                fmt.Printf("\n=== Variable Hierarchy (CLI > Config > Environment) ===\n")
+                
+                // ZTPKI URL
+                var urlSource string
+                if searchURL != "" {
+                        urlSource = "CLI"
+                } else if profile != nil && profile.URL != "" {
+                        urlSource = "Config"
+                } else if os.Getenv("ZTPKI_URL") != "" {
+                        urlSource = "ENV Variable"
+                } else {
+                        urlSource = "Not set"
+                }
+                fmt.Printf("ZTPKI_URL - %s - %s\n", urlSource, finalProfile.URL)
+
+                // HAWK ID
+                var hawkIDSource string
+                if searchHawkID != "" {
+                        hawkIDSource = "CLI"
+                } else if profile != nil && profile.KeyID != "" {
+                        hawkIDSource = "Config"
+                } else if os.Getenv("ZTPKI_HAWK_ID") != "" {
+                        hawkIDSource = "ENV Variable"
+                } else {
+                        hawkIDSource = "Not set"
+                }
+                fmt.Printf("ZTPKI_HAWK_ID - %s - %s\n", hawkIDSource, finalProfile.KeyID)
+
+                // HAWK Secret
+                var hawkSecretSource string
+                if searchHawkKey != "" {
+                        hawkSecretSource = "CLI"
+                } else if profile != nil && profile.Secret != "" {
+                        hawkSecretSource = "Config"
+                } else if os.Getenv("ZTPKI_HAWK_SECRET") != "" {
+                        hawkSecretSource = "ENV Variable"
+                } else {
+                        hawkSecretSource = "Not set"
+                }
+                fmt.Printf("ZTPKI_HAWK_SECRET - %s - %s\n", hawkSecretSource, maskSecret(finalProfile.Secret))
+
+                // Policy ID
+                var policySource string
+                if searchPolicy != "" {
+                        policySource = "CLI"
+                } else if os.Getenv("ZTPKI_POLICY_ID") != "" {
+                        policySource = "ENV Variable"
+                } else {
+                        policySource = "Not set"
+                }
+                policyValue := searchPolicy
+                if policyValue == "" {
+                        policyValue = os.Getenv("ZTPKI_POLICY_ID")
+                }
+                fmt.Printf("ZTPKI_POLICY_ID - %s - %s\n", policySource, policyValue)
+                fmt.Printf("===============================================\n\n")
         }
 
         // Resolve policy substring to full policy ID if needed
