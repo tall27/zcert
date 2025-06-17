@@ -111,25 +111,14 @@ func runSearch(cmd *cobra.Command, args []string) error {
                                 0, "", 
                         )
                 } else {
-                        url := searchURL
-                        if url == "" {
-                                url = os.Getenv("ZTPKI_URL")
-                        }
-                        hawkID := searchHawkID
-                        if hawkID == "" {
-                                hawkID = os.Getenv("ZTPKI_HAWK_ID")
-                        }
-                        hawkKey := searchHawkKey
-                        if hawkKey == "" {
-                                hawkKey = os.Getenv("ZTPKI_HAWK_SECRET")
-                        }
-                        
-                        finalProfile = &config.Profile{
-                                URL:    url,
-                                KeyID:  hawkID,
-                                Secret: hawkKey,
-                                Algo:   "sha256",
-                        }
+                        // No profile config, merge CLI flags with environment variables
+                        // Priority: CLI Parameters > OS Environment Variables
+                        finalProfile = config.MergeProfileWithFlags(
+                                nil, // No config profile
+                                searchURL, searchHawkID, searchHawkKey,
+                                "", "", "", // format, policy, p12password not needed
+                                0, "", // keysize, keytype not needed
+                        )
                 }
                 
                 if finalProfile.URL == "" {
@@ -169,26 +158,14 @@ func runSearch(cmd *cobra.Command, args []string) error {
                         0, "", // keysize, keytype not needed for search
                 )
         } else {
-                // No profile config, use command-line flags or environment variables
-                url := searchURL
-                if url == "" {
-                        url = os.Getenv("ZTPKI_URL")
-                }
-                hawkID := searchHawkID
-                if hawkID == "" {
-                        hawkID = os.Getenv("ZTPKI_HAWK_ID")
-                }
-                hawkKey := searchHawkKey
-                if hawkKey == "" {
-                        hawkKey = os.Getenv("ZTPKI_HAWK_SECRET")
-                }
-                
-                finalProfile = &config.Profile{
-                        URL:    url,
-                        KeyID:  hawkID,
-                        Secret: hawkKey,
-                        Algo:   "sha256", // Always use sha256
-                }
+                // No profile config, merge CLI flags with environment variables
+                // Priority: CLI Parameters > OS Environment Variables
+                finalProfile = config.MergeProfileWithFlags(
+                        nil, // No config profile
+                        searchURL, searchHawkID, searchHawkKey,
+                        "", "", "", // format, policy, p12password not needed for search
+                        0, "", // keysize, keytype not needed for search
+                )
         }
 
         // Validate required authentication parameters
