@@ -269,24 +269,51 @@ func runPlaybook(cmd *cobra.Command, args []string) error {
 
 // expandTemplateVariables expands template variables like {{ZTPKI_POLICY_ID}}
 func expandTemplateVariables(value string, defaultPolicy string) string {
-        // Handle {{ZTPKI_POLICY_ID}} expansion
-        if value == "{{ZTPKI_POLICY_ID}}" {
+        // Handle exact template variable matches first
+        switch value {
+        case "{{ZTPKI_POLICY_ID}}":
                 if defaultPolicy != "" {
                         return defaultPolicy
                 }
-                // Fallback to environment variable if no default policy
                 if envPolicy := os.Getenv("ZTPKI_POLICY_ID"); envPolicy != "" {
                         return envPolicy
                 }
-                return value // Return as-is if no expansion possible
+                return value
+        case "{{ZTPKI_URL}}":
+                if envURL := os.Getenv("ZTPKI_URL"); envURL != "" {
+                        return envURL
+                }
+                return value
+        case "{{ZTPKI_HAWK_ID}}":
+                if envHawkID := os.Getenv("ZTPKI_HAWK_ID"); envHawkID != "" {
+                        return envHawkID
+                }
+                return value
+        case "{{ZTPKI_HAWK_SECRET}}":
+                if envHawkKey := os.Getenv("ZTPKI_HAWK_SECRET"); envHawkKey != "" {
+                        return envHawkKey
+                }
+                return value
         }
         
-        // Handle other template variables
-        value = strings.ReplaceAll(value, "{{ZTPKI_URL}}", os.Getenv("ZTPKI_URL"))
-        value = strings.ReplaceAll(value, "{{ZTPKI_HAWK_ID}}", os.Getenv("ZTPKI_HAWK_ID"))
-        value = strings.ReplaceAll(value, "{{ZTPKI_HAWK_SECRET}}", os.Getenv("ZTPKI_HAWK_SECRET"))
+        // Handle partial string replacements
+        result := value
+        if envURL := os.Getenv("ZTPKI_URL"); envURL != "" {
+                result = strings.ReplaceAll(result, "{{ZTPKI_URL}}", envURL)
+        }
+        if envHawkID := os.Getenv("ZTPKI_HAWK_ID"); envHawkID != "" {
+                result = strings.ReplaceAll(result, "{{ZTPKI_HAWK_ID}}", envHawkID)
+        }
+        if envHawkKey := os.Getenv("ZTPKI_HAWK_SECRET"); envHawkKey != "" {
+                result = strings.ReplaceAll(result, "{{ZTPKI_HAWK_SECRET}}", envHawkKey)
+        }
+        if defaultPolicy != "" {
+                result = strings.ReplaceAll(result, "{{ZTPKI_POLICY_ID}}", defaultPolicy)
+        } else if envPolicy := os.Getenv("ZTPKI_POLICY_ID"); envPolicy != "" {
+                result = strings.ReplaceAll(result, "{{ZTPKI_POLICY_ID}}", envPolicy)
+        }
         
-        return value
+        return result
 }
 
 func executeTask(client *api.Client, task *config.PlaybookTask, defaultPolicy string) error {
@@ -911,13 +938,28 @@ func executeCertificatePlaybook(certPlaybook *config.CertificatePlaybook, playbo
         playbookCredentials := &certPlaybook.Config.Connection.Credentials
         if playbookCredentials != nil {
                 if playbookCredentials.Platform != "" {
-                        cfg.BaseURL = os.ExpandEnv(playbookCredentials.Platform)
+                        expanded := expandTemplateVariables(playbookCredentials.Platform, "")
+                        if expanded != playbookCredentials.Platform {
+                                cfg.BaseURL = expanded
+                        } else {
+                                cfg.BaseURL = os.ExpandEnv(playbookCredentials.Platform)
+                        }
                 }
                 if playbookCredentials.HawkID != "" {
-                        cfg.HawkID = os.ExpandEnv(playbookCredentials.HawkID)
+                        expanded := expandTemplateVariables(playbookCredentials.HawkID, "")
+                        if expanded != playbookCredentials.HawkID {
+                                cfg.HawkID = expanded
+                        } else {
+                                cfg.HawkID = os.ExpandEnv(playbookCredentials.HawkID)
+                        }
                 }
                 if playbookCredentials.HawkAPI != "" {
-                        cfg.HawkKey = os.ExpandEnv(playbookCredentials.HawkAPI)
+                        expanded := expandTemplateVariables(playbookCredentials.HawkAPI, "")
+                        if expanded != playbookCredentials.HawkAPI {
+                                cfg.HawkKey = expanded
+                        } else {
+                                cfg.HawkKey = os.ExpandEnv(playbookCredentials.HawkAPI)
+                        }
                 }
         }
         
