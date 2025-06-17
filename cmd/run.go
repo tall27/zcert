@@ -16,6 +16,7 @@ import (
         "time"
 
         "github.com/spf13/cobra"
+        "github.com/spf13/viper"
         "zcert/internal/api"
         "zcert/internal/config"
 )
@@ -91,7 +92,7 @@ func runPlaybook(cmd *cobra.Command, args []string) error {
         // Try to load as certificate playbook format first (comprehensive YAML)
         certPlaybook, err := config.LoadCertificatePlaybook(playbookFile)
         if err == nil && certPlaybook != nil {
-                return executeCertificatePlaybook(certPlaybook, playbookFile, runQuiet, runVerbose, cmd)
+                return executeCertificatePlaybook(certPlaybook, playbookFile, runQuiet, runVerbose)
         }
         
         // Fall back to simple playbook format
@@ -923,7 +924,7 @@ func saveSearchResults(outputFile string, certificates []api.Certificate) error 
 }
 
 // executeCertificatePlaybook executes a certificate playbook with comprehensive ZTPKI API payloads
-func executeCertificatePlaybook(certPlaybook *config.CertificatePlaybook, playbookFile string, quiet, verbose bool, cmd *cobra.Command) error {
+func executeCertificatePlaybook(certPlaybook *config.CertificatePlaybook, playbookFile string, quiet, verbose bool) error {
         renewedCount := 0
         processedCount := 0
         
@@ -953,16 +954,15 @@ func executeCertificatePlaybook(certPlaybook *config.CertificatePlaybook, playbo
         }
         
         // Load profile configuration if specified (medium-low priority)
-        configFile := cmd.Flag("config").Value.String()
-        profileName := cmd.Flag("profile").Value.String()
+        configFile := viper.GetString("config")
+        profileName := viper.GetString("profile")
+        var profile *config.Profile
         
         if configFile != "" {
                 profileConfig, err := config.LoadProfileConfig(configFile)
                 if err != nil {
                         return fmt.Errorf("failed to load config file: %w", err)
                 }
-                
-                var profile *config.Profile
                 if profileName != "" {
                         profile = profileConfig.Profiles[profileName]
                         if profile == nil {
@@ -1042,6 +1042,8 @@ func executeCertificatePlaybook(certPlaybook *config.CertificatePlaybook, playbo
                         urlSource = "CLI"
                 } else if playbookCredentials != nil && playbookCredentials.Platform != "" {
                         urlSource = "YAML"
+                } else if configFile != "" {
+                        urlSource = "Config"
                 } else if os.Getenv("ZTPKI_URL") != "" {
                         urlSource = "ENV Variable"
                 } else {
