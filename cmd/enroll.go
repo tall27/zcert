@@ -294,6 +294,12 @@ func runEnroll(cmd *cobra.Command, args []string) error {
         keySize := finalProfile.KeySize
         keyType := finalProfile.KeyType
         format := finalProfile.Format
+        
+        // Use validity from profile if not provided via CLI flag
+        validity := enrollValidity
+        if validity == "" && finalProfile.Validity > 0 {
+                validity = fmt.Sprintf("%dd", finalProfile.Validity)
+        }
 
         // Handle CSR generation mode first to determine if CN is needed
         csrMode := cmd.Flag("csr").Value.String()
@@ -324,8 +330,8 @@ func runEnroll(cmd *cobra.Command, args []string) error {
 
         // Parse validity period if provided, otherwise use template maximum
         var validityPeriod *api.ValidityPeriod
-        if enrollValidity != "" {
-                validityPeriod, err = utils.ParseValidityPeriod(enrollValidity)
+        if validity != "" {
+                validityPeriod, err = utils.ParseValidityPeriod(validity)
                 if err != nil {
                         return fmt.Errorf("invalid validity format: %w", err)
                 }
