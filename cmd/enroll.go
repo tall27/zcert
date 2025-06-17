@@ -480,7 +480,38 @@ func runEnroll(cmd *cobra.Command, args []string) error {
                 fmt.Fprintln(os.Stderr, "Submitting CSR to ZTPKI...")
         }
 
-        requestID, err := client.SubmitCSR(string(csrPEM), policyID, validityPeriod)
+        // Create certificate task structure for API payload display
+        certTask := &config.CertificateTask{
+                Request: config.CertificateRequest{
+                        Policy: policyID,
+                        Subject: config.CertificateSubject{
+                                CommonName:   cn,
+                                Country:      enrollCountry,
+                                State:        enrollProvince,
+                                Locality:     enrollLocality,
+                                Organization: strings.Join(enrollOrg, ","),
+                                OrgUnits:     enrollOrgUnit,
+                        },
+                },
+        }
+
+        // Add validity period if specified
+        if validityPeriod != nil {
+                certTask.Request.Validity = &config.ValidityConfig{
+                        Days:   validityPeriod.Days,
+                        Months: validityPeriod.Months,
+                        Years:  validityPeriod.Years,
+                }
+        }
+
+        verboseMode := viper.GetBool("verbose")
+        if verboseMode {
+                fmt.Printf("DEBUG: About to call SubmitCSRWithFullPayload with verbose=%v\n", verboseMode)
+                fmt.Printf("DEBUG: CertTask.Request.Policy=%s\n", certTask.Request.Policy)
+                fmt.Printf("DEBUG: CertTask.Request.Subject.CommonName=%s\n", certTask.Request.Subject.CommonName)
+        }
+        
+        requestID, err := client.SubmitCSRWithFullPayload(string(csrPEM), certTask, verboseMode)
         if err != nil {
                 return fmt.Errorf("failed to submit CSR: %w", err)
         }
