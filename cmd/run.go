@@ -432,7 +432,7 @@ func executeSearchTask(client *api.Client, task *config.PlaybookTask, defaultPol
         return nil
 }
 
-func executeRevokeTask(client *api.Client, task *config.PlaybookTask) error {
+func executeRevokeTask(client *api.Client, task *config.PlaybookTask, defaultPolicy string) error {
         fmt.Printf("    Revoking certificate ID: %s\n", task.CertificateID)
 
         if task.CertificateID == "" {
@@ -887,10 +887,27 @@ func executeCertificatePlaybook(certPlaybook *config.CertificatePlaybook, playbo
                 fmt.Println()
         }
 
-        // Create API client using credentials from playbook or environment
-        cfg := config.GetConfig()
+        // Create configuration with correct priority hierarchy
+        // Priority: CLI Parameters > Configuration File > Environment Variables
         
-        // Extract credentials from playbook if available
+        // Start with environment variables (lowest priority)
+        cfg := &config.Config{}
+        var defaultPolicy string
+        
+        if url := os.Getenv("ZTPKI_URL"); url != "" {
+                cfg.BaseURL = url
+        }
+        if hawkID := os.Getenv("ZTPKI_HAWK_ID"); hawkID != "" {
+                cfg.HawkID = hawkID
+        }
+        if hawkKey := os.Getenv("ZTPKI_HAWK_SECRET"); hawkKey != "" {
+                cfg.HawkKey = hawkKey
+        }
+        if envPolicy := os.Getenv("ZTPKI_POLICY_ID"); envPolicy != "" {
+                defaultPolicy = envPolicy
+        }
+        
+        // Override with playbook credentials (medium priority - configuration file)
         playbookCredentials := &certPlaybook.Config.Connection.Credentials
         if playbookCredentials != nil {
                 if playbookCredentials.Platform != "" {
@@ -904,15 +921,69 @@ func executeCertificatePlaybook(certPlaybook *config.CertificatePlaybook, playbo
                 }
         }
         
-        // Override with environment variables if available (highest priority)
-        if url := os.Getenv("ZTPKI_URL"); url != "" {
-                cfg.BaseURL = url
+        // Override with CLI parameters (highest priority)
+        if runURL != "" {
+                cfg.BaseURL = runURL
         }
-        if hawkID := os.Getenv("ZTPKI_HAWK_ID"); hawkID != "" {
-                cfg.HawkID = hawkID
+        if runHawkID != "" {
+                cfg.HawkID = runHawkID
         }
-        if hawkKey := os.Getenv("ZTPKI_HAWK_SECRET"); hawkKey != "" {
-                cfg.HawkKey = hawkKey
+        if runHawkKey != "" {
+                cfg.HawkKey = runHawkKey
+        }
+        if runPolicy != "" {
+                defaultPolicy = runPolicy
+        }
+
+        // Show variable hierarchy in verbose mode
+        if verbose && !quiet {
+                fmt.Printf("\n=== Variable Hierarchy (CLI > Config > Environment) ===\n")
+                fmt.Printf("ZTPKI URL:\n")
+                if runURL != "" {
+                        fmt.Printf("  ✓ CLI: %s\n", runURL)
+                } else if playbookCredentials != nil && playbookCredentials.Platform != "" {
+                        fmt.Printf("  ✓ Config: %s\n", playbookCredentials.Platform)
+                } else if envURL := os.Getenv("ZTPKI_URL"); envURL != "" {
+                        fmt.Printf("  ✓ Environment: %s\n", envURL)
+                } else {
+                        fmt.Printf("  ✗ Not set\n")
+                }
+                fmt.Printf("  Final value: %s\n\n", cfg.BaseURL)
+
+                fmt.Printf("HAWK ID:\n")
+                if runHawkID != "" {
+                        fmt.Printf("  ✓ CLI: %s\n", runHawkID)
+                } else if playbookCredentials != nil && playbookCredentials.HawkID != "" {
+                        fmt.Printf("  ✓ Config: %s\n", playbookCredentials.HawkID)
+                } else if envHawkID := os.Getenv("ZTPKI_HAWK_ID"); envHawkID != "" {
+                        fmt.Printf("  ✓ Environment: %s\n", envHawkID)
+                } else {
+                        fmt.Printf("  ✗ Not set\n")
+                }
+                fmt.Printf("  Final value: %s\n\n", cfg.HawkID)
+
+                fmt.Printf("HAWK Secret:\n")
+                if runHawkKey != "" {
+                        fmt.Printf("  ✓ CLI: %s\n", maskSecret(runHawkKey))
+                } else if playbookCredentials != nil && playbookCredentials.HawkAPI != "" {
+                        fmt.Printf("  ✓ Config: %s\n", maskSecret(playbookCredentials.HawkAPI))
+                } else if envHawkKey := os.Getenv("ZTPKI_HAWK_SECRET"); envHawkKey != "" {
+                        fmt.Printf("  ✓ Environment: %s\n", maskSecret(envHawkKey))
+                } else {
+                        fmt.Printf("  ✗ Not set\n")
+                }
+                fmt.Printf("  Final value: %s\n\n", maskSecret(cfg.HawkKey))
+
+                fmt.Printf("Policy ID:\n")
+                if runPolicy != "" {
+                        fmt.Printf("  ✓ CLI: %s\n", runPolicy)
+                } else if envPolicy := os.Getenv("ZTPKI_POLICY_ID"); envPolicy != "" {
+                        fmt.Printf("  ✓ Environment: %s\n", envPolicy)
+                } else {
+                        fmt.Printf("  ✗ Not set\n")
+                }
+                fmt.Printf("  Final value: %s\n", defaultPolicy)
+                fmt.Printf("===============================================\n\n")
         }
 
         // Validate required credentials
@@ -937,7 +1008,7 @@ func executeCertificatePlaybook(certPlaybook *config.CertificatePlaybook, playbo
                         fmt.Printf("Executing certificate task %d/%d: %s\n", i+1, len(certPlaybook.CertificateTasks), certTask.Name)
                 }
                 
-                taskResult, err := executeCertificateTaskWithResult(client, &certTask, quiet, verbose)
+                taskResult, err := executeCertificateTaskWithResult(client, &certTask, defaultPolicy, quiet, verbose)
                 if err != nil {
                         if quiet {
                                 return fmt.Errorf("certificate task failed")
@@ -980,7 +1051,7 @@ type TaskResult struct {
 }
 
 // executeCertificateTaskWithResult executes a single certificate task and returns detailed results
-func executeCertificateTaskWithResult(client *api.Client, certTask *config.CertificateTask, quiet, verbose bool) (*TaskResult, error) {
+func executeCertificateTaskWithResult(client *api.Client, certTask *config.CertificateTask, defaultPolicy string, quiet, verbose bool) (*TaskResult, error) {
         result := &TaskResult{Renewed: false, Skipped: false}
         
         if verbose {
@@ -1018,8 +1089,12 @@ func executeCertificateTaskWithResult(client *api.Client, certTask *config.Certi
                 return nil, fmt.Errorf("failed to generate CSR: %w", err)
         }
 
+        // Expand template variables in the certificate task policy
+        expandedTask := *certTask // Create a copy
+        expandedTask.Request.Policy = expandTemplateVariables(certTask.Request.Policy, defaultPolicy)
+        
         // Submit CSR using comprehensive ZTPKI API payload
-        requestID, err := client.SubmitCSRWithFullPayload(csr, certTask, verbose)
+        requestID, err := client.SubmitCSRWithFullPayload(csr, &expandedTask, verbose)
         if err != nil {
                 return nil, fmt.Errorf("failed to submit CSR: %w", err)
         }
