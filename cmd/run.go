@@ -174,53 +174,58 @@ func runPlaybook(cmd *cobra.Command, args []string) error {
         // Show variable hierarchy in verbose mode
         if runVerbose && !runQuiet {
                 fmt.Printf("\n=== Variable Hierarchy (CLI > Config > Environment) ===\n")
-                fmt.Printf("ZTPKI URL:\n")
+                
+                // ZTPKI URL
+                var urlSource string
                 if runURL != "" {
-                        fmt.Printf("  ✓ CLI: %s\n", runURL)
+                        urlSource = "CLI"
                 } else if profile != nil && profile.URL != "" {
-                        fmt.Printf("  ✓ Config: %s\n", profile.URL)
-                } else if envURL := os.Getenv("ZTPKI_URL"); envURL != "" {
-                        fmt.Printf("  ✓ Environment: %s\n", envURL)
+                        urlSource = "Config"
+                } else if os.Getenv("ZTPKI_URL") != "" {
+                        urlSource = "ENV Variable"
                 } else {
-                        fmt.Printf("  ✗ Not set\n")
+                        urlSource = "Not set"
                 }
-                fmt.Printf("  Final value: %s\n\n", cfg.BaseURL)
+                fmt.Printf("ZTPKI_URL - %s - %s\n", urlSource, cfg.BaseURL)
 
-                fmt.Printf("HAWK ID:\n")
+                // HAWK ID
+                var hawkIDSource string
                 if runHawkID != "" {
-                        fmt.Printf("  ✓ CLI: %s\n", runHawkID)
+                        hawkIDSource = "CLI"
                 } else if profile != nil && profile.KeyID != "" {
-                        fmt.Printf("  ✓ Config: %s\n", profile.KeyID)
-                } else if envHawkID := os.Getenv("ZTPKI_HAWK_ID"); envHawkID != "" {
-                        fmt.Printf("  ✓ Environment: %s\n", envHawkID)
+                        hawkIDSource = "Config"
+                } else if os.Getenv("ZTPKI_HAWK_ID") != "" {
+                        hawkIDSource = "ENV Variable"
                 } else {
-                        fmt.Printf("  ✗ Not set\n")
+                        hawkIDSource = "Not set"
                 }
-                fmt.Printf("  Final value: %s\n\n", cfg.HawkID)
+                fmt.Printf("ZTPKI_HAWK_ID - %s - %s\n", hawkIDSource, cfg.HawkID)
 
-                fmt.Printf("HAWK Secret:\n")
+                // HAWK Secret
+                var hawkSecretSource string
                 if runHawkKey != "" {
-                        fmt.Printf("  ✓ CLI: %s\n", maskSecret(runHawkKey))
+                        hawkSecretSource = "CLI"
                 } else if profile != nil && profile.Secret != "" {
-                        fmt.Printf("  ✓ Config: %s\n", maskSecret(profile.Secret))
-                } else if envHawkKey := os.Getenv("ZTPKI_HAWK_SECRET"); envHawkKey != "" {
-                        fmt.Printf("  ✓ Environment: %s\n", maskSecret(envHawkKey))
+                        hawkSecretSource = "Config"
+                } else if os.Getenv("ZTPKI_HAWK_SECRET") != "" {
+                        hawkSecretSource = "ENV Variable"
                 } else {
-                        fmt.Printf("  ✗ Not set\n")
+                        hawkSecretSource = "Not set"
                 }
-                fmt.Printf("  Final value: %s\n\n", maskSecret(cfg.HawkKey))
+                fmt.Printf("ZTPKI_HAWK_SECRET - %s - %s\n", hawkSecretSource, maskSecret(cfg.HawkKey))
 
-                fmt.Printf("Policy ID:\n")
+                // Policy ID
+                var policySource string
                 if runPolicy != "" {
-                        fmt.Printf("  ✓ CLI: %s\n", runPolicy)
+                        policySource = "CLI"
                 } else if profile != nil && profile.PolicyID != "" {
-                        fmt.Printf("  ✓ Config: %s\n", profile.PolicyID)
-                } else if envPolicy := os.Getenv("ZTPKI_POLICY_ID"); envPolicy != "" {
-                        fmt.Printf("  ✓ Environment: %s\n", envPolicy)
+                        policySource = "Config"
+                } else if os.Getenv("ZTPKI_POLICY_ID") != "" {
+                        policySource = "ENV Variable"
                 } else {
-                        fmt.Printf("  ✗ Not set\n")
+                        policySource = "Not set"
                 }
-                fmt.Printf("  Final value: %s\n", defaultPolicy)
+                fmt.Printf("ZTPKI_POLICY_ID - %s - %s\n", policySource, defaultPolicy)
                 fmt.Printf("===============================================\n\n")
         }
 
@@ -980,51 +985,56 @@ func executeCertificatePlaybook(certPlaybook *config.CertificatePlaybook, playbo
         // Show variable hierarchy in verbose mode
         if verbose && !quiet {
                 fmt.Printf("\n=== Variable Hierarchy (CLI > Config > Environment) ===\n")
-                fmt.Printf("ZTPKI URL:\n")
+                
+                // ZTPKI URL
+                var urlSource string
                 if runURL != "" {
-                        fmt.Printf("  ✓ CLI: %s\n", runURL)
+                        urlSource = "CLI"
                 } else if playbookCredentials != nil && playbookCredentials.Platform != "" {
-                        fmt.Printf("  ✓ Config: %s\n", playbookCredentials.Platform)
-                } else if envURL := os.Getenv("ZTPKI_URL"); envURL != "" {
-                        fmt.Printf("  ✓ Environment: %s\n", envURL)
+                        urlSource = "YAML"
+                } else if os.Getenv("ZTPKI_URL") != "" {
+                        urlSource = "ENV Variable"
                 } else {
-                        fmt.Printf("  ✗ Not set\n")
+                        urlSource = "Not set"
                 }
-                fmt.Printf("  Final value: %s\n\n", cfg.BaseURL)
+                fmt.Printf("ZTPKI_URL - %s - %s\n", urlSource, cfg.BaseURL)
 
-                fmt.Printf("HAWK ID:\n")
+                // HAWK ID
+                var hawkIDSource string
                 if runHawkID != "" {
-                        fmt.Printf("  ✓ CLI: %s\n", runHawkID)
+                        hawkIDSource = "CLI"
                 } else if playbookCredentials != nil && playbookCredentials.HawkID != "" {
-                        fmt.Printf("  ✓ Config: %s\n", playbookCredentials.HawkID)
-                } else if envHawkID := os.Getenv("ZTPKI_HAWK_ID"); envHawkID != "" {
-                        fmt.Printf("  ✓ Environment: %s\n", envHawkID)
+                        hawkIDSource = "YAML"
+                } else if os.Getenv("ZTPKI_HAWK_ID") != "" {
+                        hawkIDSource = "ENV Variable"
                 } else {
-                        fmt.Printf("  ✗ Not set\n")
+                        hawkIDSource = "Not set"
                 }
-                fmt.Printf("  Final value: %s\n\n", cfg.HawkID)
+                fmt.Printf("ZTPKI_HAWK_ID - %s - %s\n", hawkIDSource, cfg.HawkID)
 
-                fmt.Printf("HAWK Secret:\n")
+                // HAWK Secret
+                var hawkSecretSource string
                 if runHawkKey != "" {
-                        fmt.Printf("  ✓ CLI: %s\n", maskSecret(runHawkKey))
+                        hawkSecretSource = "CLI"
                 } else if playbookCredentials != nil && playbookCredentials.HawkAPI != "" {
-                        fmt.Printf("  ✓ Config: %s\n", maskSecret(playbookCredentials.HawkAPI))
-                } else if envHawkKey := os.Getenv("ZTPKI_HAWK_SECRET"); envHawkKey != "" {
-                        fmt.Printf("  ✓ Environment: %s\n", maskSecret(envHawkKey))
+                        hawkSecretSource = "YAML"
+                } else if os.Getenv("ZTPKI_HAWK_SECRET") != "" {
+                        hawkSecretSource = "ENV Variable"
                 } else {
-                        fmt.Printf("  ✗ Not set\n")
+                        hawkSecretSource = "Not set"
                 }
-                fmt.Printf("  Final value: %s\n\n", maskSecret(cfg.HawkKey))
+                fmt.Printf("ZTPKI_HAWK_SECRET - %s - %s\n", hawkSecretSource, maskSecret(cfg.HawkKey))
 
-                fmt.Printf("Policy ID:\n")
+                // Policy ID
+                var policySource string
                 if runPolicy != "" {
-                        fmt.Printf("  ✓ CLI: %s\n", runPolicy)
-                } else if envPolicy := os.Getenv("ZTPKI_POLICY_ID"); envPolicy != "" {
-                        fmt.Printf("  ✓ Environment: %s\n", envPolicy)
+                        policySource = "CLI"
+                } else if os.Getenv("ZTPKI_POLICY_ID") != "" {
+                        policySource = "ENV Variable"
                 } else {
-                        fmt.Printf("  ✗ Not set\n")
+                        policySource = "Not set"
                 }
-                fmt.Printf("  Final value: %s\n", defaultPolicy)
+                fmt.Printf("ZTPKI_POLICY_ID - %s - %s\n", policySource, defaultPolicy)
                 fmt.Printf("===============================================\n\n")
         }
 
