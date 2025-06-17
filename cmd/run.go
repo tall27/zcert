@@ -26,6 +26,11 @@ var (
         runQuiet bool
         runVerbose bool
         globalQuietMode bool // Global flag for quiet mode
+        
+        // ZTPKI Authentication flags
+        runURL      string
+        runHawkID   string
+        runHawkKey  string
 )
 
 // runCmd represents the run command
@@ -54,6 +59,11 @@ func init() {
 
         runCmd.Flags().BoolVarP(&runQuiet, "quiet", "q", false, "Script-friendly output mode: exit 0 on success, 1 on error")
         runCmd.Flags().BoolVarP(&runVerbose, "verbose", "v", false, "Detailed output including debug information")
+        
+        // ZTPKI Authentication flags
+        runCmd.Flags().StringVar(&runURL, "url", "", "ZTPKI API base URL (e.g., https://your-ztpki-instance.com/api/v2)")
+        runCmd.Flags().StringVar(&runHawkID, "hawk-id", "", "HAWK authentication ID")
+        runCmd.Flags().StringVar(&runHawkKey, "hawk-key", "", "HAWK authentication key")
 }
 
 func runPlaybook(cmd *cobra.Command, args []string) error {
@@ -94,10 +104,22 @@ func runPlaybook(cmd *cobra.Command, args []string) error {
         fmt.Printf("Loaded playbook with %d tasks\n", len(playbook.Tasks))
         fmt.Println()
 
-        // Create API client using global configuration
-        cfg := config.GetConfig()
+        // Create configuration with correct priority hierarchy
+        // Priority: CLI Parameters > Configuration File > Environment Variables
         
-        // Try to extract credentials from the playbook file directly
+        // Start with environment variables (lowest priority)
+        cfg := &config.Config{}
+        if url := os.Getenv("ZTPKI_URL"); url != "" {
+                cfg.BaseURL = url
+        }
+        if hawkID := os.Getenv("ZTPKI_HAWK_ID"); hawkID != "" {
+                cfg.HawkID = hawkID
+        }
+        if hawkKey := os.Getenv("ZTPKI_HAWK_SECRET"); hawkKey != "" {
+                cfg.HawkKey = hawkKey
+        }
+        
+        // Override with playbook credentials (medium priority - configuration file)
         playbookCredentials, err := config.ExtractPlaybookCredentials(playbookFile)
         if err == nil && playbookCredentials != nil {
                 if playbookCredentials.Platform != "" {
@@ -111,15 +133,29 @@ func runPlaybook(cmd *cobra.Command, args []string) error {
                 }
         }
         
-        // Override with environment variables if available (highest priority)
-        if url := os.Getenv("ZTPKI_URL"); url != "" {
-                cfg.BaseURL = url
+        // Override with profile configuration if available (medium priority)
+        profile := GetCurrentProfile()
+        if profile != nil {
+                if profile.URL != "" {
+                        cfg.BaseURL = profile.URL
+                }
+                if profile.KeyID != "" {
+                        cfg.HawkID = profile.KeyID
+                }
+                if profile.Secret != "" {
+                        cfg.HawkKey = profile.Secret
+                }
         }
-        if hawkID := os.Getenv("ZTPKI_HAWK_ID"); hawkID != "" {
-                cfg.HawkID = hawkID
+        
+        // Override with CLI parameters (highest priority)
+        if runURL != "" {
+                cfg.BaseURL = runURL
         }
-        if hawkKey := os.Getenv("ZTPKI_HAWK_SECRET"); hawkKey != "" {
-                cfg.HawkKey = hawkKey
+        if runHawkID != "" {
+                cfg.HawkID = runHawkID
+        }
+        if runHawkKey != "" {
+                cfg.HawkKey = runHawkKey
         }
 
         // Validate required credentials before proceeding
