@@ -317,15 +317,29 @@ func expandTemplateVariablesWithConfig(value string, defaultPolicy string, cfg *
         
         // Handle partial string replacements
         result := value
-        if envURL := os.Getenv("ZTPKI_URL"); envURL != "" {
+        
+        // URL replacement - config takes priority over environment
+        if cfg != nil && cfg.BaseURL != "" {
+                result = strings.ReplaceAll(result, "{{ZTPKI_URL}}", cfg.BaseURL)
+        } else if envURL := os.Getenv("ZTPKI_URL"); envURL != "" {
                 result = strings.ReplaceAll(result, "{{ZTPKI_URL}}", envURL)
         }
-        if envHawkID := os.Getenv("ZTPKI_HAWK_ID"); envHawkID != "" {
+        
+        // HAWK ID replacement - config takes priority over environment
+        if cfg != nil && cfg.HawkID != "" {
+                result = strings.ReplaceAll(result, "{{ZTPKI_HAWK_ID}}", cfg.HawkID)
+        } else if envHawkID := os.Getenv("ZTPKI_HAWK_ID"); envHawkID != "" {
                 result = strings.ReplaceAll(result, "{{ZTPKI_HAWK_ID}}", envHawkID)
         }
-        if envHawkKey := os.Getenv("ZTPKI_HAWK_SECRET"); envHawkKey != "" {
+        
+        // HAWK Secret replacement - config takes priority over environment
+        if cfg != nil && cfg.HawkKey != "" {
+                result = strings.ReplaceAll(result, "{{ZTPKI_HAWK_SECRET}}", cfg.HawkKey)
+        } else if envHawkKey := os.Getenv("ZTPKI_HAWK_SECRET"); envHawkKey != "" {
                 result = strings.ReplaceAll(result, "{{ZTPKI_HAWK_SECRET}}", envHawkKey)
         }
+        
+        // Policy ID replacement
         if defaultPolicy != "" {
                 result = strings.ReplaceAll(result, "{{ZTPKI_POLICY_ID}}", defaultPolicy)
         } else if envPolicy := os.Getenv("ZTPKI_POLICY_ID"); envPolicy != "" {
