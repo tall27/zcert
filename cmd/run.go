@@ -91,7 +91,7 @@ func runPlaybook(cmd *cobra.Command, args []string) error {
         // Try to load as certificate playbook format first (comprehensive YAML)
         certPlaybook, err := config.LoadCertificatePlaybook(playbookFile)
         if err == nil && certPlaybook != nil {
-                return executeCertificatePlaybook(certPlaybook, playbookFile, runQuiet, runVerbose)
+                return executeCertificatePlaybook(certPlaybook, playbookFile, runQuiet, runVerbose, cmd)
         }
         
         // Fall back to simple playbook format
@@ -274,6 +274,10 @@ func runPlaybook(cmd *cobra.Command, args []string) error {
 
 // expandTemplateVariables expands template variables like {{ZTPKI_POLICY_ID}}
 func expandTemplateVariables(value string, defaultPolicy string) string {
+        return expandTemplateVariablesWithConfig(value, defaultPolicy, nil)
+}
+
+func expandTemplateVariablesWithConfig(value string, defaultPolicy string, cfg *config.Config) string {
         // Handle exact template variable matches first
         switch value {
         case "{{ZTPKI_POLICY_ID}}":
@@ -285,16 +289,25 @@ func expandTemplateVariables(value string, defaultPolicy string) string {
                 }
                 return value
         case "{{ZTPKI_URL}}":
+                if cfg != nil && cfg.BaseURL != "" {
+                        return cfg.BaseURL
+                }
                 if envURL := os.Getenv("ZTPKI_URL"); envURL != "" {
                         return envURL
                 }
                 return value
         case "{{ZTPKI_HAWK_ID}}":
+                if cfg != nil && cfg.HawkID != "" {
+                        return cfg.HawkID
+                }
                 if envHawkID := os.Getenv("ZTPKI_HAWK_ID"); envHawkID != "" {
                         return envHawkID
                 }
                 return value
         case "{{ZTPKI_HAWK_SECRET}}":
+                if cfg != nil && cfg.HawkKey != "" {
+                        return cfg.HawkKey
+                }
                 if envHawkKey := os.Getenv("ZTPKI_HAWK_SECRET"); envHawkKey != "" {
                         return envHawkKey
                 }
@@ -910,7 +923,7 @@ func saveSearchResults(outputFile string, certificates []api.Certificate) error 
 }
 
 // executeCertificatePlaybook executes a certificate playbook with comprehensive ZTPKI API payloads
-func executeCertificatePlaybook(certPlaybook *config.CertificatePlaybook, playbookFile string, quiet, verbose bool) error {
+func executeCertificatePlaybook(certPlaybook *config.CertificatePlaybook, playbookFile string, quiet, verbose bool, cmd *cobra.Command) error {
         renewedCount := 0
         processedCount := 0
         
@@ -939,11 +952,48 @@ func executeCertificatePlaybook(certPlaybook *config.CertificatePlaybook, playbo
                 defaultPolicy = envPolicy
         }
         
+        // Load profile configuration if specified (medium-low priority)
+        configFile := cmd.Flag("config").Value.String()
+        profileName := cmd.Flag("profile").Value.String()
+        
+        if configFile != "" {
+                profileConfig, err := config.LoadProfileConfig(configFile)
+                if err != nil {
+                        return fmt.Errorf("failed to load config file: %w", err)
+                }
+                
+                var profile *config.Profile
+                if profileName != "" {
+                        profile = profileConfig.Profiles[profileName]
+                        if profile == nil {
+                                return fmt.Errorf("profile '%s' not found in config file", profileName)
+                        }
+                } else {
+                        profile = profileConfig.Default
+                }
+                
+                // Override environment variables with profile values
+                if profile != nil {
+                        if profile.URL != "" {
+                                cfg.BaseURL = profile.URL
+                        }
+                        if profile.KeyID != "" {
+                                cfg.HawkID = profile.KeyID
+                        }
+                        if profile.Secret != "" {
+                                cfg.HawkKey = profile.Secret
+                        }
+                        if profile.PolicyID != "" {
+                                defaultPolicy = profile.PolicyID
+                        }
+                }
+        }
+        
         // Override with playbook credentials (medium priority - configuration file)
         playbookCredentials := &certPlaybook.Config.Connection.Credentials
         if playbookCredentials != nil {
                 if playbookCredentials.Platform != "" {
-                        expanded := expandTemplateVariables(playbookCredentials.Platform, "")
+                        expanded := expandTemplateVariablesWithConfig(playbookCredentials.Platform, defaultPolicy, cfg)
                         if expanded != playbookCredentials.Platform {
                                 cfg.BaseURL = expanded
                         } else {
