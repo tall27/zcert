@@ -309,60 +309,80 @@ chain = true
 
 
 // MergeProfileWithFlags merges profile settings with command-line flags and environment variables
-// Priority: Command-line flags > Environment variables > Profile settings
+// Priority: CLI Parameters > Configuration File Variables > OS Environment Variables
 func MergeProfileWithFlags(profile *Profile, flagURL, flagKeyID, flagSecret, flagFormat, flagPolicy, flagP12Pass string, flagKeySize int, flagKeyType string) *Profile {
-        if profile == nil {
-                profile = &Profile{
-                        Algo:    "sha256",
-                        Format:  "pem",
-                        KeySize: 2048,
-                        KeyType: "rsa",
+        // Start with environment variables as base (lowest priority)
+        envProfile := &Profile{
+                Algo:    "sha256",
+                Format:  "pem",
+                KeySize: 2048,
+                KeyType: "rsa",
+        }
+        
+        // Apply environment variables
+        if envURL := os.Getenv("ZTPKI_URL"); envURL != "" {
+                envProfile.URL = envURL
+        }
+        if envKeyID := os.Getenv("ZTPKI_HAWK_ID"); envKeyID != "" {
+                envProfile.KeyID = envKeyID
+        }
+        if envSecret := os.Getenv("ZTPKI_HAWK_SECRET"); envSecret != "" {
+                envProfile.Secret = envSecret
+        }
+        if envPolicy := os.Getenv("ZTPKI_POLICY_ID"); envPolicy != "" {
+                envProfile.PolicyID = envPolicy
+        }
+
+        // Override with configuration file values (medium priority)
+        merged := *envProfile
+        if profile != nil {
+                if profile.URL != "" {
+                        merged.URL = profile.URL
+                }
+                if profile.KeyID != "" {
+                        merged.KeyID = profile.KeyID
+                }
+                if profile.Secret != "" {
+                        merged.Secret = profile.Secret
+                }
+                if profile.PolicyID != "" {
+                        merged.PolicyID = profile.PolicyID
+                }
+                if profile.Format != "" {
+                        merged.Format = profile.Format
+                }
+                if profile.P12Pass != "" {
+                        merged.P12Pass = profile.P12Pass
+                }
+                if profile.KeySize > 0 {
+                        merged.KeySize = profile.KeySize
+                }
+                if profile.KeyType != "" {
+                        merged.KeyType = profile.KeyType
+                }
+                if profile.OutDir != "" {
+                        merged.OutDir = profile.OutDir
+                }
+                merged.NoKeyOut = profile.NoKeyOut
+                merged.Chain = profile.Chain
+                if profile.Validity > 0 {
+                        merged.Validity = profile.Validity
                 }
         }
 
-        // Create a copy to avoid modifying the original
-        merged := *profile
-
-        // Override with command-line flags first (highest priority)
+        // Override with command-line flags (highest priority)
         if flagURL != "" {
                 merged.URL = flagURL
-        } else if merged.URL == "" {
-                // Fall back to environment variable if profile value is empty
-                if envURL := os.Getenv("ZTPKI_URL"); envURL != "" {
-                        merged.URL = envURL
-                }
         }
-
         if flagKeyID != "" {
                 merged.KeyID = flagKeyID
-        } else if merged.KeyID == "" {
-                // Fall back to environment variable if profile value is empty
-                if envKeyID := os.Getenv("ZTPKI_HAWK_ID"); envKeyID != "" {
-                        merged.KeyID = envKeyID
-                }
         }
-
         if flagSecret != "" {
                 merged.Secret = flagSecret
-        } else if merged.Secret == "" {
-                // Fall back to environment variable if profile value is empty
-                if envSecret := os.Getenv("ZTPKI_HAWK_SECRET"); envSecret != "" {
-                        merged.Secret = envSecret
-                }
         }
-
         if flagPolicy != "" {
                 merged.PolicyID = flagPolicy
-        } else if merged.PolicyID == "" {
-                // Fall back to environment variable if profile value is empty
-                if envPolicy := os.Getenv("ZTPKI_POLICY_ID"); envPolicy != "" {
-                        merged.PolicyID = envPolicy
-                }
         }
-
-        // Always ensure sha256 is used
-        merged.Algo = "sha256"
-        
         if flagFormat != "" {
                 merged.Format = flagFormat
         }
@@ -375,6 +395,9 @@ func MergeProfileWithFlags(profile *Profile, flagURL, flagKeyID, flagSecret, fla
         if flagKeyType != "" {
                 merged.KeyType = flagKeyType
         }
+
+        // Always ensure sha256 is used
+        merged.Algo = "sha256"
 
         return &merged
 }

@@ -109,26 +109,14 @@ func runRevoke(cmd *cobra.Command, args []string) error {
                         0, "", // keysize, keytype not needed for revoke
                 )
         } else {
-                // No profile config, use command-line flags or environment variables
-                url := revokeURL
-                if url == "" {
-                        url = os.Getenv("ZTPKI_URL")
-                }
-                hawkID := revokeHawkID
-                if hawkID == "" {
-                        hawkID = os.Getenv("ZTPKI_HAWK_ID")
-                }
-                hawkKey := revokeHawkKey
-                if hawkKey == "" {
-                        hawkKey = os.Getenv("ZTPKI_HAWK_SECRET")
-                }
-                
-                finalProfile = &config.Profile{
-                        URL:    url,
-                        KeyID:  hawkID,
-                        Secret: hawkKey,
-                        Algo:   "sha256", // Always use sha256
-                }
+                // No profile config, merge CLI flags with environment variables
+                // Priority: CLI Parameters > OS Environment Variables
+                finalProfile = config.MergeProfileWithFlags(
+                        nil, // No config profile
+                        revokeURL, revokeHawkID, revokeHawkKey,
+                        "", "", "", // format, policy, p12password not needed for revoke
+                        0, "", // keysize, keytype not needed for revoke
+                )
         }
 
         // Validate required authentication parameters
