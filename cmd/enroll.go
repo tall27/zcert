@@ -168,13 +168,30 @@ func runEnroll(cmd *cobra.Command, args []string) error {
                         chainValue = profile.Chain
                 }
         } else {
+                // Fallback to environment variables if CLI flags are not set
+                url := enrollURL
+                if url == "" {
+                        url = os.Getenv("ZTPKI_URL")
+                }
+                hawkID := enrollHawkID
+                if hawkID == "" {
+                        hawkID = os.Getenv("ZTPKI_HAWK_ID")
+                }
+                hawkKey := enrollHawkKey
+                if hawkKey == "" {
+                        hawkKey = os.Getenv("ZTPKI_HAWK_SECRET")
+                }
+                policy := enrollPolicy
+                if policy == "" {
+                        policy = os.Getenv("ZTPKI_POLICY_ID")
+                }
                 finalProfile = &config.Profile{
-                        URL:      enrollURL,
-                        KeyID:    enrollHawkID,
-                        Secret:   enrollHawkKey,
+                        URL:      url,
+                        KeyID:    hawkID,
+                        Secret:   hawkKey,
                         Algo:     "sha256",
                         Format:   enrollFormat,
-                        PolicyID: enrollPolicy,
+                        PolicyID: policy,
                         P12Pass:  enrollP12Pass,
                 }
                 if finalProfile.Format == "" {
@@ -587,7 +604,7 @@ certificate_ready:
                                 fmt.Fprintf(os.Stderr, "Certificate retrieved via fallback method!\n")
                         }
                 } else {
-                        return fmt.Errorf("certificate was not issued within the expected time frame (40 seconds). The certificate may still be processing on the server")
+                        return fmt.Errorf("certificate was not issued within the expected time frame (2 seconds). The certificate may still be processing on the server")
                 }
         }
 

@@ -1,10 +1,14 @@
 package cmd
 
 import (
+	"bytes"
 	"fmt"
 	"github.com/spf13/cobra"
 	"os"
 	"os/exec"
+	"regexp"
+	"strings"
+	"time"
 	"zcert/internal/cert"
 	"zcert/internal/config"
 )
@@ -185,13 +189,53 @@ func runPQC(cmd *cobra.Command, args []string) error {
 		enrollArgs = append(enrollArgs, "--chain")
 	}
 
+	var outBuf, errBuf bytes.Buffer
 	cmdEnroll := exec.Command(os.Args[0], enrollArgs...)
-	cmdEnroll.Stdout = os.Stdout
-	cmdEnroll.Stderr = os.Stderr
-	if err := cmdEnroll.Run(); err != nil {
-		return fmt.Errorf("enrollment failed: %w", err)
-	}
+	cmdEnroll.Stdout = &outBuf
+	cmdEnroll.Stderr = &errBuf
 
+	done := make(chan error, 1)
+	go func() {
+		done <- cmdEnroll.Run()
+	}()
+
+	select {
+	case err := <-done:
+		// Parse output for PEM blocks
+		output := outBuf.String()
+		certs := parsePEMBlocks(output, "CERTIFICATE")
+		chain := []string{}
+		if len(certs) > 1 {
+			chain = certs[1:]
+		}
+		leaf := ""
+		if len(certs) > 0 {
+			leaf = certs[0]
+		}
+		if cfg.Verbose {
+			fmt.Print(output)
+		}
+		// Write certificate and chain to files as per pqc's output options
+		if cfg.CertFile != "" && leaf != "" {
+			os.WriteFile(cfg.CertFile, []byte(leaf+"\n"), 0644)
+		}
+		if cfg.ChainFile != "" && len(chain) > 0 {
+			os.WriteFile(cfg.ChainFile, []byte(strings.Join(chain, "\n")+"\n"), 0644)
+		}
+		if cfg.BundleFile != "" && len(certs) > 0 {
+			os.WriteFile(cfg.BundleFile, []byte(strings.Join(certs, "\n")+"\n"), 0644)
+		}
+		// Always write the private key
+		if cfg.KeyFile != "" && keyFile != "" {
+			copyFile(keyFile, cfg.KeyFile)
+		}
+		if err != nil {
+			return fmt.Errorf("enrollment failed: %w\n%s", err, errBuf.String())
+		}
+	case <-time.After(10 * time.Second):
+		fmt.Println("[zcert] enroll is still running after 10 seconds. You may check the status or retrieve the certificate later.")
+		return nil
+	}
 	return nil
 }
 
@@ -317,4 +361,9 @@ func loadPQCConfig(cmd *cobra.Command) (*PQCConfig, error) {
 	cfg.Validity = fmt.Sprintf("%d", profileSection.Validity)
 
 	return cfg, nil
+}
+
+func parsePEMBlocks(input, blockType string) []string {
+	pemBlock := regexp.MustCompile("-----BEGIN " + blockType + "-----.*?-----END " + blockType + "-----")
+	return pemBlock.FindAllString(input, -1)
 } 
