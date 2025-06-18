@@ -62,6 +62,7 @@ var (
         enrollP12Pass string
         enrollNoKey   bool
         enrollVerbose bool
+        enrollChain   bool
 )
 
 // enrollCmd represents the enroll command
@@ -129,6 +130,7 @@ func init() {
         enrollCmd.Flags().StringVar(&enrollP12Pass, "p12-password", "", "Password for PKCS#12 bundle format")
         enrollCmd.Flags().BoolVar(&enrollNoKey, "no-key-output", false, "Don't output private key to file")
         enrollCmd.Flags().BoolVarP(&enrollVerbose, "verbose", "v", false, "Verbose output including variable hierarchy")
+        enrollCmd.Flags().BoolVar(&enrollChain, "chain", false, "Include certificate chain")
 
         // Set custom help and usage functions to group flags consistently
         enrollCmd.SetHelpFunc(getCustomHelpFunc())
@@ -151,56 +153,34 @@ func runEnroll(cmd *cobra.Command, args []string) error {
         // Use profile configuration if available
         profile := GetCurrentProfile()
         var finalProfile *config.Profile
-
+        var chainValue bool
+        chainFlag := cmd.Flags().Changed("chain")
         if profile != nil {
-                // Merge profile with command-line flags (flags take precedence)
                 finalProfile = config.MergeProfileWithFlags(
                         profile,
                         enrollURL, enrollHawkID, enrollHawkKey,
                         enrollFormat, enrollPolicy, enrollP12Pass,
                         enrollKeySize, enrollKeyType,
                 )
+                if chainFlag {
+                        chainValue, _ = cmd.Flags().GetBool("chain")
+                } else {
+                        chainValue = profile.Chain
+                }
         } else {
-                // No profile config, use command-line flags or environment variables
-                url := enrollURL
-                if url == "" {
-                        url = os.Getenv("ZTPKI_URL")
-                }
-                hawkID := enrollHawkID
-                if hawkID == "" {
-                        hawkID = os.Getenv("ZTPKI_HAWK_ID")
-                }
-                hawkKey := enrollHawkKey
-                if hawkKey == "" {
-                        hawkKey = os.Getenv("ZTPKI_HAWK_SECRET")
-                }
-                policy := enrollPolicy
-                if policy == "" {
-                        policy = os.Getenv("ZTPKI_POLICY_ID")
-                }
-
                 finalProfile = &config.Profile{
-                        URL:      url,
-                        KeyID:    hawkID,
-                        Secret:   hawkKey,
-                        Algo:     "sha256", // Default algorithm
+                        URL:      enrollURL,
+                        KeyID:    enrollHawkID,
+                        Secret:   enrollHawkKey,
+                        Algo:     "sha256",
                         Format:   enrollFormat,
-                        PolicyID: policy,
+                        PolicyID: enrollPolicy,
                         P12Pass:  enrollP12Pass,
-                        KeySize:  enrollKeySize,
-                        KeyType:  enrollKeyType,
                 }
-
-                // Set defaults if not provided
                 if finalProfile.Format == "" {
                         finalProfile.Format = "pem"
                 }
-                if finalProfile.KeySize == 0 {
-                        finalProfile.KeySize = 2048
-                }
-                if finalProfile.KeyType == "" {
-                        finalProfile.KeyType = "rsa"
-                }
+                chainValue, _ = cmd.Flags().GetBool("chain")
         }
 
         // Validate required authentication parameters
@@ -508,6 +488,9 @@ func runEnroll(cmd *cobra.Command, args []string) error {
         if err != nil {
                 return fmt.Errorf("failed to submit CSR: %w", err)
         }
+        if requestID == "" {
+                return fmt.Errorf("ZTPKI backend did not return a request ID. The request may have failed. Please check the backend logs or try a different algorithm.")
+        }
 
         if viper.GetBool("verbose") {
                 fmt.Fprintf(os.Stderr, "CSR submitted successfully. Request ID: %s\n", requestID)
@@ -562,7 +545,7 @@ func runEnroll(cmd *cobra.Command, args []string) error {
                                 certificate, err = client.GetCertificate(request.CertificateID)
                                 if err == nil && certificate != nil && certificate.Certificate != "" {
                                         // Get certificate with chain using PEM endpoint
-                                        pemResp, chainErr := client.GetCertificatePEM(request.CertificateID, true)
+                                        pemResp, chainErr := client.GetCertificatePEM(request.CertificateID, chainValue)
                                         if chainErr == nil && pemResp != nil && pemResp.Chain != "" {
                                                 certificate.Chain = []string{pemResp.Chain}
                                         } else if viper.GetBool("verbose") {
@@ -593,7 +576,7 @@ certificate_ready:
                 certificate, err := client.GetCertificate(requestID)
                 if err == nil && certificate != nil && certificate.Certificate != "" {
                         // Get certificate with chain using PEM endpoint for fallback too
-                        pemResp, chainErr := client.GetCertificatePEM(requestID, true)
+                        pemResp, chainErr := client.GetCertificatePEM(requestID, chainValue)
                         if chainErr == nil && pemResp != nil && pemResp.Chain != "" {
                                 certificate.Chain = []string{pemResp.Chain}
                         } else if viper.GetBool("verbose") {

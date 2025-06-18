@@ -81,6 +81,8 @@ type Profile struct {
         OutDir    string
         NoKeyOut  bool
         Chain     bool
+        NoClean   bool
+        PQCAlgorithm string
 }
 
 // ProfileConfig manages multiple profiles
@@ -196,6 +198,10 @@ func LoadProfileConfig(filename string) (*ProfileConfig, error) {
                                 currentProfile.NoKeyOut = strings.ToLower(value) == "true"
                         case "chain", "include_chain":
                                 currentProfile.Chain = strings.ToLower(value) == "true"
+                        case "no-clean", "noclean":
+                                currentProfile.NoClean = strings.ToLower(value) == "true"
+                        case "pqc-algorithm":
+                                currentProfile.PQCAlgorithm = value
                         }
                 }
         }
@@ -289,6 +295,8 @@ key-size = 2048
 key-type = rsa
 validity = 90  # Days (can use 90, 90d, 3m, etc.)
 chain = false
+extendedKeyUsage = serverAuth, clientAuth
+certificatePolicies = 1.2.3.4.5, 1.2.3.4.6
 
 [prod]
 # Profile for production environment
@@ -301,12 +309,31 @@ key-size = 4096
 key-type = rsa
 validity = 365  # Days (can use 365, 365d, 1y, etc.)
 chain = true
+
+[pqc]
+url = https://ztpki-staging.venafi.com/api/v2
+hawk-id = your-hawk-id
+hawk-api = your-hawk-secret
+policy = policy-id
+validity = 15
+chain = true 
+default_key_type = MLDSA44
+openssl_path = "./openssl.exe"
+temp_dir = "."
+cleanonsuccess = false
+# Following are pqc specific settings
+subject = {
+    common_name = PQC Certificate
+    country = US
+    state = Michigan
+    locality = Detroit
+    organization = OmniCorp
+    organizational_unit = Cybernetics
+}
 `
 
         return os.WriteFile(filename, []byte(content), 0600) // Restrict to owner only
 }
-
-
 
 // MergeProfileWithFlags merges profile settings with command-line flags and environment variables
 // Priority: CLI Parameters > Configuration File Variables > OS Environment Variables
@@ -366,6 +393,7 @@ func MergeProfileWithFlags(profile *Profile, flagURL, flagKeyID, flagSecret, fla
                 if profile.Validity > 0 {
                         merged.Validity = profile.Validity
                 }
+                merged.NoClean = profile.NoClean
         }
 
         // Override with command-line flags (highest priority)

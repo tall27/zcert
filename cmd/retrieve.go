@@ -74,7 +74,8 @@ func runRetrieve(cmd *cobra.Command, args []string) error {
         // Use profile configuration if available, otherwise use command-line flags
         profile := GetCurrentProfile()
         var finalProfile *config.Profile
-        
+        var chainValue bool
+        chainFlag := cmd.Flags().Changed("chain")
         if profile != nil {
                 // Merge profile with command-line flags (flags take precedence)
                 finalProfile = config.MergeProfileWithFlags(
@@ -83,6 +84,11 @@ func runRetrieve(cmd *cobra.Command, args []string) error {
                         retrieveFormat, retrievePolicy, retrieveP12Pass,
                         0, "", // keysize, keytype not needed for retrieve
                 )
+                if chainFlag {
+                        chainValue, _ = cmd.Flags().GetBool("chain")
+                } else {
+                        chainValue = profile.Chain
+                }
         } else {
                 // No profile config, use command-line flags
                 finalProfile = &config.Profile{
@@ -97,6 +103,7 @@ func runRetrieve(cmd *cobra.Command, args []string) error {
                 if finalProfile.Format == "" {
                         finalProfile.Format = "pem"
                 }
+                chainValue, _ = cmd.Flags().GetBool("chain")
         }
 
         // Validate required authentication parameters
@@ -186,7 +193,7 @@ func runRetrieve(cmd *cobra.Command, args []string) error {
         }
 
         // Get certificate chain if requested
-        if retrieveChain {
+        if chainValue {
                 if viper.GetBool("verbose") {
                         fmt.Fprintln(os.Stderr, "Retrieving certificate chain...")
                 }
