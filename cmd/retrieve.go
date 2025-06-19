@@ -71,39 +71,45 @@ func init() {
 }
 
 func runRetrieve(cmd *cobra.Command, args []string) error {
-        // Use profile configuration if available, otherwise use command-line flags
+        // Get global verbose level
+        verboseLevel := GetVerboseLevel()
+
+        // Use profile configuration if available
         profile := GetCurrentProfile()
         var finalProfile *config.Profile
-        var chainValue bool
-        chainFlag := cmd.Flags().Changed("chain")
+        
         if profile != nil {
-                // Merge profile with command-line flags (flags take precedence)
                 finalProfile = config.MergeProfileWithFlags(
                         profile,
                         retrieveURL, retrieveHawkID, retrieveHawkKey,
-                        retrieveFormat, retrievePolicy, retrieveP12Pass,
+                        retrieveFormat, "", retrieveP12Pass,
                         0, "", // keysize, keytype not needed for retrieve
                 )
-                if chainFlag {
-                        chainValue, _ = cmd.Flags().GetBool("chain")
-                } else {
-                        chainValue = profile.Chain
-                }
         } else {
-                // No profile config, use command-line flags
+                // Fallback to environment variables if CLI flags are not set
+                url := retrieveURL
+                if url == "" {
+                        url = os.Getenv("ZTPKI_URL")
+                }
+                hawkID := retrieveHawkID
+                if hawkID == "" {
+                        hawkID = os.Getenv("ZTPKI_HAWK_ID")
+                }
+                hawkKey := retrieveHawkKey
+                if hawkKey == "" {
+                        hawkKey = os.Getenv("ZTPKI_HAWK_SECRET")
+                }
+                format := retrieveFormat
+                if format == "" {
+                        format = "pem"
+                }
                 finalProfile = &config.Profile{
-                        URL:      retrieveURL,
-                        KeyID:    retrieveHawkID,
-                        Secret:   retrieveHawkKey,
-                        Algo:     "sha256", // Always use sha256
-                        Format:   retrieveFormat,
-                        PolicyID: retrievePolicy,
-                        P12Pass:  retrieveP12Pass,
+                        URL:    url,
+                        KeyID:  hawkID,
+                        Secret: hawkKey,
+                        Algo:   "sha256",
+                        Format: format,
                 }
-                if finalProfile.Format == "" {
-                        finalProfile.Format = "pem"
-                }
-                chainValue, _ = cmd.Flags().GetBool("chain")
         }
 
         // Validate required authentication parameters
@@ -123,10 +129,55 @@ func runRetrieve(cmd *cobra.Command, args []string) error {
                 HawkID:  finalProfile.KeyID,
                 HawkKey: finalProfile.Secret,
         }
-        
-        client, err := api.NewClient(cfg)
+
+        client, err := api.NewClientWithVerbose(cfg, verboseLevel)
         if err != nil {
                 return fmt.Errorf("failed to initialize API client: %w", err)
+        }
+
+        // Show variable hierarchy in verbose mode (both -v and -vv)
+        if verboseLevel > 0 {
+                fmt.Printf("\n=== Variable Hierarchy (CLI > Config > Environment) ===\n")
+                
+                // ZTPKI URL
+                var urlSource string
+                if retrieveURL != "" {
+                        urlSource = "CLI"
+                } else if profile != nil && profile.URL != "" {
+                        urlSource = "Config"
+                } else if os.Getenv("ZTPKI_URL") != "" {
+                        urlSource = "ENV Variable"
+                } else {
+                        urlSource = "Not set"
+                }
+                fmt.Printf("ZTPKI_URL - %s - %s\n", urlSource, finalProfile.URL)
+
+                // HAWK ID
+                var hawkIDSource string
+                if retrieveHawkID != "" {
+                        hawkIDSource = "CLI"
+                } else if profile != nil && profile.KeyID != "" {
+                        hawkIDSource = "Config"
+                } else if os.Getenv("ZTPKI_HAWK_ID") != "" {
+                        hawkIDSource = "ENV Variable"
+                } else {
+                        hawkIDSource = "Not set"
+                }
+                fmt.Printf("ZTPKI_HAWK_ID - %s - %s\n", hawkIDSource, finalProfile.KeyID)
+
+                // HAWK Secret
+                var hawkSecretSource string
+                if retrieveHawkKey != "" {
+                        hawkSecretSource = "CLI"
+                } else if profile != nil && profile.Secret != "" {
+                        hawkSecretSource = "Config"
+                } else if os.Getenv("ZTPKI_HAWK_SECRET") != "" {
+                        hawkSecretSource = "ENV Variable"
+                } else {
+                        hawkSecretSource = "Not set"
+                }
+                fmt.Printf("ZTPKI_HAWK_SECRET - %s - %s\n", hawkSecretSource, maskSecret(finalProfile.Secret))
+                fmt.Printf("===============================================\n\n")
         }
 
         // Validate that at least one identifier is provided
@@ -134,7 +185,7 @@ func runRetrieve(cmd *cobra.Command, args []string) error {
                 return fmt.Errorf("must specify at least one certificate identifier (--id, --cn, or --serial)")
         }
 
-        if viper.GetBool("verbose") {
+        if verboseLevel > 0 {
                 fmt.Fprintln(os.Stderr, "Retrieving certificate from ZTPKI...")
         }
 
@@ -142,7 +193,7 @@ func runRetrieve(cmd *cobra.Command, args []string) error {
 
         // Retrieve by ID (most direct method)
         if retrieveID != "" {
-                if viper.GetBool("verbose") {
+                if verboseLevel > 0 {
                         fmt.Fprintf(os.Stderr, "Retrieving certificate by ID: %s\n", retrieveID)
                 }
                 certificate, err = client.GetCertificate(retrieveID)
@@ -157,7 +208,7 @@ func runRetrieve(cmd *cobra.Command, args []string) error {
                         PolicyID:   retrievePolicy,
                 }
 
-                if viper.GetBool("verbose") {
+                if verboseLevel > 0 {
                         fmt.Fprintf(os.Stderr, "Searching for certificate with criteria: CN=%s, Serial=%s, Policy=%s\n", 
                                 retrieveCN, retrieveSerial, retrievePolicy)
                 }
@@ -187,14 +238,14 @@ func runRetrieve(cmd *cobra.Command, args []string) error {
                 return fmt.Errorf("certificate not found")
         }
 
-        if viper.GetBool("verbose") {
+        if verboseLevel > 0 {
                 fmt.Fprintf(os.Stderr, "Certificate found: CN=%s, Serial=%s, Expires=%s\n", 
                         certificate.CommonName, certificate.SerialNumber, certificate.ExpiryDate)
         }
 
         // Get certificate chain if requested
-        if chainValue {
-                if viper.GetBool("verbose") {
+        if retrieveChain {
+                if verboseLevel > 0 {
                         fmt.Fprintln(os.Stderr, "Retrieving certificate chain...")
                 }
                 
@@ -242,7 +293,7 @@ func getRetrieveUsageFunc() func(*cobra.Command) error {
                 fmt.Printf("      --config string     profile config file (e.g., zcert.cnf)\n")
                 fmt.Printf("      --profile string    profile name from config file (default: Default)\n")
                 fmt.Printf("  -h, --help              help for retrieve\n")
-                fmt.Printf("      --verbose           verbose output\n")
+                fmt.Printf("  -v, --verbose           verbose output (-v for requests and variables, -vv for responses too)\n")
                 
                 return nil
         }
@@ -287,7 +338,7 @@ Global Flags:
       --config string     profile config file (e.g., zcert.cnf)
       --profile string    profile name from config file (default: Default)
   -h, --help              help for retrieve
-      --verbose           verbose output
+  -v, --verbose           verbose output (-v for requests and variables, -vv for responses too)
 
 Use "zcert retrieve [command] --help" for more information about a command.
 `)

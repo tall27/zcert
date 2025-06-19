@@ -397,17 +397,29 @@ func executeEnrollTask(client *api.Client, task *config.PlaybookTask, defaultPol
                 keyType = "rsa" // Default key type
         }
 
-        // Create certificate request
-        csr, privateKeyPEM, err := generateCSR(task.CommonName, keySize, keyType, task.Subject)
+        // Create certificate request with full subject details
+        csr, privateKeyPEM, err := generateCSRFromTask(task.CommonName, keySize, keyType, task.Subject)
         if err != nil {
                 return fmt.Errorf("failed to generate CSR: %w", err)
         }
 
-        // Expand template variables in PolicyID
-        expandedPolicyID := expandTemplateVariables(task.PolicyID, defaultPolicy)
+        // Create certificate task for API submission
+        certTask := &config.CertificateTask{
+                Request: config.CertificateRequest{
+                        Subject: config.CertificateSubject{
+                                CommonName:   task.CommonName,
+                                Country:      strings.Join(task.Subject.Country, ","),
+                                State:        strings.Join(task.Subject.Province, ","),
+                                Locality:     strings.Join(task.Subject.Locality, ","),
+                                Organization: strings.Join(task.Subject.Organization, ","),
+                                OrgUnits:     task.Subject.OrgUnit,
+                        },
+                        Policy: task.PolicyID,
+                },
+        }
         
         // Submit CSR to ZTPKI
-        requestID, err := client.SubmitCSR(csr, expandedPolicyID, nil)
+        requestID, err := client.SubmitCSRWithFullPayload(csr, certTask, GetVerboseLevel())
         if err != nil {
                 return fmt.Errorf("failed to submit CSR: %w", err)
         }
@@ -503,8 +515,8 @@ func executeRevokeTask(client *api.Client, task *config.PlaybookTask, defaultPol
         return fmt.Errorf("revocation not yet implemented in API client")
 }
 
-// generateCSR creates a Certificate Signing Request with the given parameters
-func generateCSR(commonName string, keySize int, keyType string, subject *config.SubjectInfo) (string, string, error) {
+// generateCSRFromTask creates a Certificate Signing Request with the given parameters
+func generateCSRFromTask(commonName string, keySize int, keyType string, subject *config.SubjectInfo) (string, string, error) {
         // Generate private key
         var privateKey interface{}
         var err error
@@ -1202,7 +1214,13 @@ func executeCertificateTaskWithResult(client *api.Client, certTask *config.Certi
         keyType := "rsa" // Default key type
         
         // Create certificate request with full subject details
-        csr, privateKeyPEM, err := generateCSRFromCertTask(certTask, keySize, keyType)
+        csr, privateKeyPEM, err := generateCSRFromTask(certTask.Request.Subject.CommonName, keySize, keyType, &config.SubjectInfo{
+                Country:      []string{certTask.Request.Subject.Country},
+                Province:     []string{certTask.Request.Subject.State},
+                Locality:     []string{certTask.Request.Subject.Locality},
+                Organization: []string{certTask.Request.Subject.Organization},
+                OrgUnit:      certTask.Request.Subject.OrgUnits,
+        })
         if err != nil {
                 return nil, fmt.Errorf("failed to generate CSR: %w", err)
         }
@@ -1211,8 +1229,8 @@ func executeCertificateTaskWithResult(client *api.Client, certTask *config.Certi
         expandedTask := *certTask // Create a copy
         expandedTask.Request.Policy = expandTemplateVariables(certTask.Request.Policy, defaultPolicy)
         
-        // Submit CSR using comprehensive ZTPKI API payload
-        requestID, err := client.SubmitCSRWithFullPayload(csr, &expandedTask, verbose)
+        // Submit CSR to ZTPKI
+        requestID, err := client.SubmitCSRWithFullPayload(csr, certTask, GetVerboseLevel())
         if err != nil {
                 return nil, fmt.Errorf("failed to submit CSR: %w", err)
         }
@@ -1321,13 +1339,19 @@ func executeCertificateTask(client *api.Client, certTask *config.CertificateTask
         keyType := "rsa" // Default key type
         
         // Create certificate request with full subject details
-        csr, privateKeyPEM, err := generateCSRFromCertTask(certTask, keySize, keyType)
+        csr, privateKeyPEM, err := generateCSRFromTask(certTask.Request.Subject.CommonName, keySize, keyType, &config.SubjectInfo{
+                Country:      []string{certTask.Request.Subject.Country},
+                Province:     []string{certTask.Request.Subject.State},
+                Locality:     []string{certTask.Request.Subject.Locality},
+                Organization: []string{certTask.Request.Subject.Organization},
+                OrgUnit:      certTask.Request.Subject.OrgUnits,
+        })
         if err != nil {
                 return fmt.Errorf("failed to generate CSR: %w", err)
         }
 
-        // Submit CSR using comprehensive ZTPKI API payload
-        requestID, err := client.SubmitCSRWithFullPayload(csr, certTask, false) // Never show verbose output in legacy function
+        // Submit CSR to ZTPKI
+        requestID, err := client.SubmitCSRWithFullPayload(csr, certTask, GetVerboseLevel())
         if err != nil {
                 return fmt.Errorf("failed to submit CSR: %w", err)
         }
@@ -1362,7 +1386,7 @@ func generateCSRFromCertTask(certTask *config.CertificateTask, keySize int, keyT
                 OrgUnit:      certTask.Request.Subject.OrgUnits,
         }
         
-        return generateCSR(certTask.Request.Subject.CommonName, keySize, keyType, subjectInfo)
+        return generateCSRFromTask(certTask.Request.Subject.CommonName, keySize, keyType, subjectInfo)
 }
 
 // checkCertificateRenewalFromTask checks if a certificate needs renewal based on certificate task

@@ -14,7 +14,7 @@ import (
 var (
         cfgFile       string
         profileName   string
-        verbose       bool
+        verboseLevel  int // 0 = no verbose, 1 = -v, 2 = -vv
         profileConfig *config.ProfileConfig
         currentProfile *config.Profile
         
@@ -41,8 +41,6 @@ func Execute() error {
         return rootCmd.Execute()
 }
 
-
-
 func init() {
         cobra.OnInitialize(initConfig)
         
@@ -56,7 +54,9 @@ func init() {
         // Global flags
         rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "profile config file (e.g., zcert.cnf)")
         rootCmd.PersistentFlags().StringVar(&profileName, "profile", "", "profile name from config file (default: Default)")
-        rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "", false, "verbose output")
+        
+        // Verbose flags - support both -v and -vv
+        rootCmd.PersistentFlags().CountVarP(&verboseLevel, "verbose", "v", "verbose output (-v for requests and variables, -vv for responses too)")
         
         // Bind flags to viper
         viper.BindPFlag("verbose", rootCmd.PersistentFlags().Lookup("verbose"))
@@ -71,7 +71,7 @@ func initConfig() {
                 for _, filename := range commonConfigFiles {
                         if _, err := os.Stat(filename); err == nil {
                                 cfgFile = filename
-                                if verbose {
+                                if verboseLevel > 0 {
                                         fmt.Fprintf(os.Stderr, "Auto-detected config file: %s\n", cfgFile)
                                 }
                                 break
@@ -105,7 +105,7 @@ func initConfig() {
                         }
                 }
                 
-                if verbose {
+                if verboseLevel > 0 {
                         fmt.Fprintf(os.Stderr, "Using profile config: %s, profile: %s\n", cfgFile, currentProfile.Name)
                 }
         } else {
@@ -124,7 +124,7 @@ func initConfig() {
                 viper.AutomaticEnv() // read in environment variables that match
 
                 // If a config file is found, read it in.
-                if err := viper.ReadInConfig(); err == nil && verbose {
+                if err := viper.ReadInConfig(); err == nil && verboseLevel > 0 {
                         fmt.Fprintln(os.Stderr, "Using config file:", viper.ConfigFileUsed())
                 }
 
@@ -185,4 +185,9 @@ func convertToVcertTimestamp(buildTime string) string {
 // getPlatform returns the current platform information
 func getPlatform() string {
         return fmt.Sprintf("%s/%s", runtime.GOOS, runtime.GOARCH)
+}
+
+// GetVerboseLevel returns the current verbose level (0, 1, or 2)
+func GetVerboseLevel() int {
+        return verboseLevel
 }

@@ -200,6 +200,14 @@ type CSRSubmissionResponse struct {
         Message        string `json:"message"`        // Legacy field
 }
 
+// CertificateStatus represents the status response from the certificate status endpoint
+type CertificateStatus struct {
+        ID             string `json:"id"`
+        IssuanceStatus string `json:"issuanceStatus"`
+        Status         string `json:"status"`
+        Message        string `json:"message,omitempty"`
+}
+
 // CertificateRequest represents a certificate request status
 type CertificateRequest struct {
         ID             string `json:"id"`

@@ -1,14 +1,12 @@
 package cmd
 
 import (
-	"bytes"
 	"fmt"
 	"github.com/spf13/cobra"
 	"os"
-	"os/exec"
-	"regexp"
 	"strings"
 	"time"
+	"zcert/internal/api"
 	"zcert/internal/cert"
 	"zcert/internal/config"
 )
@@ -58,7 +56,6 @@ func init() {
 	pqcCmd.Flags().Bool("no-key-output", false, "Don't output private key to file")
 
 	// Operational Flags
-	pqcCmd.Flags().Bool("verbose", false, "Enable detailed logging")
 	pqcCmd.Flags().String("validity", "", "Certificate validity period (30d, 6m, 1y, etc.)")
 }
 
@@ -67,6 +64,10 @@ func runPQC(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
+
+	// Get global verbose level
+	verboseLevel := GetVerboseLevel()
+	cfg.Verbose = verboseLevel > 0
 
 	// Ensure key file is set
 	if cfg.KeyFile == "" {
@@ -127,115 +128,152 @@ func runPQC(cmd *cobra.Command, args []string) error {
 	// Output CSR file path
 	fmt.Printf("CSR file generated: %s\n", csrFile)
 
-	// Step 5: Automate certificate enrollment
+	// Step 5: Direct certificate enrollment (no subprocess)
 	fmt.Println("[zcert] Submitting CSR for enrollment...")
-	enrollArgs := []string{
-		"enroll",
-		"--config", cfg.ConfigFile,
-		"--profile", cfg.Profile,
-		"--csr", "file",
-		"--csr-file", csrFile,
+	
+	// Create API client using the same approach as enroll command
+	apiConfig := &config.Config{
+		BaseURL: cfg.URL,
+		HawkID:  cfg.HawkID,
+		HawkKey: cfg.HawkKey,
 	}
-	// Add output file flags if specified
-	if cfg.CertFile != "" {
-		enrollArgs = append(enrollArgs, "--cert-file", cfg.CertFile)
+	
+	client, err := api.NewClientWithVerbose(apiConfig, verboseLevel)
+	if err != nil {
+		return fmt.Errorf("failed to create API client: %w", err)
 	}
-	if cfg.KeyFile != "" {
-		enrollArgs = append(enrollArgs, "--key-file", cfg.KeyFile)
+	
+	// Read CSR content
+	csrPEM, err := os.ReadFile(csrFile)
+	if err != nil {
+		return fmt.Errorf("failed to read CSR file: %w", err)
 	}
-	if cfg.ChainFile != "" {
-		enrollArgs = append(enrollArgs, "--chain-file", cfg.ChainFile)
+	
+	// Create certificate task using the same structure as enroll command
+	certTask := &config.CertificateTask{
+		Request: config.CertificateRequest{
+			Subject: config.CertificateSubject{
+				CommonName:   cfg.CommonName,
+				Country:      cfg.Country,
+				State:        cfg.Province,
+				Locality:     cfg.Locality,
+				Organization: strings.Join(cfg.Organizations, ","),
+				OrgUnits:     cfg.OrganizationalUnits,
+			},
+			Policy: cfg.Policy,
+			SANs: &config.FlexibleSANs{
+				SubjectAltNames: &config.SubjectAltNames{
+					DNS:   cfg.SANDNS,
+					IP:    cfg.SANIP,
+					Email: cfg.SANEmail,
+				},
+			},
+		},
 	}
-	if cfg.BundleFile != "" {
-		enrollArgs = append(enrollArgs, "--bundle-file", cfg.BundleFile)
+	
+	// Submit CSR to ZTPKI
+	requestID, err := client.SubmitCSRWithFullPayload(string(csrPEM), certTask, verboseLevel)
+	if err != nil {
+		return fmt.Errorf("failed to submit CSR: %w", err)
 	}
-	if cfg.Format != "" {
-		enrollArgs = append(enrollArgs, "--format", cfg.Format)
+	
+	if verboseLevel > 0 {
+		fmt.Fprintf(os.Stderr, "CSR submitted successfully. Request ID: %s\n", requestID)
 	}
-	if cfg.Verbose {
-		enrollArgs = append(enrollArgs, "--verbose")
+	
+	// Wait for certificate to be issued
+	if verboseLevel > 0 {
+		fmt.Fprintf(os.Stderr, "Waiting for certificate issuance...\n")
 	}
-
-	// Add subject fields if specified
-	if cfg.CommonName != "" {
-		enrollArgs = append(enrollArgs, "--cn", cfg.CommonName)
-	}
-	if cfg.Country != "" {
-		enrollArgs = append(enrollArgs, "--country", cfg.Country)
-	}
-	if cfg.Province != "" {
-		enrollArgs = append(enrollArgs, "--province", cfg.Province)
-	}
-	if cfg.Locality != "" {
-		enrollArgs = append(enrollArgs, "--locality", cfg.Locality)
-	}
-	for _, org := range cfg.Organizations {
-		enrollArgs = append(enrollArgs, "--org", org)
-	}
-	for _, ou := range cfg.OrganizationalUnits {
-		enrollArgs = append(enrollArgs, "--ou", ou)
-	}
-	for _, san := range cfg.SANDNS {
-		enrollArgs = append(enrollArgs, "--san-dns", san)
-	}
-	for _, san := range cfg.SANIP {
-		enrollArgs = append(enrollArgs, "--san-ip", san)
-	}
-	for _, san := range cfg.SANEmail {
-		enrollArgs = append(enrollArgs, "--san-email", san)
-	}
-
-	if cfg.Chain {
-		enrollArgs = append(enrollArgs, "--chain")
-	}
-
-	var outBuf, errBuf bytes.Buffer
-	cmdEnroll := exec.Command(os.Args[0], enrollArgs...)
-	cmdEnroll.Stdout = &outBuf
-	cmdEnroll.Stderr = &errBuf
-
-	done := make(chan error, 1)
-	go func() {
-		done <- cmdEnroll.Run()
-	}()
-
-	select {
-	case err := <-done:
-		// Parse output for PEM blocks
-		output := outBuf.String()
-		certs := parsePEMBlocks(output, "CERTIFICATE")
-		chain := []string{}
-		if len(certs) > 1 {
-			chain = certs[1:]
-		}
-		leaf := ""
-		if len(certs) > 0 {
-			leaf = certs[0]
-		}
-		if cfg.Verbose {
-			fmt.Print(output)
-		}
-		// Write certificate and chain to files as per pqc's output options
-		if cfg.CertFile != "" && leaf != "" {
-			os.WriteFile(cfg.CertFile, []byte(leaf+"\n"), 0644)
-		}
-		if cfg.ChainFile != "" && len(chain) > 0 {
-			os.WriteFile(cfg.ChainFile, []byte(strings.Join(chain, "\n")+"\n"), 0644)
-		}
-		if cfg.BundleFile != "" && len(certs) > 0 {
-			os.WriteFile(cfg.BundleFile, []byte(strings.Join(certs, "\n")+"\n"), 0644)
-		}
-		// Always write the private key
-		if cfg.KeyFile != "" && keyFile != "" {
-			copyFile(keyFile, cfg.KeyFile)
-		}
+	
+	// Poll for certificate completion
+	var certificate *api.Certificate
+	attemptCount := 0
+	maxAttempts := 600 // 10 minutes with 1-second intervals
+	for attemptCount < maxAttempts {
+		attemptCount++
+		time.Sleep(1 * time.Second)
+		
+		// Check certificate request status first
+		request, err := client.GetCertificateRequest(requestID)
 		if err != nil {
-			return fmt.Errorf("enrollment failed: %w\n%s", err, errBuf.String())
+			if verboseLevel > 0 && attemptCount%20 == 1 { // Log every 20 seconds
+				fmt.Fprintf(os.Stderr, "Attempt %d: Certificate not ready yet...\n", attemptCount)
+			}
+			continue
 		}
-	case <-time.After(10 * time.Second):
-		fmt.Println("[zcert] enroll is still running after 10 seconds. You may check the status or retrieve the certificate later.")
-		return nil
+		
+		if request.IssuanceStatus == "COMPLETE" || request.IssuanceStatus == "VALID" || request.IssuanceStatus == "ISSUED" {
+			if verboseLevel > 0 {
+				fmt.Fprintf(os.Stderr, "Certificate issued successfully!\n")
+			}
+			// Now get the actual certificate using the certificate ID
+			certificate, err = client.GetCertificate(request.CertificateID)
+			if err != nil {
+				return fmt.Errorf("failed to retrieve certificate after issuance: %w", err)
+			}
+			break
+		} else if request.IssuanceStatus == "FAILED" {
+			errorMsg := fmt.Sprintf("certificate issuance failed: %s", request.IssuanceStatus)
+			if request.Status != "" {
+				errorMsg += fmt.Sprintf(" (Status: %s)", request.Status)
+			}
+			return fmt.Errorf(errorMsg)
+		} else if verboseLevel > 0 {
+			fmt.Fprintf(os.Stderr, "Certificate status: %s\n", request.IssuanceStatus)
+		}
 	}
+	
+	if certificate == nil {
+		return fmt.Errorf("certificate issuance timed out after %d attempts", maxAttempts)
+	}
+	
+	// Retrieve certificate
+	certPEM, err := client.GetCertificatePEM(certificate.ID, cfg.Chain)
+	if err != nil {
+		return fmt.Errorf("failed to retrieve certificate: %w", err)
+	}
+	
+	// Write certificate and chain to files as per pqc's output options
+	if cfg.CertFile != "" {
+		if err := os.WriteFile(cfg.CertFile, []byte(certPEM.Certificate), 0644); err != nil {
+			return fmt.Errorf("failed to write certificate file: %w", err)
+		}
+		if verboseLevel > 0 {
+			fmt.Fprintf(os.Stderr, "Certificate written to: %s\n", cfg.CertFile)
+		}
+	}
+	
+	if cfg.ChainFile != "" && certPEM.Chain != "" {
+		if err := os.WriteFile(cfg.ChainFile, []byte(certPEM.Chain), 0644); err != nil {
+			return fmt.Errorf("failed to write chain file: %w", err)
+		}
+		if verboseLevel > 0 {
+			fmt.Fprintf(os.Stderr, "Certificate chain written to: %s\n", cfg.ChainFile)
+		}
+	}
+	
+	if cfg.BundleFile != "" {
+		bundle := certPEM.Certificate
+		if certPEM.Chain != "" {
+			bundle += "\n" + certPEM.Chain
+		}
+		if err := os.WriteFile(cfg.BundleFile, []byte(bundle), 0644); err != nil {
+			return fmt.Errorf("failed to write bundle file: %w", err)
+		}
+		if verboseLevel > 0 {
+			fmt.Fprintf(os.Stderr, "Certificate bundle written to: %s\n", cfg.BundleFile)
+		}
+	}
+	
+	// Always write the private key
+	if cfg.KeyFile != "" && keyFile != "" {
+		copyFile(keyFile, cfg.KeyFile)
+		if verboseLevel > 0 {
+			fmt.Fprintf(os.Stderr, "Private key written to: %s\n", cfg.KeyFile)
+		}
+	}
+	
 	return nil
 }
 
@@ -280,7 +318,13 @@ type PQCConfig struct {
 }
 
 func loadPQCConfig(cmd *cobra.Command) (*PQCConfig, error) {
-	cfg := &PQCConfig{}
+	// Initialize config with defaults
+	cfg := &PQCConfig{
+		OpenSSLPath: "openssl",
+		TempDir:     os.TempDir(),
+		Verbose:     false, // Will be set by global verbose level
+		NoClean:     false,
+	}
 
 	// Load configuration file
 	configFile, _ := cmd.Flags().GetString("config")
@@ -290,14 +334,20 @@ func loadPQCConfig(cmd *cobra.Command) (*PQCConfig, error) {
 
 	// Load profile
 	profile, _ := cmd.Flags().GetString("profile")
-	if profile == "" {
-		profile = "pqc"
-	}
 
 	// Load configuration
 	profileConfig, err := config.LoadProfileConfig(configFile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load profile config: %w", err)
+	}
+
+	if profile == "" {
+		// If pqc profile exists, use it; otherwise, use Default
+		if pqcProfile := profileConfig.GetProfile("pqc"); pqcProfile != nil {
+			profile = pqcProfile.Name
+		} else {
+			profile = "Default"
+		}
 	}
 
 	// Get the profile section
@@ -307,8 +357,16 @@ func loadPQCConfig(cmd *cobra.Command) (*PQCConfig, error) {
 	}
 
 	// Map profile config to PQCConfig
-	cfg.OpenSSLPath = "./openssl.exe" // Default, can be extended to read from profileSection if needed
-	cfg.TempDir = "." // Default, can be extended to read from profileSection if needed
+	if profileSection.OpenSSLPath != "" {
+		cfg.OpenSSLPath = profileSection.OpenSSLPath
+	} else {
+		cfg.OpenSSLPath = "./openssl.exe"
+	}
+	if profileSection.TempDir != "" {
+		cfg.TempDir = profileSection.TempDir
+	} else {
+		cfg.TempDir = "."
+	}
 	
 	// Get algorithm from CLI flag or profile
 	cfg.Algorithm, _ = cmd.Flags().GetString("pqc-algorithm")
@@ -320,7 +378,6 @@ func loadPQCConfig(cmd *cobra.Command) (*PQCConfig, error) {
 		return nil, fmt.Errorf("pqc-algorithm must be specified either via --pqc-algorithm flag or in the selected profile of the config file (profile: %s)", profile)
 	}
 	
-	cfg.Verbose, _ = cmd.Flags().GetBool("verbose")
 	cfg.NoClean = profileSection.NoClean // Read NoClean from the profile section
 
 	// Map certificate configuration
@@ -361,9 +418,4 @@ func loadPQCConfig(cmd *cobra.Command) (*PQCConfig, error) {
 	cfg.Validity = fmt.Sprintf("%d", profileSection.Validity)
 
 	return cfg, nil
-}
-
-func parsePEMBlocks(input, blockType string) []string {
-	pemBlock := regexp.MustCompile("-----BEGIN " + blockType + "-----.*?-----END " + blockType + "-----")
-	return pemBlock.FindAllString(input, -1)
 } 

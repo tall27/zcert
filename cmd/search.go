@@ -33,8 +33,6 @@ var (
         searchURL      string
         searchHawkID   string
         searchHawkKey  string
-        searchVerbose  bool
-
 )
 
 // searchCmd represents the search command
@@ -75,7 +73,6 @@ func init() {
         searchCmd.Flags().StringVar(&searchURL, "url", "", "ZTPKI API base URL (e.g., https://your-ztpki-instance.com/api/v2)")
         searchCmd.Flags().StringVar(&searchHawkID, "hawk-id", "", "HAWK authentication ID")
         searchCmd.Flags().StringVar(&searchHawkKey, "hawk-key", "", "HAWK authentication key")
-        searchCmd.Flags().BoolVarP(&searchVerbose, "verbose", "v", false, "Verbose output including variable hierarchy")
 
         
         // Output options
@@ -170,6 +167,9 @@ func runSearch(cmd *cobra.Command, args []string) error {
                 )
         }
 
+        // Get global verbose level
+        verboseLevel := GetVerboseLevel()
+
         // Validate required authentication parameters
         if finalProfile.URL == "" {
                 return fmt.Errorf("ZTPKI URL is required (use --url flag or config file)")
@@ -187,14 +187,14 @@ func runSearch(cmd *cobra.Command, args []string) error {
                 HawkID:  finalProfile.KeyID,
                 HawkKey: finalProfile.Secret,
         }
-        
-        client, err := api.NewClient(cfg)
+
+        client, err := api.NewClientWithVerbose(cfg, verboseLevel)
         if err != nil {
                 return fmt.Errorf("failed to initialize API client: %w", err)
         }
 
-        // Show variable hierarchy in verbose mode
-        if searchVerbose {
+        // Show variable hierarchy in verbose mode (both -v and -vv)
+        if verboseLevel > 0 {
                 fmt.Printf("\n=== Variable Hierarchy (CLI > Config > Environment) ===\n")
                 
                 // ZTPKI URL
@@ -235,21 +235,6 @@ func runSearch(cmd *cobra.Command, args []string) error {
                         hawkSecretSource = "Not set"
                 }
                 fmt.Printf("ZTPKI_HAWK_SECRET - %s - %s\n", hawkSecretSource, maskSecret(finalProfile.Secret))
-
-                // Policy ID
-                var policySource string
-                if searchPolicy != "" {
-                        policySource = "CLI"
-                } else if os.Getenv("ZTPKI_POLICY_ID") != "" {
-                        policySource = "ENV Variable"
-                } else {
-                        policySource = "Not set"
-                }
-                policyValue := searchPolicy
-                if policyValue == "" {
-                        policyValue = os.Getenv("ZTPKI_POLICY_ID")
-                }
-                fmt.Printf("ZTPKI_POLICY_ID - %s - %s\n", policySource, policyValue)
                 fmt.Printf("===============================================\n\n")
         }
 
@@ -262,7 +247,7 @@ func runSearch(cmd *cobra.Command, args []string) error {
                 }
                 resolvedPolicyID = resolvedID
                 
-                if viper.GetBool("verbose") {
+                if verboseLevel > 0 {
                         fmt.Fprintf(os.Stderr, "Resolved policy '%s' to full ID: %s\n", searchPolicy, resolvedPolicyID)
                 }
         }
@@ -278,7 +263,7 @@ func runSearch(cmd *cobra.Command, args []string) error {
                 Limit:      searchLimit,
         }
         
-        if viper.GetBool("verbose") || os.Getenv("ZCERT_DEBUG") != "" {
+        if verboseLevel > 0 {
                 fmt.Fprintf(os.Stderr, "Search limit from command line: %d\n", searchLimit)
         }
 
@@ -302,13 +287,13 @@ func runSearch(cmd *cobra.Command, args []string) error {
                 if searchExpiring == "" || searchExpiring == "profile-default" || strings.HasPrefix(searchExpiring, "-") {
                         if currentProfile != nil && currentProfile.Validity > 0 {
                                 expiringValue = fmt.Sprintf("%d", currentProfile.Validity)
-                                if viper.GetBool("verbose") {
+                                if verboseLevel > 0 {
                                         fmt.Fprintf(os.Stderr, "Using profile validity setting for --expiring: %s days\n", expiringValue)
                                 }
                         } else {
                                 // Default to 15 days if no profile validity
                                 expiringValue = "15"
-                                if viper.GetBool("verbose") {
+                                if verboseLevel > 0 {
                                         fmt.Fprintf(os.Stderr, "Using default validity setting for --expiring: %s days\n", expiringValue)
                                 }
                         }
@@ -342,7 +327,7 @@ func runSearch(cmd *cobra.Command, args []string) error {
                 issuedAfter = &recentThreshold
         }
 
-        if viper.GetBool("verbose") {
+        if verboseLevel > 0 {
                 fmt.Fprintln(os.Stderr, "Searching certificates with criteria:")
                 if searchCN != "" {
                         fmt.Fprintf(os.Stderr, "  Common Name: %s\n", searchCN)
@@ -375,7 +360,7 @@ func runSearch(cmd *cobra.Command, args []string) error {
         var certificates []api.Certificate
         needsClientFiltering := searchCN != "" || searchSerial != "" || searchIssuer != "" || issuedAfter != nil || expiresBefore != nil
         
-        if viper.GetBool("verbose") {
+        if verboseLevel > 0 {
                 fmt.Fprintf(os.Stderr, "Search strategy: needsClientFiltering=%t, useExpiredPagination=%t\n", needsClientFiltering, useExpiredPagination)
 
         }
@@ -392,7 +377,7 @@ func runSearch(cmd *cobra.Command, args []string) error {
                         return nil
                 }
                 
-                if viper.GetBool("verbose") {
+                if verboseLevel > 0 {
                         fmt.Fprintf(os.Stderr, "Found %d expired certificates\n", len(certificates))
                 }
                 
@@ -440,7 +425,7 @@ func runSearch(cmd *cobra.Command, args []string) error {
                         certificates = filtered
                 }
                 
-                if viper.GetBool("verbose") {
+                if verboseLevel > 0 {
                         fmt.Fprintf(os.Stderr, "Fetched %d certificates, filtered to %d, returning %d\n", 
                                 len(allCerts), len(filtered), len(certificates))
                 }
@@ -458,7 +443,7 @@ func runSearch(cmd *cobra.Command, args []string) error {
                 return nil
         }
 
-        if viper.GetBool("verbose") {
+        if verboseLevel > 0 {
                 fmt.Fprintf(os.Stderr, "Found %d certificates\n", len(certificates))
         }
 
@@ -484,7 +469,7 @@ func searchExpiredCertificates(client *api.Client, baseParams api.CertificateSea
         totalFetched := 0
         offset := 0
         
-        if viper.GetBool("verbose") {
+        if verboseLevel > 0 {
                 fmt.Fprintf(os.Stderr, "Searching for %d expired certificates with smart pagination\n", targetLimit)
         }
         
@@ -506,7 +491,7 @@ func searchExpiredCertificates(client *api.Client, baseParams api.CertificateSea
                 
                 totalFetched += len(certificates)
                 
-                if viper.GetBool("verbose") {
+                if verboseLevel > 0 {
                         fmt.Fprintf(os.Stderr, "Batch %d: fetched %d certificates (total: %d)\n", 
                                 offset/batchSize+1, len(certificates), totalFetched)
                 }
@@ -516,7 +501,7 @@ func searchExpiredCertificates(client *api.Client, baseParams api.CertificateSea
                         isExpiredByStatus := strings.ToUpper(cert.Status) == "EXPIRED"
                         
                         // Debug: Show certificate status in verbose mode (first few certificates only)
-                        if viper.GetBool("verbose") && totalFetched <= 50 {
+                        if verboseLevel > 0 && totalFetched <= 50 {
                                 fmt.Fprintf(os.Stderr, "  Certificate %s: status=%s, expires=%s\n", 
                                         cert.CommonName, cert.Status, cert.ExpiryDate.Format("2006-01-02"))
                         }
@@ -531,7 +516,7 @@ func searchExpiredCertificates(client *api.Client, baseParams api.CertificateSea
                         }
                 }
                 
-                if viper.GetBool("verbose") {
+                if verboseLevel > 0 {
                         fmt.Fprintf(os.Stderr, "Found %d expired certificates so far (need %d)\n", 
                                 len(expiredCertificates), targetLimit)
                 }
@@ -550,7 +535,7 @@ func searchExpiredCertificates(client *api.Client, baseParams api.CertificateSea
                 expiredCertificates = expiredCertificates[:targetLimit]
         }
         
-        if viper.GetBool("verbose") {
+        if verboseLevel > 0 {
                 fmt.Fprintf(os.Stderr, "Smart pagination complete: found %d expired certificates (searched %d total)\n", 
                         len(expiredCertificates), totalFetched)
         }
@@ -742,7 +727,7 @@ func getSearchUsageFunc() func(*cobra.Command) error {
                 fmt.Printf("      --config string     profile config file (e.g., zcert.cnf)\n")
                 fmt.Printf("      --profile string    profile name from config file (default: Default)\n")
                 fmt.Printf("  -h, --help              help for search\n")
-                fmt.Printf("      --verbose           verbose output\n")
+                fmt.Printf("  -v, --verbose           verbose output (-v for requests and variables, -vv for responses too)\n")
                 
                 return nil
         }
@@ -797,7 +782,7 @@ Global Flags:
       --config string     profile config file (e.g., zcert.cnf)
       --profile string    profile name from config file (default: Default)
   -h, --help              help for search
-      --verbose           verbose output
+  -v, --verbose           verbose output (-v for requests and variables, -vv for responses too)
 
 Use "zcert search [command] --help" for more information about a command.
 `)
@@ -806,7 +791,8 @@ Use "zcert search [command] --help" for more information about a command.
 
 // listAllPolicies retrieves and displays all available policies from ZTPKI
 func listAllPolicies(client *api.Client, limit int, format string, wide bool) error {
-        if viper.GetBool("verbose") {
+        verboseLevel := GetVerboseLevel()
+        if verboseLevel > 0 {
                 fmt.Fprintln(os.Stderr, "Retrieving all available policies from ZTPKI...")
         }
         
@@ -825,7 +811,7 @@ func listAllPolicies(client *api.Client, limit int, format string, wide bool) er
                 policies = policies[:limit]
         }
         
-        if viper.GetBool("verbose") {
+        if verboseLevel > 0 {
                 fmt.Fprintf(os.Stderr, "Found %d policies (showing %d)\n", len(policies), len(policies))
         }
         

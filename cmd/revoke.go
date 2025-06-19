@@ -5,7 +5,6 @@ import (
         "os"
 
         "github.com/spf13/cobra"
-        "github.com/spf13/viper"
         "zcert/internal/api"
         "zcert/internal/config"
         "zcert/internal/utils"
@@ -96,12 +95,14 @@ func init() {
 }
 
 func runRevoke(cmd *cobra.Command, args []string) error {
-        // Use profile configuration if available, otherwise use command-line flags
+        // Get global verbose level
+        verboseLevel := GetVerboseLevel()
+
+        // Use profile configuration if available
         profile := GetCurrentProfile()
         var finalProfile *config.Profile
         
         if profile != nil {
-                // Merge profile with command-line flags (flags take precedence)
                 finalProfile = config.MergeProfileWithFlags(
                         profile,
                         revokeURL, revokeHawkID, revokeHawkKey,
@@ -109,14 +110,25 @@ func runRevoke(cmd *cobra.Command, args []string) error {
                         0, "", // keysize, keytype not needed for revoke
                 )
         } else {
-                // No profile config, merge CLI flags with environment variables
-                // Priority: CLI Parameters > OS Environment Variables
-                finalProfile = config.MergeProfileWithFlags(
-                        nil, // No config profile
-                        revokeURL, revokeHawkID, revokeHawkKey,
-                        "", "", "", // format, policy, p12password not needed for revoke
-                        0, "", // keysize, keytype not needed for revoke
-                )
+                // Fallback to environment variables if CLI flags are not set
+                url := revokeURL
+                if url == "" {
+                        url = os.Getenv("ZTPKI_URL")
+                }
+                hawkID := revokeHawkID
+                if hawkID == "" {
+                        hawkID = os.Getenv("ZTPKI_HAWK_ID")
+                }
+                hawkKey := revokeHawkKey
+                if hawkKey == "" {
+                        hawkKey = os.Getenv("ZTPKI_HAWK_SECRET")
+                }
+                finalProfile = &config.Profile{
+                        URL:    url,
+                        KeyID:  hawkID,
+                        Secret: hawkKey,
+                        Algo:   "sha256",
+                }
         }
 
         // Validate required authentication parameters
@@ -136,10 +148,55 @@ func runRevoke(cmd *cobra.Command, args []string) error {
                 HawkID:  finalProfile.KeyID,
                 HawkKey: finalProfile.Secret,
         }
-        
-        client, err := api.NewClient(cfg)
+
+        client, err := api.NewClientWithVerbose(cfg, verboseLevel)
         if err != nil {
                 return fmt.Errorf("failed to initialize API client: %w", err)
+        }
+
+        // Show variable hierarchy in verbose mode (both -v and -vv)
+        if verboseLevel > 0 {
+                fmt.Printf("\n=== Variable Hierarchy (CLI > Config > Environment) ===\n")
+                
+                // ZTPKI URL
+                var urlSource string
+                if revokeURL != "" {
+                        urlSource = "CLI"
+                } else if profile != nil && profile.URL != "" {
+                        urlSource = "Config"
+                } else if os.Getenv("ZTPKI_URL") != "" {
+                        urlSource = "ENV Variable"
+                } else {
+                        urlSource = "Not set"
+                }
+                fmt.Printf("ZTPKI_URL - %s - %s\n", urlSource, finalProfile.URL)
+
+                // HAWK ID
+                var hawkIDSource string
+                if revokeHawkID != "" {
+                        hawkIDSource = "CLI"
+                } else if profile != nil && profile.KeyID != "" {
+                        hawkIDSource = "Config"
+                } else if os.Getenv("ZTPKI_HAWK_ID") != "" {
+                        hawkIDSource = "ENV Variable"
+                } else {
+                        hawkIDSource = "Not set"
+                }
+                fmt.Printf("ZTPKI_HAWK_ID - %s - %s\n", hawkIDSource, finalProfile.KeyID)
+
+                // HAWK Secret
+                var hawkSecretSource string
+                if revokeHawkKey != "" {
+                        hawkSecretSource = "CLI"
+                } else if profile != nil && profile.Secret != "" {
+                        hawkSecretSource = "Config"
+                } else if os.Getenv("ZTPKI_HAWK_SECRET") != "" {
+                        hawkSecretSource = "ENV Variable"
+                } else {
+                        hawkSecretSource = "Not set"
+                }
+                fmt.Printf("ZTPKI_HAWK_SECRET - %s - %s\n", hawkSecretSource, maskSecret(finalProfile.Secret))
+                fmt.Printf("===============================================\n\n")
         }
 
         // Validate that at least one identifier is provided
@@ -147,7 +204,7 @@ func runRevoke(cmd *cobra.Command, args []string) error {
                 return fmt.Errorf("must specify at least one certificate identifier (--id, --cn, or --serial)")
         }
 
-        if viper.GetBool("verbose") {
+        if verboseLevel > 0 {
                 fmt.Fprintln(os.Stderr, "Looking up certificate for revocation...")
         }
 
@@ -155,7 +212,7 @@ func runRevoke(cmd *cobra.Command, args []string) error {
 
         // Find the certificate to revoke
         if revokeID != "" {
-                if viper.GetBool("verbose") {
+                if verboseLevel > 0 {
                         fmt.Fprintf(os.Stderr, "Looking up certificate by ID: %s\n", revokeID)
                 }
                 certificate, err = client.GetCertificate(revokeID)
@@ -169,7 +226,7 @@ func runRevoke(cmd *cobra.Command, args []string) error {
                         Serial:     revokeSerial,
                 }
 
-                if viper.GetBool("verbose") {
+                if verboseLevel > 0 {
                         fmt.Fprintf(os.Stderr, "Searching for certificate with criteria: CN=%s, Serial=%s\n", 
                                 revokeCN, revokeSerial)
                 }
@@ -231,7 +288,7 @@ func runRevoke(cmd *cobra.Command, args []string) error {
                 }
         }
 
-        if viper.GetBool("verbose") {
+        if verboseLevel > 0 {
                 fmt.Fprintf(os.Stderr, "Revoking certificate %s with reason: %s\n", certificate.ID, revokeReason)
         }
 
@@ -247,7 +304,7 @@ func runRevoke(cmd *cobra.Command, args []string) error {
         fmt.Printf("  Serial Number: %s\n", certificate.SerialNumber)
         fmt.Printf("  Revocation Reason: %s\n", revokeReason)
 
-        if viper.GetBool("verbose") {
+        if verboseLevel > 0 {
                 fmt.Fprintln(os.Stderr, "Revocation completed successfully.")
         }
 
@@ -275,7 +332,7 @@ func getRevokeUsageFunc() func(*cobra.Command) error {
                 fmt.Printf("      --config string     profile config file (e.g., zcert.cnf)\n")
                 fmt.Printf("      --profile string    profile name from config file (default: Default)\n")
                 fmt.Printf("  -h, --help              help for revoke\n")
-                fmt.Printf("      --verbose           verbose output\n")
+                fmt.Printf("  -v, --verbose           verbose output (-v for requests and variables, -vv for responses too)\n")
                 
                 return nil
         }
@@ -316,7 +373,7 @@ Global Flags:
       --config string     profile config file (e.g., zcert.cnf)
       --profile string    profile name from config file (default: Default)
   -h, --help              help for revoke
-      --verbose           verbose output
+  -v, --verbose           verbose output (-v for requests and variables, -vv for responses too)
 
 Use "zcert revoke [command] --help" for more information about a command.
 `)

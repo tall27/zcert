@@ -1,7 +1,6 @@
 package cmd
 
 import (
-        "context"
         "crypto/rand"
         "crypto/rsa"
         "crypto/x509"
@@ -12,14 +11,16 @@ import (
         "os"
         "strings"
         "time"
-
         "github.com/spf13/cobra"
         "github.com/spf13/viper"
+        "software.sslmate.com/src/go-pkcs12"
         "zcert/internal/api"
-        "zcert/internal/cert"
         "zcert/internal/config"
-        policyselect "zcert/internal/policy"
         "zcert/internal/utils"
+        "crypto/des"
+        "crypto/cipher"
+        "crypto/md5"
+        "encoding/hex"
 )
 
 var (
@@ -61,7 +62,6 @@ var (
         enrollKeyPass string
         enrollP12Pass string
         enrollNoKey   bool
-        enrollVerbose bool
         enrollChain   bool
 )
 
@@ -129,7 +129,6 @@ func init() {
         enrollCmd.Flags().StringVar(&enrollKeyPass, "key-password", "", "Password for private key encryption (PEM format)")
         enrollCmd.Flags().StringVar(&enrollP12Pass, "p12-password", "", "Password for PKCS#12 bundle format")
         enrollCmd.Flags().BoolVar(&enrollNoKey, "no-key-output", false, "Don't output private key to file")
-        enrollCmd.Flags().BoolVarP(&enrollVerbose, "verbose", "v", false, "Verbose output including variable hierarchy")
         enrollCmd.Flags().BoolVar(&enrollChain, "chain", false, "Include certificate chain")
 
         // Set custom help and usage functions to group flags consistently
@@ -150,6 +149,9 @@ func init() {
 }
 
 func runEnroll(cmd *cobra.Command, args []string) error {
+        // Get global verbose level
+        verboseLevel := GetVerboseLevel()
+
         // Use profile configuration if available
         profile := GetCurrentProfile()
         var finalProfile *config.Profile
@@ -218,13 +220,13 @@ func runEnroll(cmd *cobra.Command, args []string) error {
                 HawkKey: finalProfile.Secret,
         }
 
-        client, err := api.NewClient(cfg)
+        client, err := api.NewClientWithVerbose(cfg, verboseLevel)
         if err != nil {
                 return fmt.Errorf("failed to initialize API client: %w", err)
         }
 
-        // Show variable hierarchy in verbose mode
-        if enrollVerbose {
+        // Show variable hierarchy in verbose mode (both -v and -vv)
+        if verboseLevel > 0 {
                 fmt.Printf("\n=== Variable Hierarchy (CLI > Config > Environment) ===\n")
                 
                 // ZTPKI URL
@@ -333,154 +335,10 @@ func runEnroll(cmd *cobra.Command, args []string) error {
                         return fmt.Errorf("invalid validity format: %w", err)
                 }
         }
-        // If validityPeriod is nil, the API will use template maximum validity
 
-        // Convert validity period to policy type for compatibility checking
-        var policyValidityPeriod *policyselect.ValidityPeriod
-        if validityPeriod != nil {
-                policyValidityPeriod = &policyselect.ValidityPeriod{
-                        Days:   validityPeriod.Days,
-                        Months: validityPeriod.Months,
-                        Years:  validityPeriod.Years,
-                }
-        }
-
-        // Create user arguments for policy compatibility checking
-        userArgs := &policyselect.UserArgs{
-                CN:           cn,
-                SANsDNS:      enrollSANsDNS,
-                SANsIP:       enrollSANsIP,
-                SANsEmail:    enrollSANsEmail,
-                Validity:     policyValidityPeriod,
-                Organization: enrollOrg,
-                OrgUnit:      enrollOrgUnit,
-                Locality:     enrollLocality,
-                Province:     enrollProvince,
-                Country:      enrollCountry,
-                KeyType:      keyType,
-                KeySize:      keySize,
-                KeyCurve:     enrollKeyCurve,
-        }
-
-        policySelector := policyselect.NewPolicySelector(client)
-
-        // Get or select policy with compatibility checking
-        if policyID == "" {
-                policyID, err = policySelector.SelectCompatiblePolicy(userArgs)
-                if err != nil {
-                        return fmt.Errorf("failed to select policy: %w", err)
-                }
-        } else {
-                // Validate compatibility when policy is pre-specified
-                err = policySelector.ValidatePolicyCompatibility(policyID, userArgs)
-                if err != nil {
-                        return fmt.Errorf("policy %s is incompatible with your certificate requirements: %w", policyID, err)
-                }
-        }
-
-        // Set verbose environment variable for API debugging
-        if viper.GetBool("verbose") {
-                os.Setenv("ZCERT_VERBOSE", "true")
-                fmt.Fprintf(os.Stderr, "Enrolling certificate with CN: %s, Policy: %s\n", cn, policyID)
-        }
-
-        var csrPEM []byte
-        var privateKey interface{}
-
-        // Handle CSR generation based on mode determined above
-
-        if csrMode == "local" {
-                // Generate private key locally
-                if viper.GetBool("verbose") {
-                        fmt.Fprintln(os.Stderr, "Generating private key...")
-                }
-
-                if keyType == "rsa" {
-                        privateKey, err = rsa.GenerateKey(rand.Reader, keySize)
-                        if err != nil {
-                                return fmt.Errorf("failed to generate RSA private key: %w", err)
-                        }
-                } else {
-                        return fmt.Errorf("unsupported key type: %s", keyType)
-                }
-
-                // Create CSR
-                if viper.GetBool("verbose") {
-                        fmt.Fprintln(os.Stderr, "Creating Certificate Signing Request...")
-                }
-
-                // Prepare SAN values - combine all DNS SANs
-                var dnsNames []string
-                dnsNames = append(dnsNames, enrollSANsDNS...)
-
-                // Prepare IP addresses
-                var ipAddresses []net.IP
-                for _, ipStr := range enrollSANsIP {
-                        if ip := net.ParseIP(ipStr); ip != nil {
-                                ipAddresses = append(ipAddresses, ip)
-                        }
-                }
-
-                // Prepare email addresses
-                var emailAddresses []string
-                emailAddresses = append(emailAddresses, enrollSANsEmail...)
-
-                template := x509.CertificateRequest{
-                        Subject: pkix.Name{
-                                CommonName:         cn,
-                                Organization:       enrollOrg,
-                                OrganizationalUnit: enrollOrgUnit,
-                                Locality:           []string{enrollLocality},
-                                Province:           []string{enrollProvince},
-                                Country:            []string{enrollCountry},
-                        },
-                        DNSNames:       dnsNames,
-                        IPAddresses:    ipAddresses,
-                        EmailAddresses: emailAddresses,
-                }
-
-                csrBytes, err := x509.CreateCertificateRequest(rand.Reader, &template, privateKey)
-                if err != nil {
-                        return fmt.Errorf("failed to create CSR: %w", err)
-                }
-
-                csrPEM = pem.EncodeToMemory(&pem.Block{
-                        Type:  "CERTIFICATE REQUEST",
-                        Bytes: csrBytes,
-                })
-        } else if csrMode == "file" {
-                // Read CSR from file
-                if enrollCSRFile == "" {
-                        return fmt.Errorf("CSR file path required when using --csr file mode. Use --csr-file flag")
-                }
-
-                if viper.GetBool("verbose") {
-                        fmt.Fprintf(os.Stderr, "Reading CSR from file: %s\n", enrollCSRFile)
-                }
-
-                csrPEM, err = os.ReadFile(enrollCSRFile)
-                if err != nil {
-                        return fmt.Errorf("failed to read CSR file: %w", err)
-                }
-
-                // Validate CSR format
-                block, _ := pem.Decode(csrPEM)
-                if block == nil || block.Type != "CERTIFICATE REQUEST" {
-                        return fmt.Errorf("invalid CSR file format. Expected PEM-encoded CERTIFICATE REQUEST")
-                }
-        } else {
-                return fmt.Errorf("invalid CSR mode: %s. Use 'local' or 'file'", csrMode)
-        }
-
-        // Submit CSR to ZTPKI
-        if viper.GetBool("verbose") {
-                fmt.Fprintln(os.Stderr, "Submitting CSR to ZTPKI...")
-        }
-
-        // Create certificate task structure for API payload display
+        // Create certificate task for API submission
         certTask := &config.CertificateTask{
                 Request: config.CertificateRequest{
-                        Policy: policyID,
                         Subject: config.CertificateSubject{
                                 CommonName:   cn,
                                 Country:      enrollCountry,
@@ -489,143 +347,333 @@ func runEnroll(cmd *cobra.Command, args []string) error {
                                 Organization: strings.Join(enrollOrg, ","),
                                 OrgUnits:     enrollOrgUnit,
                         },
+                        Policy: policyID,
+                        SANs: &config.FlexibleSANs{
+                                SubjectAltNames: &config.SubjectAltNames{
+                                        DNS:   enrollSANsDNS,
+                                        IP:    enrollSANsIP,
+                                        Email: enrollSANsEmail,
+                                },
+                        },
                 },
         }
 
         // Add validity period if specified
         if validityPeriod != nil {
                 certTask.Request.Validity = &config.ValidityConfig{
-                        Days:   validityPeriod.Days,
-                        Months: validityPeriod.Months,
                         Years:  validityPeriod.Years,
+                        Months: validityPeriod.Months,
+                        Days:   validityPeriod.Days,
                 }
         }
 
-        requestID, err := client.SubmitCSRWithFullPayload(string(csrPEM), certTask, enrollVerbose)
-        if err != nil {
-                return fmt.Errorf("failed to submit CSR: %w", err)
-        }
-        if requestID == "" {
-                return fmt.Errorf("ZTPKI backend did not return a request ID. The request may have failed. Please check the backend logs or try a different algorithm.")
-        }
+        // Handle CSR generation mode
+        if csrMode == "local" {
+                // Generate CSR locally
+                if verboseLevel > 0 {
+                        fmt.Fprintf(os.Stderr, "Generating CSR locally for CN: %s\n", cn)
+                }
 
-        if viper.GetBool("verbose") {
-                fmt.Fprintf(os.Stderr, "CSR submitted successfully. Request ID: %s\n", requestID)
-                fmt.Fprintln(os.Stderr, "Polling for certificate issuance...")
-        }
+                // Generate private key
+                keyFile, err := generatePrivateKey(keyType, keySize, enrollKeyCurve, enrollKeyPass)
+                if err != nil {
+                        return fmt.Errorf("failed to generate private key: %w", err)
+                }
+                defer os.Remove(keyFile) // Clean up temporary key file
 
-        // Poll for certificate request completion
-        var certificate *api.Certificate
+                // Generate CSR
+                csrFile, err := generateCSR(keyFile, certTask, enrollKeyPass)
+                if err != nil {
+                        return fmt.Errorf("failed to generate CSR: %w", err)
+                }
+                defer os.Remove(csrFile) // Clean up temporary CSR file
 
-        // Immediate polling with 2-second timeout
-        if viper.GetBool("verbose") {
-                fmt.Fprintln(os.Stderr, "Starting immediate certificate polling with 2-second timeout...")
-        }
+                // Read CSR content
+                csrPEM, err := os.ReadFile(csrFile)
+                if err != nil {
+                        return fmt.Errorf("failed to read CSR file: %w", err)
+                }
 
-        // Create context with 2-second timeout for the entire operation
-        ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-        defer cancel()
+                if verboseLevel > 0 {
+                        fmt.Fprintf(os.Stderr, "CSR generated successfully: %s\n", csrFile)
+                }
 
-        // Continuous polling until timeout or success
-        ticker := time.NewTicker(50 * time.Millisecond) // Poll every 50ms for faster response
-        defer ticker.Stop()
+                // Submit CSR to ZTPKI
+                requestID, err := client.SubmitCSRWithFullPayload(string(csrPEM), certTask, verboseLevel)
+                if err != nil {
+                        return fmt.Errorf("failed to submit CSR: %w", err)
+                }
 
-        attemptCount := 0
-        for {
-                select {
-                case <-ctx.Done():
-                        if viper.GetBool("verbose") {
-                                fmt.Fprintf(os.Stderr, "Certificate polling timed out after 2 seconds (attempted %d times)\n", attemptCount)
-                        }
-                        goto timeout_reached
-                case <-ticker.C:
+                if verboseLevel > 0 {
+                        fmt.Fprintf(os.Stderr, "CSR submitted successfully. Request ID: %s\n", requestID)
+                }
+
+                // Wait for certificate to be issued
+                if verboseLevel > 0 {
+                        fmt.Fprintf(os.Stderr, "Waiting for certificate issuance...\n")
+                }
+
+                // Poll for certificate completion
+                var certificate *api.Certificate
+                attemptCount := 0
+                maxAttempts := 600 // 10 minutes with 1-second intervals
+                for attemptCount < maxAttempts {
                         attemptCount++
-                        if viper.GetBool("verbose") && attemptCount%20 == 1 { // Log every second (20 * 50ms)
-                                fmt.Fprintf(os.Stderr, "Polling attempt %d...\n", attemptCount)
-                        }
+                        time.Sleep(1 * time.Second)
 
-                        // First, check the request status to get certificate ID
+                        // Check certificate request status first
                         request, err := client.GetCertificateRequest(requestID)
                         if err != nil {
-                                if viper.GetBool("verbose") {
-                                        fmt.Fprintf(os.Stderr, "Error checking request status (attempt %d): %v\n", attemptCount, err)
+                                if verboseLevel > 0 && attemptCount%20 == 1 { // Log every second (20 * 50ms)
+                                        fmt.Fprintf(os.Stderr, "Attempt %d: Certificate not ready yet...\n", attemptCount)
                                 }
                                 continue
                         }
 
-                        if request != nil && request.CertificateID != "" {
-                                if viper.GetBool("verbose") {
-                                        fmt.Fprintf(os.Stderr, "Request status: %s, Certificate ID: %s (attempt %d)\n", request.Status, request.CertificateID, attemptCount)
+                        if request.IssuanceStatus == "COMPLETE" || request.IssuanceStatus == "VALID" || request.IssuanceStatus == "ISSUED" {
+                                if verboseLevel > 0 {
+                                        fmt.Fprintf(os.Stderr, "Certificate issued successfully!\n")
                                 }
-
-                                // Request completed, now get the actual certificate with chain
+                                // Now get the actual certificate using the certificate ID
                                 certificate, err = client.GetCertificate(request.CertificateID)
-                                if err == nil && certificate != nil && certificate.Certificate != "" {
-                                        // Get certificate with chain using PEM endpoint
-                                        pemResp, chainErr := client.GetCertificatePEM(request.CertificateID, chainValue)
-                                        if chainErr == nil && pemResp != nil && pemResp.Chain != "" {
-                                                certificate.Chain = []string{pemResp.Chain}
-                                        } else if viper.GetBool("verbose") {
-                                                fmt.Fprintf(os.Stderr, "Warning: Failed to retrieve certificate chain: %v\n", chainErr)
-                                        }
+                                if err != nil {
+                                        return fmt.Errorf("failed to retrieve certificate after issuance: %w", err)
+                                }
+                                break
+                        } else if request.IssuanceStatus == "FAILED" {
+                                errorMsg := fmt.Sprintf("certificate issuance failed: %s", request.IssuanceStatus)
+                                if request.Status != "" {
+                                        errorMsg += fmt.Sprintf(" (Status: %s)", request.Status)
+                                }
+                                return fmt.Errorf(errorMsg)
+                        } else if verboseLevel > 0 {
+                                fmt.Fprintf(os.Stderr, "Certificate status: %s\n", request.IssuanceStatus)
+                        }
+                }
 
-                                        if viper.GetBool("verbose") {
-                                                fmt.Fprintf(os.Stderr, "Certificate retrieved successfully after %d attempts! Certificate ID: %s\n", attemptCount, request.CertificateID)
+                if certificate == nil {
+                        return fmt.Errorf("certificate issuance timed out after %d attempts", maxAttempts)
+                }
+
+                // Retrieve certificate
+                certPEM, err := client.GetCertificatePEM(certificate.ID, chainValue)
+                if err != nil {
+                        return fmt.Errorf("failed to retrieve certificate: %w", err)
+                }
+
+                // Read private key for output
+                keyPEM, err := os.ReadFile(keyFile)
+                if err != nil {
+                        return fmt.Errorf("failed to read private key: %w", err)
+                }
+
+                // Output private key and certificate
+                if format == "p12" {
+                        // Create PKCS#12 bundle
+                        if enrollP12Pass == "" {
+                                return fmt.Errorf("p12-password is required when using --format p12")
+                        }
+                        
+                        // Generate filename based on CN
+                        p12Filename := cn + ".p12"
+                        
+                        // Create PKCS#12 bundle
+                        p12Data, err := createPKCS12Bundle(keyPEM, []byte(certPEM.Certificate), enrollP12Pass)
+                        if err != nil {
+                                return fmt.Errorf("failed to create PKCS#12 bundle: %w", err)
+                        }
+                        
+                        // Write PKCS#12 file
+                        if err := os.WriteFile(p12Filename, p12Data, 0600); err != nil {
+                                return fmt.Errorf("failed to write PKCS#12 file: %w", err)
+                        }
+                        
+                        fmt.Fprintf(os.Stderr, "PKCS#12 bundle written to: %s\n", p12Filename)
+                } else {
+                        // PEM format output (existing logic)
+                        if !enrollNoKey {
+                                if enrollKeyFile != "" {
+                                        if err := os.WriteFile(enrollKeyFile, keyPEM, 0600); err != nil {
+                                                return fmt.Errorf("failed to write private key file: %w", err)
                                         }
-                                        goto certificate_ready
-                                } else if err != nil {
-                                        if viper.GetBool("verbose") {
-                                                fmt.Fprintf(os.Stderr, "Error retrieving certificate (attempt %d): %v\n", attemptCount, err)
+                                        if verboseLevel > 0 {
+                                                fmt.Fprintf(os.Stderr, "Private key written to: %s\n", enrollKeyFile)
                                         }
+                                } else {
+                                        fmt.Println(string(keyPEM))
                                 }
                         }
-                }
-        }
 
-timeout_reached:
-certificate_ready:
-
-        if certificate == nil {
-                // Fallback: Try to get certificate directly by request ID (some APIs use this pattern)
-                if viper.GetBool("verbose") {
-                        fmt.Fprintf(os.Stderr, "Trying fallback approach: getting certificate directly by request ID...\n")
+                        // Output certificate
+                        if enrollCertFile != "" {
+                                if err := os.WriteFile(enrollCertFile, []byte(certPEM.Certificate), 0644); err != nil {
+                                        return fmt.Errorf("failed to write certificate file: %w", err)
+                                }
+                                if verboseLevel > 0 {
+                                        fmt.Fprintf(os.Stderr, "Certificate written to: %s\n", enrollCertFile)
+                                }
+                        } else {
+                                fmt.Println(certPEM.Certificate)
+                        }
                 }
-                certificate, err := client.GetCertificate(requestID)
-                if err == nil && certificate != nil && certificate.Certificate != "" {
-                        // Get certificate with chain using PEM endpoint for fallback too
-                        pemResp, chainErr := client.GetCertificatePEM(requestID, chainValue)
-                        if chainErr == nil && pemResp != nil && pemResp.Chain != "" {
-                                certificate.Chain = []string{pemResp.Chain}
-                        } else if viper.GetBool("verbose") {
-                                fmt.Fprintf(os.Stderr, "Warning: Failed to retrieve certificate chain: %v\n", chainErr)
+
+                // Output chain if requested
+                if chainValue && certPEM.Chain != "" {
+                        if enrollChainFile != "" {
+                                if err := os.WriteFile(enrollChainFile, []byte(certPEM.Chain), 0644); err != nil {
+                                        return fmt.Errorf("failed to write chain file: %w", err)
+                                }
+                                if verboseLevel > 0 {
+                                        fmt.Fprintf(os.Stderr, "Certificate chain written to: %s\n", enrollChainFile)
+                                }
+                        } else {
+                                fmt.Println(certPEM.Chain)
+                        }
+                }
+
+                // Output bundle if requested
+                if enrollBundleFile != "" {
+                        bundle := certPEM.Certificate
+                        if certPEM.Chain != "" {
+                                bundle += "\n" + certPEM.Chain
+                        }
+                        if err := os.WriteFile(enrollBundleFile, []byte(bundle), 0644); err != nil {
+                                return fmt.Errorf("failed to write bundle file: %w", err)
+                        }
+                        if verboseLevel > 0 {
+                                fmt.Fprintf(os.Stderr, "Certificate bundle written to: %s\n", enrollBundleFile)
+                        }
+                }
+
+        } else if csrMode == "file" {
+                // Use existing CSR file
+                if enrollCSRFile == "" {
+                        return fmt.Errorf("CSR file path is required when using --csr file mode")
+                }
+
+                if verboseLevel > 0 {
+                        fmt.Fprintf(os.Stderr, "Using existing CSR file: %s\n", enrollCSRFile)
+                }
+
+                // Read CSR content
+                csrPEM, err := os.ReadFile(enrollCSRFile)
+                if err != nil {
+                        return fmt.Errorf("failed to read CSR file: %w", err)
+                }
+
+                // Submit CSR to ZTPKI
+                requestID, err := client.SubmitCSRWithFullPayload(string(csrPEM), certTask, verboseLevel)
+                if err != nil {
+                        return fmt.Errorf("failed to submit CSR: %w", err)
+                }
+
+                if verboseLevel > 0 {
+                        fmt.Fprintf(os.Stderr, "CSR submitted successfully. Request ID: %s\n", requestID)
+                }
+
+                // Wait for certificate to be issued
+                if verboseLevel > 0 {
+                        fmt.Fprintf(os.Stderr, "Waiting for certificate issuance...\n")
+                }
+
+                // Poll for certificate completion
+                var certificate *api.Certificate
+                attemptCount := 0
+                maxAttempts := 600 // 10 minutes with 1-second intervals
+                for attemptCount < maxAttempts {
+                        attemptCount++
+                        time.Sleep(1 * time.Second)
+
+                        // Check certificate request status first
+                        request, err := client.GetCertificateRequest(requestID)
+                        if err != nil {
+                                if verboseLevel > 0 && attemptCount%20 == 1 { // Log every second (20 * 50ms)
+                                        fmt.Fprintf(os.Stderr, "Attempt %d: Certificate not ready yet...\n", attemptCount)
+                                }
+                                continue
                         }
 
-                        if viper.GetBool("verbose") {
-                                fmt.Fprintf(os.Stderr, "Certificate retrieved via fallback method!\n")
+                        if request.IssuanceStatus == "COMPLETE" || request.IssuanceStatus == "VALID" || request.IssuanceStatus == "ISSUED" {
+                                if verboseLevel > 0 {
+                                        fmt.Fprintf(os.Stderr, "Certificate issued successfully!\n")
+                                }
+                                // Now get the actual certificate using the certificate ID
+                                certificate, err = client.GetCertificate(request.CertificateID)
+                                if err != nil {
+                                        return fmt.Errorf("failed to retrieve certificate after issuance: %w", err)
+                                }
+                                break
+                        } else if request.IssuanceStatus == "FAILED" {
+                                errorMsg := fmt.Sprintf("certificate issuance failed: %s", request.IssuanceStatus)
+                                if request.Status != "" {
+                                        errorMsg += fmt.Sprintf(" (Status: %s)", request.Status)
+                                }
+                                return fmt.Errorf(errorMsg)
+                        } else if verboseLevel > 0 {
+                                fmt.Fprintf(os.Stderr, "Certificate status: %s\n", request.IssuanceStatus)
                         }
+                }
+
+                if certificate == nil {
+                        return fmt.Errorf("certificate issuance timed out after %d attempts", maxAttempts)
+                }
+
+                // Retrieve certificate
+                certPEM, err := client.GetCertificatePEM(certificate.ID, chainValue)
+                if err != nil {
+                        return fmt.Errorf("failed to retrieve certificate: %w", err)
+                }
+
+                // Output certificate
+                if format == "p12" {
+                        return fmt.Errorf("p12 format is not supported with --csr file mode (no private key available). Use --csr local mode instead.")
                 } else {
-                        return fmt.Errorf("certificate was not issued within the expected time frame (2 seconds). The certificate may still be processing on the server")
+                        // PEM format output (existing logic)
+                        if enrollCertFile != "" {
+                                if err := os.WriteFile(enrollCertFile, []byte(certPEM.Certificate), 0644); err != nil {
+                                        return fmt.Errorf("failed to write certificate file: %w", err)
+                                }
+                                if verboseLevel > 0 {
+                                        fmt.Fprintf(os.Stderr, "Certificate written to: %s\n", enrollCertFile)
+                                }
+                        } else {
+                                fmt.Println(certPEM.Certificate)
+                        }
                 }
+
+                // Output chain if requested
+                if chainValue && certPEM.Chain != "" {
+                        if enrollChainFile != "" {
+                                if err := os.WriteFile(enrollChainFile, []byte(certPEM.Chain), 0644); err != nil {
+                                        return fmt.Errorf("failed to write chain file: %w", err)
+                                }
+                                if verboseLevel > 0 {
+                                        fmt.Fprintf(os.Stderr, "Certificate chain written to: %s\n", enrollChainFile)
+                                }
+                        } else {
+                                fmt.Println(certPEM.Chain)
+                        }
+                }
+
+                // Output bundle if requested
+                if enrollBundleFile != "" {
+                        bundle := certPEM.Certificate
+                        if certPEM.Chain != "" {
+                                bundle += "\n" + certPEM.Chain
+                        }
+                        if err := os.WriteFile(enrollBundleFile, []byte(bundle), 0644); err != nil {
+                                return fmt.Errorf("failed to write bundle file: %w", err)
+                        }
+                        if verboseLevel > 0 {
+                                fmt.Fprintf(os.Stderr, "Certificate bundle written to: %s\n", enrollBundleFile)
+                        }
+                }
+
+        } else {
+                return fmt.Errorf("unsupported CSR mode: %s (supported: local, file)", csrMode)
         }
 
-        // Remove success message - will be shown by certificate output
-
-        // Output certificate with enhanced options
-        outputter := cert.NewOutputter(format, "", enrollP12Pass)
-
-        // Set custom file paths if provided
-        if enrollCertFile != "" || enrollKeyFile != "" || enrollChainFile != "" || enrollBundleFile != "" {
-                return outputter.OutputCertificateToFiles(certificate, privateKey, !enrollNoKey, cert.OutputOptions{
-                        CertFile:    enrollCertFile,
-                        KeyFile:     enrollKeyFile,
-                        ChainFile:   enrollChainFile,
-                        BundleFile:  enrollBundleFile,
-                        KeyPassword: enrollKeyPass,
-                })
-        }
-
-        // Standard output behavior
-        return outputter.OutputCertificate(certificate, privateKey, !enrollNoKey)
+        return nil
 }
 
 // Helper functions to get configuration values with precedence: CLI flag > config file > default
@@ -713,10 +761,10 @@ Output Format & Security:
       --p12-password string      Password for PKCS#12 bundle format
 
 Global Flags:
-      --config string            profile config file (e.g., zcert.cnf)
-  -h, --help                     help for enroll
-      --profile string           profile name from config file (default: Default)
-      --verbose                  verbose output
+      --config string    profile config file (e.g., zcert.cnf)
+  -h, --help             help for enroll
+      --profile string   profile name from config file (default: Default)
+  -v, --verbose          verbose output (-v for requests and variables, -vv for responses too)
 
 Use "zcert enroll [command] --help" for more information about a command.
 `)
@@ -768,8 +816,315 @@ func getEnrollUsageFunc() func(*cobra.Command) error {
                 fmt.Printf("      --config string    profile config file (e.g., zcert.cnf)\n")
                 fmt.Printf("      --profile string   profile name from config file (default: Default)\n")
                 fmt.Printf("  -h, --help             help for enroll\n")
-                fmt.Printf("      --verbose          verbose output\n")
+                fmt.Printf("  -v, --verbose          verbose output (-v for requests and variables, -vv for responses too)\n")
 
                 return nil
         }
 }
+
+// generatePrivateKey generates a private key and saves it to a temporary file
+func generatePrivateKey(keyType string, keySize int, keyCurve, keyPass string) (string, error) {
+        var privateKey interface{}
+        var err error
+
+        if keyType == "rsa" {
+                privateKey, err = rsa.GenerateKey(rand.Reader, keySize)
+                if err != nil {
+                        return "", fmt.Errorf("failed to generate RSA private key: %w", err)
+                }
+        } else {
+                return "", fmt.Errorf("unsupported key type: %s", keyType)
+        }
+
+        // Create temporary file for private key
+        keyFile, err := os.CreateTemp("", "zcert_key_*.pem")
+        if err != nil {
+                return "", fmt.Errorf("failed to create temporary key file: %w", err)
+        }
+        defer keyFile.Close()
+
+        // Encode private key to PEM
+        var keyPEM []byte
+        if keyType == "rsa" {
+                if rsaKey, ok := privateKey.(*rsa.PrivateKey); ok {
+                        if keyPass != "" {
+                                // Encrypted private key
+                                keyPEM, err = encryptPrivateKey(rsaKey, keyPass)
+                                if err != nil {
+                                        return "", fmt.Errorf("failed to encrypt private key: %w", err)
+                                }
+                        } else {
+                                // Unencrypted private key
+                                keyPEM = pem.EncodeToMemory(&pem.Block{
+                                        Type:  "RSA PRIVATE KEY",
+                                        Bytes: x509.MarshalPKCS1PrivateKey(rsaKey),
+                                })
+                        }
+                }
+        }
+
+        if keyPEM == nil {
+                return "", fmt.Errorf("failed to encode private key")
+        }
+
+        // Write to file
+        if _, err := keyFile.Write(keyPEM); err != nil {
+                return "", fmt.Errorf("failed to write private key file: %w", err)
+        }
+
+        return keyFile.Name(), nil
+}
+
+// encryptPrivateKey encrypts a private key with a password using DES-EDE3-CBC
+func encryptPrivateKey(key *rsa.PrivateKey, password string) ([]byte, error) {
+        // Generate a random salt
+        salt := make([]byte, 8)
+        if _, err := rand.Read(salt); err != nil {
+                return nil, fmt.Errorf("failed to generate salt: %w", err)
+        }
+
+        // Derive key from password and salt using MD5
+        keyBytes := deriveKey(password, salt)
+
+        // Marshal the private key
+        keyData := x509.MarshalPKCS1PrivateKey(key)
+
+        // Pad the data to 8-byte boundary
+        padLen := 8 - (len(keyData) % 8)
+        paddedData := make([]byte, len(keyData)+padLen)
+        copy(paddedData, keyData)
+        for i := len(keyData); i < len(paddedData); i++ {
+                paddedData[i] = byte(padLen)
+        }
+
+        // Create DES-EDE3 cipher
+        block, err := des.NewTripleDESCipher(keyBytes)
+        if err != nil {
+                return nil, fmt.Errorf("failed to create cipher: %w", err)
+        }
+
+        // Encrypt the data
+        ciphertext := make([]byte, len(paddedData))
+        mode := cipher.NewCBCEncrypter(block, keyBytes[:8])
+        mode.CryptBlocks(ciphertext, paddedData)
+
+        // Create PEM block
+        saltHex := hex.EncodeToString(salt)
+        pemBlock := &pem.Block{
+                Type: "RSA PRIVATE KEY",
+                Headers: map[string]string{
+                        "Proc-Type": "4,ENCRYPTED",
+                        "DEK-Info":  "DES-EDE3-CBC," + saltHex,
+                },
+                Bytes: ciphertext,
+        }
+
+        return pem.EncodeToMemory(pemBlock), nil
+}
+
+// deriveKey derives a 24-byte key from password and salt using OpenSSL's method
+func deriveKey(password string, salt []byte) []byte {
+        // OpenSSL's EVP_BytesToKey with MD5: iteratively hash password+salt to get 24 bytes
+        var key []byte
+        var prev []byte
+        for len(key) < 24 {
+                h := md5.New()
+                if len(prev) > 0 {
+                        h.Write(prev)
+                }
+                h.Write([]byte(password))
+                h.Write(salt)
+                prev = h.Sum(nil)
+                key = append(key, prev...)
+        }
+        return key[:24]
+}
+
+// generateCSR creates a CSR from a private key file and certificate task
+func generateCSR(keyFile string, certTask *config.CertificateTask, keyPass string) (string, error) {
+        // Read private key
+        keyPEM, err := os.ReadFile(keyFile)
+        if err != nil {
+                return "", fmt.Errorf("failed to read private key file: %w", err)
+        }
+
+        // Decode private key
+        block, _ := pem.Decode(keyPEM)
+        if block == nil {
+                return "", fmt.Errorf("failed to decode private key PEM")
+        }
+
+        var privateKey interface{}
+        if block.Type == "RSA PRIVATE KEY" {
+                if keyPass != "" && block.Headers["Proc-Type"] == "4,ENCRYPTED" {
+                        // Decrypt the private key
+                        privateKey, err = decryptPrivateKey(block, keyPass)
+                        if err != nil {
+                                return "", fmt.Errorf("failed to decrypt private key: %w", err)
+                        }
+                } else {
+                        // Unencrypted private key
+                        privateKey, err = x509.ParsePKCS1PrivateKey(block.Bytes)
+                        if err != nil {
+                                return "", fmt.Errorf("failed to parse RSA private key: %w", err)
+                        }
+                }
+        } else {
+                return "", fmt.Errorf("unsupported private key type: %s", block.Type)
+        }
+
+        // Prepare SAN values
+        var dnsNames []string
+        var ipAddresses []net.IP
+        var emailAddresses []string
+
+        if certTask.Request.SANs != nil && certTask.Request.SANs.SubjectAltNames != nil {
+                dnsNames = certTask.Request.SANs.SubjectAltNames.DNS
+                for _, ipStr := range certTask.Request.SANs.SubjectAltNames.IP {
+                        if ip := net.ParseIP(ipStr); ip != nil {
+                                ipAddresses = append(ipAddresses, ip)
+                        }
+                }
+                emailAddresses = certTask.Request.SANs.SubjectAltNames.Email
+        }
+
+        // Create CSR template
+        template := x509.CertificateRequest{
+                Subject: pkix.Name{
+                        CommonName:         certTask.Request.Subject.CommonName,
+                        Country:            []string{certTask.Request.Subject.Country},
+                        Province:           []string{certTask.Request.Subject.State},
+                        Locality:           []string{certTask.Request.Subject.Locality},
+                        Organization:       []string{certTask.Request.Subject.Organization},
+                        OrganizationalUnit: certTask.Request.Subject.OrgUnits,
+                },
+                DNSNames:       dnsNames,
+                IPAddresses:    ipAddresses,
+                EmailAddresses: emailAddresses,
+        }
+
+        // Create CSR
+        csrBytes, err := x509.CreateCertificateRequest(rand.Reader, &template, privateKey)
+        if err != nil {
+                return "", fmt.Errorf("failed to create CSR: %w", err)
+        }
+
+        // Create temporary file for CSR
+        csrFile, err := os.CreateTemp("", "zcert_csr_*.pem")
+        if err != nil {
+                return "", fmt.Errorf("failed to create temporary CSR file: %w", err)
+        }
+        defer csrFile.Close()
+
+        // Encode CSR to PEM
+        csrPEM := pem.EncodeToMemory(&pem.Block{
+                Type:  "CERTIFICATE REQUEST",
+                Bytes: csrBytes,
+        })
+
+        // Write to file
+        if _, err := csrFile.Write(csrPEM); err != nil {
+                return "", fmt.Errorf("failed to write CSR file: %w", err)
+        }
+
+        return csrFile.Name(), nil
+}
+
+// decryptPrivateKey decrypts a private key with a password using DES-EDE3-CBC
+func decryptPrivateKey(block *pem.Block, password string) (interface{}, error) {
+        // Parse the DEK-Info header to get salt
+        dekInfo, ok := block.Headers["DEK-Info"]
+        if !ok {
+                return nil, fmt.Errorf("missing DEK-Info header in encrypted private key")
+        }
+        
+        // Extract salt from DEK-Info (format: "DES-EDE3-CBC,salt")
+        parts := strings.Split(dekInfo, ",")
+        if len(parts) != 2 {
+                return nil, fmt.Errorf("invalid DEK-Info format: %s", dekInfo)
+        }
+        
+        saltHex := parts[1]
+        salt, err := hex.DecodeString(saltHex)
+        if err != nil {
+                return nil, fmt.Errorf("failed to decode salt: %w", err)
+        }
+
+        // Derive key from password and salt using MD5
+        keyBytes := deriveKey(password, salt)
+
+        // Create DES-EDE3 cipher
+        blockCipher, err := des.NewTripleDESCipher(keyBytes)
+        if err != nil {
+                return nil, fmt.Errorf("failed to create cipher: %w", err)
+        }
+
+        // Decrypt the data
+        decrypted := make([]byte, len(block.Bytes))
+        mode := cipher.NewCBCDecrypter(blockCipher, keyBytes[:8])
+        mode.CryptBlocks(decrypted, block.Bytes)
+
+        // Unpad the data
+        padLen := int(decrypted[len(decrypted)-1])
+        if padLen < 1 || padLen > 8 {
+                return nil, fmt.Errorf("invalid padding length: %d", padLen)
+        }
+        decrypted = decrypted[:len(decrypted)-padLen]
+
+        // Parse the private key
+        return x509.ParsePKCS1PrivateKey(decrypted)
+}
+
+// createPKCS12Bundle creates a PKCS#12 bundle with the certificate and private key
+func createPKCS12Bundle(keyPEM, certPEM []byte, password string) ([]byte, error) {
+        // Parse the private key
+        keyBlock, _ := pem.Decode(keyPEM)
+        if keyBlock == nil {
+                return nil, fmt.Errorf("failed to decode private key PEM")
+        }
+        
+        var privateKey interface{}
+        var err error
+        
+        if keyBlock.Type == "RSA PRIVATE KEY" {
+                if keyBlock.Headers["Proc-Type"] == "4,ENCRYPTED" {
+                        // Decrypt the private key if it's encrypted
+                        privateKey, err = decryptPrivateKey(keyBlock, password)
+                        if err != nil {
+                                return nil, fmt.Errorf("failed to decrypt private key: %w", err)
+                        }
+                } else {
+                        // Unencrypted private key
+                        privateKey, err = x509.ParsePKCS1PrivateKey(keyBlock.Bytes)
+                        if err != nil {
+                                return nil, fmt.Errorf("failed to parse RSA private key: %w", err)
+                        }
+                }
+        } else {
+                return nil, fmt.Errorf("unsupported private key type: %s", keyBlock.Type)
+        }
+        
+        // Parse the certificate
+        certBlock, _ := pem.Decode(certPEM)
+        if certBlock == nil {
+                return nil, fmt.Errorf("failed to decode certificate PEM")
+        }
+        
+        if certBlock.Type != "CERTIFICATE" {
+                return nil, fmt.Errorf("invalid certificate PEM type: %s", certBlock.Type)
+        }
+        
+        cert, err := x509.ParseCertificate(certBlock.Bytes)
+        if err != nil {
+                return nil, fmt.Errorf("failed to parse certificate: %w", err)
+        }
+        
+        // Create PKCS#12 bundle
+        p12Data, err := pkcs12.Encode(rand.Reader, privateKey, cert, nil, password)
+        if err != nil {
+                return nil, fmt.Errorf("failed to create PKCS#12 bundle: %w", err)
+        }
+        
+        return p12Data, nil
+}
+

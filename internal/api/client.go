@@ -19,40 +19,42 @@ import (
 
 // Client represents the ZTPKI API client
 type Client struct {
-        baseURL    string
-        httpClient *http.Client
-        hawkAuth   *auth.HawkAuth
+        baseURL      string
+        httpClient   *http.Client
+        hawkAuth     *auth.HawkAuth
+        verboseLevel int // 0 = no verbose, 1 = -v, 2 = -vv
 }
 
 // NewClient creates a new ZTPKI API client
 func NewClient(cfg *config.Config) (*Client, error) {
-        if cfg == nil {
-                return nil, fmt.Errorf("config cannot be nil")
-        }
-        
-        // Validate required fields
         if cfg.BaseURL == "" {
-                return nil, fmt.Errorf("BaseURL is required")
+                return nil, fmt.Errorf("base URL is required")
         }
         if cfg.HawkID == "" {
-                return nil, fmt.Errorf("HawkID is required")
+                return nil, fmt.Errorf("HAWK ID is required")
         }
         if cfg.HawkKey == "" {
-                return nil, fmt.Errorf("HawkKey is required")
+                return nil, fmt.Errorf("HAWK key is required")
         }
-        
-        // Get credentials from config
-        hawkID := cfg.HawkID
-        hawkKey := cfg.HawkKey
-        baseURL := cfg.BaseURL
-        
+
+        hawkAuth := auth.NewHawkAuth(cfg.HawkID, cfg.HawkKey)
+
         return &Client{
-                baseURL: baseURL,
-                httpClient: &http.Client{
-                        Timeout: 30 * time.Second,
-                },
-                hawkAuth: auth.NewHawkAuth(hawkID, hawkKey),
+                baseURL:      cfg.BaseURL,
+                httpClient:   &http.Client{Timeout: 30 * time.Second},
+                hawkAuth:     hawkAuth,
+                verboseLevel: 0, // Default to no verbose
         }, nil
+}
+
+// NewClientWithVerbose creates a new ZTPKI API client with verbose level
+func NewClientWithVerbose(cfg *config.Config, verboseLevel int) (*Client, error) {
+        client, err := NewClient(cfg)
+        if err != nil {
+                return nil, err
+        }
+        client.verboseLevel = verboseLevel
+        return client, nil
 }
 
 // makeRequest performs a HTTP request with HAWK authentication
@@ -88,7 +90,7 @@ func (c *Client) makeRequest(method, endpoint string, body interface{}) (*http.R
         }
         
         // Debug: Show full HTTP request details
-        if os.Getenv("ZCERT_DEBUG") != "" {
+        if c.verboseLevel >= 2 {
                 fmt.Fprintf(os.Stderr, "\n=== HTTP REQUEST ===\n")
                 fmt.Fprintf(os.Stderr, "%s %s\n", req.Method, req.URL.String())
                 fmt.Fprintf(os.Stderr, "Headers:\n")
@@ -121,6 +123,20 @@ func (c *Client) handleResponse(resp *http.Response, target interface{}) error {
         bodyBytes, err := io.ReadAll(resp.Body)
         if err != nil {
                 return fmt.Errorf("failed to read response body: %w", err)
+        }
+        
+        // Show server response in verbose level 2 (-vv)
+        if c.verboseLevel >= 2 {
+                fmt.Fprintf(os.Stderr, "\n=== HTTP RESPONSE ===\n")
+                fmt.Fprintf(os.Stderr, "Status: %s\n", resp.Status)
+                fmt.Fprintf(os.Stderr, "Headers:\n")
+                for name, values := range resp.Header {
+                        for _, value := range values {
+                                fmt.Fprintf(os.Stderr, "  %s: %s\n", name, value)
+                        }
+                }
+                fmt.Fprintf(os.Stderr, "Body:\n%s\n", string(bodyBytes))
+                fmt.Fprintf(os.Stderr, "==================\n\n")
         }
         
         // Check for HTML response (authentication redirect or error page)
@@ -224,7 +240,7 @@ func (c *Client) SubmitCSR(csrPEM, policyID string, validity *ValidityPeriod) (s
         }
         
         // Debug: Print the payload being sent to ZTPKI (only in verbose mode)
-        if os.Getenv("ZCERT_VERBOSE") == "true" {
+        if c.verboseLevel >= 2 {
                 if payload, err := json.MarshalIndent(requestBody, "", "  "); err == nil {
                         fmt.Printf("=== ZTPKI API Payload ===\n")
                         fmt.Printf("POST /csr\n")
@@ -252,8 +268,8 @@ func (c *Client) SubmitCSR(csrPEM, policyID string, validity *ValidityPeriod) (s
         return requestID, nil
 }
 
-// SubmitCSRWithFullPayload submits a CSR with complete ZTPKI payload including all parameters from the YAML
-func (c *Client) SubmitCSRWithFullPayload(csrPEM string, certTask *config.CertificateTask, verbose bool) (string, error) {
+// SubmitCSRWithFullPayload submits a Certificate Signing Request with full payload details
+func (c *Client) SubmitCSRWithFullPayload(csrPEM string, certTask *config.CertificateTask, verboseLevel int) (string, error) {
         // Extract CN from CSR
         cn, err := extractCNFromCSR(csrPEM)
         if err != nil {
@@ -366,7 +382,7 @@ func (c *Client) SubmitCSRWithFullPayload(csrPEM string, certTask *config.Certif
                 requestBody.ExpiryEmails = certTask.Request.ExpiryEmails
         }
         
-        if verbose {
+        if verboseLevel >= 2 {
                 if payload, err := json.MarshalIndent(requestBody, "", "  "); err == nil {
                         fmt.Printf("=== COMPLETE ZTPKI API Payload ===\n")
                         fmt.Printf("POST /csr\n")
@@ -517,7 +533,7 @@ func (c *Client) SearchCertificates(params CertificateSearchParams) ([]Certifica
                                 requestLimit = remaining
                         }
                         
-                        if os.Getenv("ZCERT_DEBUG") != "" {
+                        if c.verboseLevel >= 2 {
                                 fmt.Fprintf(os.Stderr, "Requesting batch: limit=%d, offset=%d, total collected=%d\n", requestLimit, offset, len(allCertificates))
                         }
                         
@@ -663,7 +679,7 @@ func (c *Client) searchCertificatesPage(params CertificateSearchParams, limit, o
         }
         
         // Log the actual request being sent to ZTPKI API for debugging
-        if os.Getenv("ZCERT_DEBUG") != "" {
+        if c.verboseLevel >= 2 {
                 requestJSON, _ := json.Marshal(searchRequest)
                 fmt.Fprintf(os.Stderr, "API Request to %s: %s\n", endpoint, string(requestJSON))
                 fmt.Fprintf(os.Stderr, "Parameters passed: limit=%d, offset=%d\n", limit, offset)
@@ -703,7 +719,7 @@ func (c *Client) searchCertificatesPage(params CertificateSearchParams, limit, o
         
         if err := json.Unmarshal(bodyBytes, &ztpkiResult); err == nil && len(ztpkiResult.Items) > 0 {
                 // Debug: Show total count vs returned items in verbose mode
-                if os.Getenv("ZCERT_DEBUG") != "" {
+                if c.verboseLevel >= 2 {
                         fmt.Fprintf(os.Stderr, "API Response: total count=%d, returned items=%d\n", ztpkiResult.Count, len(ztpkiResult.Items))
                 }
                 return ztpkiResult.Items, nil
@@ -758,8 +774,6 @@ func (c *Client) GetCertificateChain(id string) ([]string, error) {
         return result.Chain, nil
 }
 
-
-
 // RevokeCertificate revokes a certificate using the correct ZTPKI API format
 func (c *Client) RevokeCertificate(id, reason string) error {
         // ZTPKI revoke endpoint - correct format is PATCH /certificates/{id}
@@ -772,15 +786,18 @@ func (c *Client) RevokeCertificate(id, reason string) error {
         }
         
         // Always show the complete request details for debugging
-        if payload, err := json.MarshalIndent(requestBody, "", "  "); err == nil {
-                fmt.Printf("=== ZTPKI Revoke API Request ===\n")
-                fmt.Printf("Method: PATCH\n")
-                fmt.Printf("URL: %s%s\n", c.baseURL, endpoint)
-                fmt.Printf("Headers:\n")
-                fmt.Printf("  Content-Type: application/json\n")
-                fmt.Printf("  Authorization: Hawk id=\"[hawk-id]\", ts=\"[timestamp]\", nonce=\"[nonce]\", mac=\"[mac]\"\n")
-                fmt.Printf("Payload:\n%s\n", string(payload))
-                fmt.Printf("================================\n")
+        if c.verboseLevel >= 2 {
+                payload, err := json.MarshalIndent(requestBody, "", "  ")
+                if err == nil {
+                        fmt.Printf("=== ZTPKI Revoke API Request ===\n")
+                        fmt.Printf("Method: PATCH\n")
+                        fmt.Printf("URL: %s%s\n", c.baseURL, endpoint)
+                        fmt.Printf("Headers:\n")
+                        fmt.Printf("  Content-Type: application/json\n")
+                        fmt.Printf("  Authorization: Hawk id=\"[hawk-id]\", ts=\"[timestamp]\", nonce=\"[nonce]\", mac=\"[mac]\"\n")
+                        fmt.Printf("Payload:\n%s\n", string(payload))
+                        fmt.Printf("================================\n")
+                }
         }
         
         requestBodyBytes, err := json.Marshal(requestBody)
@@ -823,8 +840,6 @@ func (c *Client) convertRevocationReason(reason string) int {
                 return 0 // Default to unspecified
         }
 }
-
-
 
 // extractCNFromCSR extracts the Common Name from a PEM-encoded CSR
 func extractCNFromCSR(csrPEM string) (string, error) {
