@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -29,10 +30,10 @@ func flagChanged(cmd *cobra.Command, name string) bool {
 }
 
 func maskSecret(secret string) string {
-	if secret == "" {
-		return ""
+	if len(secret) <= 8 {
+		return strings.Repeat("*", len(secret))
 	}
-	return "********"
+	return secret[:4] + strings.Repeat("*", len(secret)-8) + secret[len(secret)-4:]
 }
 
 // copyFile copies a file from src to dst.
