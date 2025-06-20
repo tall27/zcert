@@ -1,8 +1,9 @@
 name: Build
 
 on:
+  workflow_dispatch:
   push:
-    branches: [ main, 6-15 ]
+    branches: [ main ]
   pull_request:
     branches: [ main ]
 
