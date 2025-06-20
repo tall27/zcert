@@ -800,13 +800,8 @@ func (c *Client) RevokeCertificate(id, reason string) error {
                 }
         }
         
-        requestBodyBytes, err := json.Marshal(requestBody)
-        if err != nil {
-                return fmt.Errorf("failed to marshal revocation request: %w", err)
-        }
-        
         // Use PATCH method as documented in ZTPKI API
-        resp, err := c.makeRequest("PATCH", endpoint, bytes.NewReader(requestBodyBytes))
+        resp, err := c.makeRequest("PATCH", endpoint, requestBody)
         if err != nil {
                 return err
         }

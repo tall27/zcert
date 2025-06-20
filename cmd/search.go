@@ -262,6 +262,9 @@ func runSearch(cmd *cobra.Command, args []string) error {
                 Status:     searchStatus,
                 Limit:      searchLimit,
         }
+        if searchCN != "" {
+                searchParams.CommonName = searchCN
+        }
         
         if verboseLevel > 0 {
                 fmt.Fprintf(os.Stderr, "Search limit from command line: %d\n", searchLimit)
@@ -905,6 +908,3 @@ func resolvePolicySubstring(client *api.Client, policySubstring string) (string,
         }
         return "", fmt.Errorf("multiple policies match '%s', please be more specific", policySubstring)
 }
-
-
-

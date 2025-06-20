@@ -89,9 +89,11 @@ func initConfig() {
                         os.Exit(1)
                 }
                 
-                // Debug: let's see what's happening with the profile selection
-                fmt.Fprintf(os.Stderr, "DEBUG: profileName from flag: '%s'\n", profileName)
-                fmt.Fprintf(os.Stderr, "DEBUG: Available profiles: %v\n", profileConfig.ListProfiles())
+                if verboseLevel > 1 {
+                        // Debug: let's see what's happening with the profile selection
+                        fmt.Fprintf(os.Stderr, "DEBUG: profileName from flag: '%s'\n", profileName)
+                        fmt.Fprintf(os.Stderr, "DEBUG: Available profiles: %v\n", profileConfig.ListProfiles())
+                }
                 
                 // Set current profile
                 if profileName != "" {
@@ -101,7 +103,9 @@ func initConfig() {
                                 fmt.Fprintf(os.Stderr, "Available profiles: %v\n", profileConfig.ListProfiles())
                                 os.Exit(1)
                         }
-                        fmt.Fprintf(os.Stderr, "DEBUG: Selected profile: %s\n", currentProfile.Name)
+                        if verboseLevel > 1 {
+                                fmt.Fprintf(os.Stderr, "DEBUG: Selected profile: %s\n", currentProfile.Name)
+                        }
                 } else {
                         // Use default profile
                         currentProfile = profileConfig.GetProfile("")
@@ -109,10 +113,12 @@ func initConfig() {
                                 fmt.Fprintf(os.Stderr, "No default profile found in config file\n")
                                 os.Exit(1)
                         }
-                        fmt.Fprintf(os.Stderr, "DEBUG: Using default profile: %s\n", currentProfile.Name)
+                        if verboseLevel > 1 {
+                                fmt.Fprintf(os.Stderr, "DEBUG: Using default profile: %s\n", currentProfile.Name)
+                        }
                 }
                 
-                if verboseLevel > 0 {
+                if verboseLevel > 1 {
                         fmt.Fprintf(os.Stderr, "Using profile config: %s, profile: %s\n", cfgFile, currentProfile.Name)
                 }
         } else {
@@ -131,7 +137,7 @@ func initConfig() {
                 viper.AutomaticEnv() // read in environment variables that match
 
                 // If a config file is found, read it in.
-                if err := viper.ReadInConfig(); err == nil && verboseLevel > 0 {
+                if err := viper.ReadInConfig(); err == nil && verboseLevel > 1 {
                         fmt.Fprintln(os.Stderr, "Using config file:", viper.ConfigFileUsed())
                 }
 

@@ -58,7 +58,6 @@ var (
 	enrollKeyPass string
 	enrollP12Pass string
 	enrollNoKey   bool
-	enrollChain   bool
 )
 
 // enrollCmd represents the enroll command
@@ -125,7 +124,7 @@ func init() {
 	enrollCmd.Flags().StringVar(&enrollKeyPass, "key-password", "", "Password for private key encryption (PEM format)")
 	enrollCmd.Flags().StringVar(&enrollP12Pass, "p12-password", "", "Password for PKCS#12 bundle format")
 	enrollCmd.Flags().BoolVar(&enrollNoKey, "no-key-output", false, "Don't output private key to file")
-	enrollCmd.Flags().BoolVar(&enrollChain, "chain", false, "Include certificate chain")
+	enrollCmd.Flags().Bool("chain", false, "Include certificate chain")
 
 	// Set custom help and usage functions to group flags consistently
 	enrollCmd.SetHelpFunc(getCustomHelpFunc())
@@ -525,6 +524,20 @@ func runEnroll(cmd *cobra.Command, args []string) error {
 			} else {
 				fmt.Println(certPEM.Certificate)
 			}
+
+			// Output chain if requested
+			if chainValue && certPEM.Chain != "" {
+				if enrollChainFile != "" {
+					if err := os.WriteFile(enrollChainFile, []byte(certPEM.Chain), 0644); err != nil {
+						return fmt.Errorf("failed to write chain file: %w", err)
+					}
+					if verboseLevel > 0 {
+						fmt.Fprintf(os.Stderr, "Certificate chain written to: %s\n", enrollChainFile)
+					}
+				} else {
+					fmt.Println(certPEM.Chain)
+				}
+			}
 		}
 
 	} else if csrMode == "file" {
@@ -613,6 +626,7 @@ Output Files:
       --key-file string          Private key output file path
 
 Output Format & Security:
+      --chain                    Include certificate chain
       --format string            Output format (pem, p12) (default "pem")
       --key-password string      Password for private key encryption (PEM format)
       --no-key-output            Don't output private key to file
@@ -747,4 +761,4 @@ func generateCSR(keyFile string, certTask *config.CertificateTask, keyPass strin
 	}
 
 	return csrFile.Name(), nil
-} 
+}

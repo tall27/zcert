@@ -69,22 +69,15 @@ func runPQC(cmd *cobra.Command, args []string) error {
 
 	// Get global verbose level
 	verboseLevel := GetVerboseLevel()
-	cfg.Verbose = verboseLevel > 0
+	cfg.Verbose = verboseLevel > 1
 
-	// Print variable hierarchy if verbose
+	// Print variable hierarchy only if verbose level is explicitly set
 	if verboseLevel > 0 {
 		printVariableHierarchyPQC(cmd, cfg)
 	}
 
 	// Create PQC generator with correct signature
 	generator := cert.NewPQCGenerator(cfg.OpenSSLPath, cfg.TempDir, cfg.Verbose, cfg.NoCleanup, cfg.LegacyAlgNames, cfg.LegacyPQCAlgorithm)
-
-	// Debug: let's see what's happening with the configuration
-	if verboseLevel > 0 {
-		fmt.Fprintf(os.Stderr, "DEBUG: Algorithm: %s\n", cfg.Algorithm)
-		fmt.Fprintf(os.Stderr, "DEBUG: LegacyAlgNames: %t\n", cfg.LegacyAlgNames)
-		fmt.Fprintf(os.Stderr, "DEBUG: LegacyPQCAlgorithm: %s\n", cfg.LegacyPQCAlgorithm)
-	}
 
 	// Always generate PQC key unencrypted
 	keyFile, err := generator.GenerateKey(cfg.Algorithm)
@@ -116,7 +109,7 @@ func runPQC(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return fmt.Errorf("failed to copy private key to output location: %w", err)
 		}
-		if verboseLevel > 0 {
+		if verboseLevel > 1 {
 			fmt.Fprintf(os.Stderr, "Private key written to: %s\n", keyOutputFile)
 		}
 	}
@@ -152,13 +145,13 @@ func runPQC(cmd *cobra.Command, args []string) error {
 		defer generator.Cleanup(csrFile)
 	}
 
-	// Output CSR file path
-	if verboseLevel > 0 {
+	// Output CSR file path only if verbose
+	if verboseLevel > 1 {
 		fmt.Printf("CSR file generated: %s\n", csrFile)
 	}
 
 	// Step 5: Direct certificate enrollment (no subprocess)
-	if verboseLevel > 0 {
+	if verboseLevel > 1 {
 		fmt.Println("[zcert] Submitting CSR for enrollment...")
 	}
 
@@ -208,12 +201,12 @@ func runPQC(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to submit CSR: %w", err)
 	}
 
-	if verboseLevel > 0 {
+	if verboseLevel > 1 {
 		fmt.Fprintf(os.Stderr, "CSR submitted successfully. Request ID: %s\n", requestID)
 	}
 
 	// Wait for certificate to be issued
-	if verboseLevel > 0 {
+	if verboseLevel > 1 {
 		fmt.Fprintf(os.Stderr, "Waiting for certificate issuance...\n")
 	}
 
@@ -228,14 +221,14 @@ func runPQC(cmd *cobra.Command, args []string) error {
 		// Check certificate request status first
 		request, err := client.GetCertificateRequest(requestID)
 		if err != nil {
-			if verboseLevel > 0 && attemptCount%20 == 1 { // Log every 20 seconds
+			if verboseLevel > 1 && attemptCount%20 == 1 { // Log every 20 seconds
 				fmt.Fprintf(os.Stderr, "Attempt %d: Certificate not ready yet...\n", attemptCount)
 			}
 			continue
 		}
 
 		if request.IssuanceStatus == "COMPLETE" || request.IssuanceStatus == "VALID" || request.IssuanceStatus == "ISSUED" {
-			if verboseLevel > 0 {
+			if verboseLevel > 1 {
 				fmt.Fprintf(os.Stderr, "Certificate issued successfully!\n")
 			}
 			// Now get the actual certificate using the certificate ID
@@ -250,7 +243,7 @@ func runPQC(cmd *cobra.Command, args []string) error {
 				errorMsg += fmt.Sprintf(" (Status: %s)", request.Status)
 			}
 			return fmt.Errorf(errorMsg)
-		} else if verboseLevel > 0 {
+		} else if verboseLevel > 1 {
 			fmt.Fprintf(os.Stderr, "Certificate status: %s\n", request.IssuanceStatus)
 		}
 	}
@@ -274,8 +267,33 @@ func runPQC(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to write certificate file: %w", err)
 	}
-	if verboseLevel > 0 {
+	if verboseLevel > 1 {
 		fmt.Fprintf(os.Stderr, "Certificate written to: %s\n", certOutputFile)
+	}
+
+	// Output private key content to terminal first if not disabled
+	if !cfg.NoKeyOutput {
+		keyOutputFile := cfg.KeyFile
+		if keyOutputFile == "" {
+			keyOutputFile = cfg.CommonName + ".key"
+		}
+		keyContent, err := os.ReadFile(keyOutputFile)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: Could not read private key file for terminal output: %v\n", err)
+		} else {
+			// Print private key content without additional line breaks
+			fmt.Print(string(keyContent))
+		}
+	}
+
+	// Output certificate content to terminal next with exactly one empty line
+	fmt.Println("")
+	fmt.Println(certPEM.Certificate)
+
+	// Output chain certificates if available and requested with one empty line
+	if cfg.Chain && certPEM.Chain != "" {
+		fmt.Println("")
+		fmt.Println(certPEM.Chain)
 	}
 
 	return nil
@@ -358,15 +376,37 @@ func loadPQCConfig(cmd *cobra.Command) (*PQCConfig, error) {
 	profileFlag, _ := cmd.Flags().GetString("profile")
 	if profileFlag != "" {
 		selectedProfile = pc.GetProfile(profileFlag)
-	} else if pqcProfile := pc.GetProfile("pqc"); pqcProfile != nil {
-		selectedProfile = pqcProfile
-	} else if pc.GetProfile("") != nil {
-		selectedProfile = pc.GetProfile("") // Default
+		if verboseLevel > 1 {
+			fmt.Fprintf(os.Stderr, "DEBUG: Using profile from flag: '%s'\n", profileFlag)
+		}
 	} else {
-		// Fallback: use the first available profile
+		// List available profiles for debugging
 		profiles := pc.ListProfiles()
-		if len(profiles) > 0 {
-			selectedProfile = pc.GetProfile(profiles[0])
+		if verboseLevel > 1 {
+			fmt.Fprintf(os.Stderr, "DEBUG: profileName from flag: ''\n")
+			fmt.Fprintf(os.Stderr, "DEBUG: Available profiles: %v\n", profiles)
+		}
+		
+		// Explicitly prioritize 'pqc' profile for pqc command if it exists
+		selectedProfile = pc.GetProfile("pqc")
+		if selectedProfile != nil {
+			if verboseLevel > 1 {
+				fmt.Fprintf(os.Stderr, "DEBUG: Using 'pqc' profile by default for pqc command\n")
+			}
+		} else {
+			// Fallback to 'Default' profile if 'pqc' doesn't exist
+			selectedProfile = pc.GetProfile("Default")
+			if selectedProfile != nil {
+				if verboseLevel > 1 {
+					fmt.Fprintf(os.Stderr, "DEBUG: 'pqc' profile not found, falling back to 'Default'\n")
+				}
+			} else if len(profiles) > 0 {
+				// Fallback: use the first available profile if neither 'pqc' nor 'Default' exist
+				selectedProfile = pc.GetProfile(profiles[0])
+				if verboseLevel > 1 {
+					fmt.Fprintf(os.Stderr, "DEBUG: Neither 'pqc' nor 'Default' profiles found, using first available: '%s'\n", profiles[0])
+				}
+			}
 		}
 	}
 
@@ -374,7 +414,8 @@ func loadPQCConfig(cmd *cobra.Command) (*PQCConfig, error) {
 		return nil, fmt.Errorf("no valid profile found (tried --profile, 'pqc', and 'Default')")
 	}
 
-	if verboseLevel > 0 {
+	// Debug information about profile and settings only if verbose level is set
+	if verboseLevel > 1 {
 		fmt.Fprintf(os.Stderr, "DEBUG: Using profile: %s\n", selectedProfile.Name)
 		fmt.Fprintf(os.Stderr, "DEBUG: PQC Algorithm: %s\n", selectedProfile.PQCAlgorithm)
 		fmt.Fprintf(os.Stderr, "DEBUG: LegacyAlgNames: %t\n", selectedProfile.LegacyAlgNames)
@@ -495,4 +536,4 @@ func printVariableHierarchyPQC(cmd *cobra.Command, cfg *PQCConfig) {
 	fmt.Printf("ZTPKI_POLICY_ID - %s - %s\n", policySource, policyValue)
 
 	fmt.Printf("===============================================\n\n")
-} 
+}
