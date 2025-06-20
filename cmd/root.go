@@ -60,6 +60,7 @@ func init() {
         
         // Bind flags to viper
         viper.BindPFlag("verbose", rootCmd.PersistentFlags().Lookup("verbose"))
+        viper.BindPFlag("profile", rootCmd.PersistentFlags().Lookup("profile"))
 }
 
 // initConfig reads in config file and ENV variables.
@@ -82,11 +83,15 @@ func initConfig() {
         // Load profile-based configuration if specified or auto-detected
         if cfgFile != "" {
                 var err error
-                profileConfig, err = config.LoadProfileConfig(cfgFile)
+                profileConfig, err = config.LoadProfileConfig(cfgFile, false)
                 if err != nil {
                         fmt.Fprintf(os.Stderr, "Error loading profile config: %v\n", err)
                         os.Exit(1)
                 }
+                
+                // Debug: let's see what's happening with the profile selection
+                fmt.Fprintf(os.Stderr, "DEBUG: profileName from flag: '%s'\n", profileName)
+                fmt.Fprintf(os.Stderr, "DEBUG: Available profiles: %v\n", profileConfig.ListProfiles())
                 
                 // Set current profile
                 if profileName != "" {
@@ -96,6 +101,7 @@ func initConfig() {
                                 fmt.Fprintf(os.Stderr, "Available profiles: %v\n", profileConfig.ListProfiles())
                                 os.Exit(1)
                         }
+                        fmt.Fprintf(os.Stderr, "DEBUG: Selected profile: %s\n", currentProfile.Name)
                 } else {
                         // Use default profile
                         currentProfile = profileConfig.GetProfile("")
@@ -103,6 +109,7 @@ func initConfig() {
                                 fmt.Fprintf(os.Stderr, "No default profile found in config file\n")
                                 os.Exit(1)
                         }
+                        fmt.Fprintf(os.Stderr, "DEBUG: Using default profile: %s\n", currentProfile.Name)
                 }
                 
                 if verboseLevel > 0 {

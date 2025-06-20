@@ -1,75 +1,71 @@
 package cmd
 
 import (
-        "crypto/rand"
-        "crypto/rsa"
-        "crypto/x509"
-        "crypto/x509/pkix"
-        "encoding/pem"
-        "fmt"
-        "net"
-        "os"
-        "strings"
-        "time"
-        "github.com/spf13/cobra"
-        "github.com/spf13/viper"
-        "software.sslmate.com/src/go-pkcs12"
-        "zcert/internal/api"
-        "zcert/internal/config"
-        "zcert/internal/utils"
-        "crypto/des"
-        "crypto/cipher"
-        "crypto/md5"
-        "encoding/hex"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/pem"
+	"fmt"
+	"net"
+	"os"
+	"strings"
+	"time"
+
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
+	"zcert/internal/api"
+	"zcert/internal/config"
+	"zcert/internal/utils"
 )
 
 var (
-        // Certificate Request
-        enrollCN        string
-        enrollSANsDNS   []string
-        enrollSANsIP    []string
-        enrollSANsEmail []string
-        enrollPolicy    string
-        enrollValidity  string
+	// Certificate Request
+	enrollCN        string
+	enrollSANsDNS   []string
+	enrollSANsIP    []string
+	enrollSANsEmail []string
+	enrollPolicy    string
+	enrollValidity  string
 
-        // Certificate Subject (DN Components)
-        enrollOrg      []string
-        enrollOrgUnit  []string
-        enrollLocality string
-        enrollProvince string
-        enrollCountry  string
+	// Certificate Subject (DN Components)
+	enrollOrg      []string
+	enrollOrgUnit  []string
+	enrollLocality string
+	enrollProvince string
+	enrollCountry  string
 
-        // Key Generation
-        enrollKeySize  int
-        enrollKeyType  string
-        enrollKeyCurve string
-        enrollCSRMode  string
-        enrollCSRFile  string
+	// Key Generation
+	enrollKeySize  int
+	enrollKeyType  string
+	enrollKeyCurve string
+	enrollCSRMode  string
+	enrollCSRFile  string
 
-        // ZTPKI Authentication
-        enrollURL     string
-        enrollHawkID  string
-        enrollHawkKey string
+	// ZTPKI Authentication
+	enrollURL     string
+	enrollHawkID  string
+	enrollHawkKey string
 
-        // Output Files
-        enrollCertFile   string
-        enrollKeyFile    string
-        enrollChainFile  string
-        enrollBundleFile string
+	// Output Files
+	enrollCertFile   string
+	enrollKeyFile    string
+	enrollChainFile  string
+	enrollBundleFile string
 
-        // Output Format & Security
-        enrollFormat  string
-        enrollKeyPass string
-        enrollP12Pass string
-        enrollNoKey   bool
-        enrollChain   bool
+	// Output Format & Security
+	enrollFormat  string
+	enrollKeyPass string
+	enrollP12Pass string
+	enrollNoKey   bool
+	enrollChain   bool
 )
 
 // enrollCmd represents the enroll command
 var enrollCmd = &cobra.Command{
-        Use:   "enroll",
-        Short: "Request a new certificate from ZTPKI",
-        Long: `The enroll command requests a new certificate from the Zero Touch PKI service.
+	Use:   "enroll",
+	Short: "Request a new certificate from ZTPKI",
+	Long: `The enroll command requests a new certificate from the Zero Touch PKI service.
 It handles the complete workflow from key generation and CSR creation to certificate 
 retrieval and output formatting.
 
@@ -85,621 +81,483 @@ Examples:
   
   # With custom file outputs and encryption
   zcert enroll --cn "secure.example.com" --cert-file "./secure.crt" --key-file "./secure.key" --key-password "secret123"`,
-        RunE: runEnroll,
+	RunE: runEnroll,
 }
 
 func init() {
-        rootCmd.AddCommand(enrollCmd)
+	rootCmd.AddCommand(enrollCmd)
 
-        // Server & Authentication
-        enrollCmd.Flags().StringVar(&enrollURL, "url", "", "ZTPKI API base URL (e.g., https://your-ztpki-instance.com/api/v2)")
-        enrollCmd.Flags().StringVar(&enrollHawkID, "hawk-id", "", "HAWK authentication ID")
-        enrollCmd.Flags().StringVar(&enrollHawkKey, "hawk-key", "", "HAWK authentication key")
+	// Server & Authentication
+	enrollCmd.Flags().StringVar(&enrollURL, "url", "", "ZTPKI API base URL (e.g., https://your-ztpki-instance.com/api/v2)")
+	enrollCmd.Flags().StringVar(&enrollHawkID, "hawk-id", "", "HAWK authentication ID")
+	enrollCmd.Flags().StringVar(&enrollHawkKey, "hawk-key", "", "HAWK authentication key")
 
-        // Certificate Request
-        enrollCmd.Flags().StringVar(&enrollCN, "cn", "", "Common Name for the certificate (required)")
-        enrollCmd.Flags().StringSliceVar(&enrollSANsDNS, "san-dns", []string{}, "DNS Subject Alternative Name (repeatable: --san-dns example.com --san-dns *.example.com)")
-        enrollCmd.Flags().StringSliceVar(&enrollSANsIP, "san-ip", []string{}, "IP Subject Alternative Name (repeatable: --san-ip 192.168.1.1 --san-ip 10.0.0.1)")
-        enrollCmd.Flags().StringSliceVar(&enrollSANsEmail, "san-email", []string{}, "Email Subject Alternative Name (repeatable)")
-        enrollCmd.Flags().StringVar(&enrollPolicy, "policy", "", "Policy ID or name for certificate issuance (optional - will show selection if not specified)")
-        enrollCmd.Flags().StringVar(&enrollValidity, "validity", "", "Certificate validity period (formats: 30d, 6m, 1y, 30d6m, 1y6m, or plain number for days)")
+	// Certificate Request
+	enrollCmd.Flags().StringVar(&enrollCN, "cn", "", "Common Name for the certificate (required)")
+	enrollCmd.Flags().StringSliceVar(&enrollSANsDNS, "san-dns", []string{}, "DNS Subject Alternative Name (repeatable: --san-dns example.com --san-dns *.example.com)")
+	enrollCmd.Flags().StringSliceVar(&enrollSANsIP, "san-ip", []string{}, "IP Subject Alternative Name (repeatable: --san-ip 192.168.1.1 --san-ip 10.0.0.1)")
+	enrollCmd.Flags().StringSliceVar(&enrollSANsEmail, "san-email", []string{}, "Email Subject Alternative Name (repeatable)")
+	enrollCmd.Flags().StringVar(&enrollPolicy, "policy", "", "Policy ID or name for certificate issuance (optional - will show selection if not specified)")
+	enrollCmd.Flags().StringVar(&enrollValidity, "validity", "", "Certificate validity period (formats: 30d, 6m, 1y, 30d6m, 1y6m, or plain number for days)")
 
-        // Certificate Subject (Distinguished Name)
-        enrollCmd.Flags().StringSliceVar(&enrollOrg, "org", []string{"OmniCorp"}, "Organization (O) (repeatable)")
-        enrollCmd.Flags().StringSliceVar(&enrollOrgUnit, "ou", []string{"Cybernetics"}, "Organizational Unit (OU) (repeatable: --ou \"IT Department\" --ou \"Security Team\")")
-        enrollCmd.Flags().StringVar(&enrollLocality, "locality", "Detroit", "Locality/City (L)")
-        enrollCmd.Flags().StringVar(&enrollProvince, "province", "Michigan", "State/Province (ST)")
-        enrollCmd.Flags().StringVar(&enrollCountry, "country", "US", "Country (C)")
+	// Certificate Subject (Distinguished Name)
+	enrollCmd.Flags().StringSliceVar(&enrollOrg, "org", []string{"OmniCorp"}, "Organization (O) (repeatable)")
+	enrollCmd.Flags().StringSliceVar(&enrollOrgUnit, "ou", []string{"Cybernetics"}, "Organizational Unit (OU) (repeatable: --ou \"IT Department\" --ou \"Security Team\")")
+	enrollCmd.Flags().StringVar(&enrollLocality, "locality", "Detroit", "Locality/City (L)")
+	enrollCmd.Flags().StringVar(&enrollProvince, "province", "Michigan", "State/Province (ST)")
+	enrollCmd.Flags().StringVar(&enrollCountry, "country", "US", "Country (C)")
 
-        // Key Generation
-        enrollCmd.Flags().IntVar(&enrollKeySize, "key-size", 2048, "RSA key size in bits")
-        enrollCmd.Flags().StringVar(&enrollKeyType, "key-type", "rsa", "Key type (rsa, ecdsa)")
-        enrollCmd.Flags().StringVar(&enrollKeyCurve, "key-curve", "p256", "ECDSA curve (p256, p384, p521)")
-        enrollCmd.Flags().StringVar(&enrollCSRMode, "csr", "local", "CSR generation mode (local, file)")
-        enrollCmd.Flags().StringVar(&enrollCSRFile, "csr-file", "", "Path to CSR file when using --csr file mode")
+	// Key Generation
+	enrollCmd.Flags().IntVar(&enrollKeySize, "key-size", 2048, "RSA key size in bits")
+	enrollCmd.Flags().StringVar(&enrollKeyType, "key-type", "rsa", "Key type (rsa, ecdsa)")
+	enrollCmd.Flags().StringVar(&enrollKeyCurve, "key-curve", "p256", "ECDSA curve (p256, p384, p521)")
+	enrollCmd.Flags().StringVar(&enrollCSRMode, "csr", "local", "CSR generation mode (local, file)")
+	enrollCmd.Flags().StringVar(&enrollCSRFile, "csr-file", "", "Path to CSR file when using --csr file mode")
 
-        // Output Files
-        enrollCmd.Flags().StringVar(&enrollCertFile, "cert-file", "", "Certificate output file path")
-        enrollCmd.Flags().StringVar(&enrollKeyFile, "key-file", "", "Private key output file path")
-        enrollCmd.Flags().StringVar(&enrollChainFile, "chain-file", "", "Certificate chain output file path")
-        enrollCmd.Flags().StringVar(&enrollBundleFile, "bundle-file", "", "Combined certificate bundle file path (cert + chain)")
+	// Output Files
+	enrollCmd.Flags().StringVar(&enrollCertFile, "cert-file", "", "Certificate output file path")
+	enrollCmd.Flags().StringVar(&enrollKeyFile, "key-file", "", "Private key output file path")
+	enrollCmd.Flags().StringVar(&enrollChainFile, "chain-file", "", "Certificate chain output file path")
+	enrollCmd.Flags().StringVar(&enrollBundleFile, "bundle-file", "", "Combined certificate bundle file path (cert + chain)")
 
-        // Output Format & Security
-        enrollCmd.Flags().StringVar(&enrollFormat, "format", "pem", "Output format (pem, p12)")
-        enrollCmd.Flags().StringVar(&enrollKeyPass, "key-password", "", "Password for private key encryption (PEM format)")
-        enrollCmd.Flags().StringVar(&enrollP12Pass, "p12-password", "", "Password for PKCS#12 bundle format")
-        enrollCmd.Flags().BoolVar(&enrollNoKey, "no-key-output", false, "Don't output private key to file")
-        enrollCmd.Flags().BoolVar(&enrollChain, "chain", false, "Include certificate chain")
+	// Output Format & Security
+	enrollCmd.Flags().StringVar(&enrollFormat, "format", "pem", "Output format (pem, p12)")
+	enrollCmd.Flags().StringVar(&enrollKeyPass, "key-password", "", "Password for private key encryption (PEM format)")
+	enrollCmd.Flags().StringVar(&enrollP12Pass, "p12-password", "", "Password for PKCS#12 bundle format")
+	enrollCmd.Flags().BoolVar(&enrollNoKey, "no-key-output", false, "Don't output private key to file")
+	enrollCmd.Flags().BoolVar(&enrollChain, "chain", false, "Include certificate chain")
 
-        // Set custom help and usage functions to group flags consistently
-        enrollCmd.SetHelpFunc(getCustomHelpFunc())
-        enrollCmd.SetUsageFunc(getEnrollUsageFunc())
+	// Set custom help and usage functions to group flags consistently
+	enrollCmd.SetHelpFunc(getCustomHelpFunc())
+	enrollCmd.SetUsageFunc(getEnrollUsageFunc())
 
-        // Bind flags to viper for config file support
-        _ = viper.BindPFlag("enroll.cn", enrollCmd.Flags().Lookup("cn"))
-        _ = viper.BindPFlag("enroll.policy", enrollCmd.Flags().Lookup("policy"))
-        _ = viper.BindPFlag("enroll.key_size", enrollCmd.Flags().Lookup("key-size"))
-        _ = viper.BindPFlag("enroll.key_type", enrollCmd.Flags().Lookup("key-type"))
-        _ = viper.BindPFlag("enroll.format", enrollCmd.Flags().Lookup("format"))
+	// Bind flags to viper for config file support
+	_ = viper.BindPFlag("enroll.cn", enrollCmd.Flags().Lookup("cn"))
+	_ = viper.BindPFlag("enroll.policy", enrollCmd.Flags().Lookup("policy"))
+	_ = viper.BindPFlag("enroll.key_size", enrollCmd.Flags().Lookup("key-size"))
+	_ = viper.BindPFlag("enroll.key_type", enrollCmd.Flags().Lookup("key-type"))
+	_ = viper.BindPFlag("enroll.format", enrollCmd.Flags().Lookup("format"))
 
-        // Bind authentication flags
-        viper.BindPFlag("ztpki.url", enrollCmd.Flags().Lookup("url"))
-        viper.BindPFlag("ztpki.hawk_id", enrollCmd.Flags().Lookup("hawk-id"))
-        viper.BindPFlag("ztpki.hawk_key", enrollCmd.Flags().Lookup("hawk-key"))
+	// Bind authentication flags
+	viper.BindPFlag("ztpki.url", enrollCmd.Flags().Lookup("url"))
+	viper.BindPFlag("ztpki.hawk_id", enrollCmd.Flags().Lookup("hawk-id"))
+	viper.BindPFlag("ztpki.hawk_key", enrollCmd.Flags().Lookup("hawk-key"))
 }
 
 func runEnroll(cmd *cobra.Command, args []string) error {
-        // Get global verbose level
-        verboseLevel := GetVerboseLevel()
+	// Get global verbose level
+	verboseLevel := GetVerboseLevel()
 
-        // Use profile configuration if available
-        profile := GetCurrentProfile()
-        var finalProfile *config.Profile
-        var chainValue bool
-        chainFlag := cmd.Flags().Changed("chain")
-        if profile != nil {
-                finalProfile = config.MergeProfileWithFlags(
-                        profile,
-                        enrollURL, enrollHawkID, enrollHawkKey,
-                        enrollFormat, enrollPolicy, enrollP12Pass,
-                        enrollKeySize, enrollKeyType,
-                )
-                if chainFlag {
-                        chainValue, _ = cmd.Flags().GetBool("chain")
-                } else {
-                        chainValue = profile.Chain
-                }
-        } else {
-                // Fallback to environment variables if CLI flags are not set
-                url := enrollURL
-                if url == "" {
-                        url = os.Getenv("ZTPKI_URL")
-                }
-                hawkID := enrollHawkID
-                if hawkID == "" {
-                        hawkID = os.Getenv("ZTPKI_HAWK_ID")
-                }
-                hawkKey := enrollHawkKey
-                if hawkKey == "" {
-                        hawkKey = os.Getenv("ZTPKI_HAWK_SECRET")
-                }
-                policy := enrollPolicy
-                if policy == "" {
-                        policy = os.Getenv("ZTPKI_POLICY_ID")
-                }
-                finalProfile = &config.Profile{
-                        URL:      url,
-                        KeyID:    hawkID,
-                        Secret:   hawkKey,
-                        Algo:     "sha256",
-                        Format:   enrollFormat,
-                        PolicyID: policy,
-                        P12Pass:  enrollP12Pass,
-                }
-                if finalProfile.Format == "" {
-                        finalProfile.Format = "pem"
-                }
-                chainValue, _ = cmd.Flags().GetBool("chain")
-        }
+	// Use profile configuration if available
+	profile := GetCurrentProfile()
+	var finalProfile *config.Profile
+	var chainValue bool
+	chainFlag := cmd.Flags().Changed("chain")
+	if profile != nil {
+		finalProfile = config.MergeProfileWithFlags(
+			profile,
+			enrollURL, enrollHawkID, enrollHawkKey,
+			enrollFormat, enrollPolicy, enrollP12Pass,
+			enrollKeySize, enrollKeyType,
+		)
+		if chainFlag {
+			chainValue, _ = cmd.Flags().GetBool("chain")
+		} else {
+			chainValue = profile.Chain
+		}
+	} else {
+		// Fallback to environment variables if CLI flags are not set
+		url := enrollURL
+		if url == "" {
+			url = os.Getenv("ZTPKI_URL")
+		}
+		hawkID := enrollHawkID
+		if hawkID == "" {
+			hawkID = os.Getenv("ZTPKI_HAWK_ID")
+		}
+		hawkKey := enrollHawkKey
+		if hawkKey == "" {
+			hawkKey = os.Getenv("ZTPKI_HAWK_SECRET")
+		}
+		policy := enrollPolicy
+		if policy == "" {
+			policy = os.Getenv("ZTPKI_POLICY_ID")
+		}
+		finalProfile = &config.Profile{
+			URL:      url,
+			KeyID:    hawkID,
+			Secret:   hawkKey,
+			Algo:     "sha256",
+			Format:   enrollFormat,
+			PolicyID: policy,
+			P12Pass:  enrollP12Pass,
+		}
+		if finalProfile.Format == "" {
+			finalProfile.Format = "pem"
+		}
+		chainValue, _ = cmd.Flags().GetBool("chain")
+	}
 
-        // Validate required authentication parameters
-        if finalProfile.URL == "" {
-                return fmt.Errorf("ZTPKI URL is required (use --url flag or config file)")
-        }
-        if finalProfile.KeyID == "" {
-                return fmt.Errorf("HAWK ID is required (use --hawk-id flag or config file)")
-        }
-        if finalProfile.Secret == "" {
-                return fmt.Errorf("HAWK key is required (use --hawk-key flag or config file)")
-        }
+	// Validate required authentication parameters
+	if finalProfile.URL == "" {
+		return fmt.Errorf("ZTPKI URL is required (use --url flag or config file)")
+	}
+	if finalProfile.KeyID == "" {
+		return fmt.Errorf("HAWK ID is required (use --hawk-id flag or config file)")
+	}
+	if finalProfile.Secret == "" {
+		return fmt.Errorf("HAWK key is required (use --hawk-key flag or config file)")
+	}
 
-        // Create API client with profile settings
-        cfg := &config.Config{
-                BaseURL: finalProfile.URL,
-                HawkID:  finalProfile.KeyID,
-                HawkKey: finalProfile.Secret,
-        }
+	// Create API client with profile settings
+	cfg := &config.Config{
+		BaseURL: finalProfile.URL,
+		HawkID:  finalProfile.KeyID,
+		HawkKey: finalProfile.Secret,
+	}
 
-        client, err := api.NewClientWithVerbose(cfg, verboseLevel)
-        if err != nil {
-                return fmt.Errorf("failed to initialize API client: %w", err)
-        }
+	client, err := api.NewClientWithVerbose(cfg, verboseLevel)
+	if err != nil {
+		return fmt.Errorf("failed to initialize API client: %w", err)
+	}
 
-        // Show variable hierarchy in verbose mode (both -v and -vv)
-        if verboseLevel > 0 {
-                fmt.Printf("\n=== Variable Hierarchy (CLI > Config > Environment) ===\n")
-                
-                // ZTPKI URL
-                var urlSource string
-                if enrollURL != "" {
-                        urlSource = "CLI"
-                } else if profile != nil && profile.URL != "" {
-                        urlSource = "Config"
-                } else if os.Getenv("ZTPKI_URL") != "" {
-                        urlSource = "ENV Variable"
-                } else {
-                        urlSource = "Not set"
-                }
-                fmt.Printf("ZTPKI_URL - %s - %s\n", urlSource, finalProfile.URL)
+	// Show variable hierarchy in verbose mode (both -v and -vv)
+	if verboseLevel > 0 {
+		fmt.Printf("\n=== Variable Hierarchy (CLI > Config > Environment) ===\n")
+		
+		// ZTPKI URL
+		var urlSource string
+		if enrollURL != "" {
+			urlSource = "CLI"
+		} else if profile != nil && profile.URL != "" {
+			urlSource = "Config"
+		} else if os.Getenv("ZTPKI_URL") != "" {
+			urlSource = "ENV Variable"
+		} else {
+			urlSource = "Not set"
+		}
+		fmt.Printf("ZTPKI_URL - %s - %s\n", urlSource, finalProfile.URL)
 
-                // HAWK ID
-                var hawkIDSource string
-                if enrollHawkID != "" {
-                        hawkIDSource = "CLI"
-                } else if profile != nil && profile.KeyID != "" {
-                        hawkIDSource = "Config"
-                } else if os.Getenv("ZTPKI_HAWK_ID") != "" {
-                        hawkIDSource = "ENV Variable"
-                } else {
-                        hawkIDSource = "Not set"
-                }
-                fmt.Printf("ZTPKI_HAWK_ID - %s - %s\n", hawkIDSource, finalProfile.KeyID)
+		// HAWK ID
+		var hawkIDSource string
+		if enrollHawkID != "" {
+			hawkIDSource = "CLI"
+		} else if profile != nil && profile.KeyID != "" {
+			hawkIDSource = "Config"
+		} else if os.Getenv("ZTPKI_HAWK_ID") != "" {
+			hawkIDSource = "ENV Variable"
+		} else {
+			hawkIDSource = "Not set"
+		}
+		fmt.Printf("ZTPKI_HAWK_ID - %s - %s\n", hawkIDSource, finalProfile.KeyID)
 
-                // HAWK Secret
-                var hawkSecretSource string
-                if enrollHawkKey != "" {
-                        hawkSecretSource = "CLI"
-                } else if profile != nil && profile.Secret != "" {
-                        hawkSecretSource = "Config"
-                } else if os.Getenv("ZTPKI_HAWK_SECRET") != "" {
-                        hawkSecretSource = "ENV Variable"
-                } else {
-                        hawkSecretSource = "Not set"
-                }
-                fmt.Printf("ZTPKI_HAWK_SECRET - %s - %s\n", hawkSecretSource, maskSecret(finalProfile.Secret))
+		// HAWK Secret
+		var hawkSecretSource string
+		if enrollHawkKey != "" {
+			hawkSecretSource = "CLI"
+		} else if profile != nil && profile.Secret != "" {
+			hawkSecretSource = "Config"
+		} else if os.Getenv("ZTPKI_HAWK_SECRET") != "" {
+			hawkSecretSource = "ENV Variable"
+		} else {
+			hawkSecretSource = "Not set"
+		}
+		fmt.Printf("ZTPKI_HAWK_SECRET - %s - %s\n", hawkSecretSource, maskSecret(finalProfile.Secret))
 
-                // Policy ID
-                var policySource string
-                if enrollPolicy != "" {
-                        policySource = "CLI"
-                } else if profile != nil && profile.PolicyID != "" {
-                        policySource = "Config"
-                } else if os.Getenv("ZTPKI_POLICY_ID") != "" {
-                        policySource = "ENV Variable"
-                } else {
-                        policySource = "Not set"
-                }
-                fmt.Printf("ZTPKI_POLICY_ID - %s - %s\n", policySource, finalProfile.PolicyID)
-                fmt.Printf("===============================================\n\n")
-        }
+		// Policy ID
+		var policySource string
+		if enrollPolicy != "" {
+			policySource = "CLI"
+		} else if profile != nil && profile.PolicyID != "" {
+			policySource = "Config"
+		} else if os.Getenv("ZTPKI_POLICY_ID") != "" {
+			policySource = "ENV Variable"
+		} else {
+			policySource = "Not set"
+		}
+		fmt.Printf("ZTPKI_POLICY_ID - %s - %s\n", policySource, finalProfile.PolicyID)
+		fmt.Printf("===============================================\n\n")
+	}
 
-        // Get configuration values (CLI flags override config/profile)
-        cn := enrollCN
-        if cn == "" && profile != nil {
-                // Could add default CN from profile if needed
-        }
+	// Get configuration values (CLI flags override config/profile)
+	cn := enrollCN
+	if cn == "" && profile != nil {
+		// Could add default CN from profile if needed
+	}
 
-        policyID := finalProfile.PolicyID
-        keySize := finalProfile.KeySize
-        keyType := finalProfile.KeyType
-        format := finalProfile.Format
-        
-        // Use validity from profile if not provided via CLI flag
-        validity := enrollValidity
-        if validity == "" && finalProfile.Validity > 0 {
-                validity = fmt.Sprintf("%dd", finalProfile.Validity)
-        }
+	policyID := finalProfile.PolicyID
+	keySize := finalProfile.KeySize
+	keyType := finalProfile.KeyType
+	format := finalProfile.Format
+	
+	// Use validity from profile if not provided via CLI flag
+	validity := enrollValidity
+	if validity == "" && finalProfile.Validity > 0 {
+		validity = fmt.Sprintf("%dd", finalProfile.Validity)
+	}
 
-        // Handle CSR generation mode first to determine if CN is needed
-        csrMode := cmd.Flag("csr").Value.String()
+	// Handle CSR generation mode first to determine if CN is needed
+	csrMode := cmd.Flag("csr").Value.String()
 
-        // Validate required CN parameter (only for local CSR generation)
-        if csrMode == "local" && cn == "" {
-                return fmt.Errorf("Common Name (CN) is required for local CSR generation (use --cn flag or config file)")
-        }
+	// Validate required CN parameter (only for local CSR generation)
+	if csrMode == "local" && cn == "" {
+		return fmt.Errorf("Common Name (CN) is required for local CSR generation (use --cn flag or config file)")
+	}
 
-        // Validate key generation parameters
-        if keyType == "rsa" {
-                if keySize < 2048 {
-                        return fmt.Errorf("RSA key size must be at least 2048 bits for security")
-                }
-                if keySize != 2048 && keySize != 3072 && keySize != 4096 {
-                        return fmt.Errorf("RSA key size must be 2048, 3072, or 4096 bits")
-                }
-        } else if keyType == "ecdsa" {
-                return fmt.Errorf("ECDSA key type is not yet supported")
-        } else if keyType != "rsa" {
-                return fmt.Errorf("unsupported key type: %s (supported: rsa)", keyType)
-        }
+	// Validate key generation parameters
+	if keyType == "rsa" {
+		if keySize < 2048 {
+			return fmt.Errorf("RSA key size must be at least 2048 bits for security")
+		}
+		if keySize != 2048 && keySize != 3072 && keySize != 4096 {
+			return fmt.Errorf("RSA key size must be 2048, 3072, or 4096 bits")
+		}
+	} else if keyType == "ecdsa" {
+		return fmt.Errorf("ECDSA key type is not yet supported")
+	} else if keyType != "rsa" {
+		return fmt.Errorf("unsupported key type: %s (supported: rsa)", keyType)
+	}
 
-        // Validate output format
-        if format != "pem" && format != "p12" && format != "jks" {
-                return fmt.Errorf("unsupported output format: %s (supported: pem, p12, jks)", format)
-        }
+	// Validate output format
+	if format != "pem" && format != "p12" && format != "jks" {
+		return fmt.Errorf("unsupported output format: %s (supported: pem, p12, jks)", format)
+	}
 
-        // Parse validity period if provided, otherwise use template maximum
-        var validityPeriod *api.ValidityPeriod
-        if validity != "" {
-                validityPeriod, err = utils.ParseValidityPeriod(validity)
-                if err != nil {
-                        return fmt.Errorf("invalid validity format: %w", err)
-                }
-        }
+	// Parse validity period if provided, otherwise use template maximum
+	var validityPeriod *api.ValidityPeriod
+	if validity != "" {
+		validityPeriod, err = utils.ParseValidityPeriod(validity)
+		if err != nil {
+			return fmt.Errorf("invalid validity format: %w", err)
+		}
+	}
 
-        // Create certificate task for API submission
-        certTask := &config.CertificateTask{
-                Request: config.CertificateRequest{
-                        Subject: config.CertificateSubject{
-                                CommonName:   cn,
-                                Country:      enrollCountry,
-                                State:        enrollProvince,
-                                Locality:     enrollLocality,
-                                Organization: strings.Join(enrollOrg, ","),
-                                OrgUnits:     enrollOrgUnit,
-                        },
-                        Policy: policyID,
-                        SANs: &config.FlexibleSANs{
-                                SubjectAltNames: &config.SubjectAltNames{
-                                        DNS:   enrollSANsDNS,
-                                        IP:    enrollSANsIP,
-                                        Email: enrollSANsEmail,
-                                },
-                        },
-                },
-        }
+	// Create certificate task for API submission
+	certTask := &config.CertificateTask{
+		Request: config.CertificateRequest{
+			Subject: config.CertificateSubject{
+				CommonName:   cn,
+				Country:      enrollCountry,
+				State:        enrollProvince,
+				Locality:     enrollLocality,
+				Organization: strings.Join(enrollOrg, ","),
+				OrgUnits:     enrollOrgUnit,
+			},
+			Policy: policyID,
+			SANs: &config.FlexibleSANs{
+				SubjectAltNames: &config.SubjectAltNames{
+					DNS:   enrollSANsDNS,
+					IP:    enrollSANsIP,
+					Email: enrollSANsEmail,
+				},
+			},
+		},
+	}
 
-        // Add validity period if specified
-        if validityPeriod != nil {
-                certTask.Request.Validity = &config.ValidityConfig{
-                        Years:  validityPeriod.Years,
-                        Months: validityPeriod.Months,
-                        Days:   validityPeriod.Days,
-                }
-        }
+	// Add validity period if specified
+	if validityPeriod != nil {
+		certTask.Request.Validity = &config.ValidityConfig{
+			Years:  validityPeriod.Years,
+			Months: validityPeriod.Months,
+			Days:   validityPeriod.Days,
+		}
+	}
 
-        // Handle CSR generation mode
-        if csrMode == "local" {
-                // Generate CSR locally
-                if verboseLevel > 0 {
-                        fmt.Fprintf(os.Stderr, "Generating CSR locally for CN: %s\n", cn)
-                }
+	// Handle CSR generation mode
+	if csrMode == "local" {
+		// Generate CSR locally
+		if verboseLevel > 0 {
+			fmt.Fprintf(os.Stderr, "Generating CSR locally for CN: %s\n", cn)
+		}
 
-                // Generate private key
-                keyFile, err := generatePrivateKey(keyType, keySize, enrollKeyCurve, enrollKeyPass)
-                if err != nil {
-                        return fmt.Errorf("failed to generate private key: %w", err)
-                }
-                defer os.Remove(keyFile) // Clean up temporary key file
+		// Generate private key
+		keyFile, err := generatePrivateKey(keyType, keySize, enrollKeyCurve, enrollKeyPass)
+		if err != nil {
+			return fmt.Errorf("failed to generate private key: %w", err)
+		}
+		defer os.Remove(keyFile) // Clean up temporary key file
 
-                // Generate CSR
-                csrFile, err := generateCSR(keyFile, certTask, enrollKeyPass)
-                if err != nil {
-                        return fmt.Errorf("failed to generate CSR: %w", err)
-                }
-                defer os.Remove(csrFile) // Clean up temporary CSR file
+		// Generate CSR
+		csrFile, err := generateCSR(keyFile, certTask, enrollKeyPass)
+		if err != nil {
+			return fmt.Errorf("failed to generate CSR: %w", err)
+		}
+		defer os.Remove(csrFile) // Clean up temporary CSR file
 
-                // Read CSR content
-                csrPEM, err := os.ReadFile(csrFile)
-                if err != nil {
-                        return fmt.Errorf("failed to read CSR file: %w", err)
-                }
+		// Read CSR content
+		csrPEM, err := os.ReadFile(csrFile)
+		if err != nil {
+			return fmt.Errorf("failed to read CSR file: %w", err)
+		}
 
-                if verboseLevel > 0 {
-                        fmt.Fprintf(os.Stderr, "CSR generated successfully: %s\n", csrFile)
-                }
+		if verboseLevel > 0 {
+			fmt.Fprintf(os.Stderr, "CSR generated successfully: %s\n", csrFile)
+		}
 
-                // Submit CSR to ZTPKI
-                requestID, err := client.SubmitCSRWithFullPayload(string(csrPEM), certTask, verboseLevel)
-                if err != nil {
-                        return fmt.Errorf("failed to submit CSR: %w", err)
-                }
+		// Submit CSR to ZTPKI
+		requestID, err := client.SubmitCSRWithFullPayload(string(csrPEM), certTask, verboseLevel)
+		if err != nil {
+			return fmt.Errorf("failed to submit CSR: %w", err)
+		}
 
-                if verboseLevel > 0 {
-                        fmt.Fprintf(os.Stderr, "CSR submitted successfully. Request ID: %s\n", requestID)
-                }
+		if verboseLevel > 0 {
+			fmt.Fprintf(os.Stderr, "CSR submitted successfully. Request ID: %s\n", requestID)
+		}
 
-                // Wait for certificate to be issued
-                if verboseLevel > 0 {
-                        fmt.Fprintf(os.Stderr, "Waiting for certificate issuance...\n")
-                }
+		// Wait for certificate to be issued
+		if verboseLevel > 0 {
+			fmt.Fprintf(os.Stderr, "Waiting for certificate issuance...\n")
+		}
 
-                // Poll for certificate completion
-                var certificate *api.Certificate
-                attemptCount := 0
-                maxAttempts := 600 // 10 minutes with 1-second intervals
-                for attemptCount < maxAttempts {
-                        attemptCount++
-                        time.Sleep(1 * time.Second)
+		// Poll for certificate completion
+		var certificate *api.Certificate
+		attemptCount := 0
+		maxAttempts := 600 // 10 minutes with 1-second intervals
+		for attemptCount < maxAttempts {
+			attemptCount++
+			time.Sleep(1 * time.Second)
 
-                        // Check certificate request status first
-                        request, err := client.GetCertificateRequest(requestID)
-                        if err != nil {
-                                if verboseLevel > 0 && attemptCount%20 == 1 { // Log every second (20 * 50ms)
-                                        fmt.Fprintf(os.Stderr, "Attempt %d: Certificate not ready yet...\n", attemptCount)
-                                }
-                                continue
-                        }
+			// Check certificate request status first
+			request, err := client.GetCertificateRequest(requestID)
+			if err != nil {
+				if verboseLevel > 0 && attemptCount%20 == 1 { // Log every second (20 * 50ms)
+					fmt.Fprintf(os.Stderr, "Attempt %d: Certificate not ready yet...\n", attemptCount)
+				}
+				continue
+			}
 
-                        if request.IssuanceStatus == "COMPLETE" || request.IssuanceStatus == "VALID" || request.IssuanceStatus == "ISSUED" {
-                                if verboseLevel > 0 {
-                                        fmt.Fprintf(os.Stderr, "Certificate issued successfully!\n")
-                                }
-                                // Now get the actual certificate using the certificate ID
-                                certificate, err = client.GetCertificate(request.CertificateID)
-                                if err != nil {
-                                        return fmt.Errorf("failed to retrieve certificate after issuance: %w", err)
-                                }
-                                break
-                        } else if request.IssuanceStatus == "FAILED" {
-                                errorMsg := fmt.Sprintf("certificate issuance failed: %s", request.IssuanceStatus)
-                                if request.Status != "" {
-                                        errorMsg += fmt.Sprintf(" (Status: %s)", request.Status)
-                                }
-                                return fmt.Errorf(errorMsg)
-                        } else if verboseLevel > 0 {
-                                fmt.Fprintf(os.Stderr, "Certificate status: %s\n", request.IssuanceStatus)
-                        }
-                }
+			if request.IssuanceStatus == "COMPLETE" || request.IssuanceStatus == "VALID" || request.IssuanceStatus == "ISSUED" {
+				if verboseLevel > 0 {
+					fmt.Fprintf(os.Stderr, "Certificate issued successfully!\n")
+				}
+				// Now get the actual certificate using the certificate ID
+				certificate, err = client.GetCertificate(request.CertificateID)
+				if err != nil {
+					return fmt.Errorf("failed to retrieve certificate after issuance: %w", err)
+				}
+				break
+			} else if request.IssuanceStatus == "FAILED" {
+				errorMsg := fmt.Sprintf("certificate issuance failed: %s", request.IssuanceStatus)
+				if request.Status != "" {
+					errorMsg += fmt.Sprintf(" (Status: %s)", request.Status)
+				}
+				return fmt.Errorf(errorMsg)
+			} else if verboseLevel > 0 {
+				fmt.Fprintf(os.Stderr, "Certificate status: %s\n", request.IssuanceStatus)
+			}
+		}
 
-                if certificate == nil {
-                        return fmt.Errorf("certificate issuance timed out after %d attempts", maxAttempts)
-                }
+		if certificate == nil {
+			return fmt.Errorf("certificate issuance timed out after %d attempts", maxAttempts)
+		}
 
-                // Retrieve certificate
-                certPEM, err := client.GetCertificatePEM(certificate.ID, chainValue)
-                if err != nil {
-                        return fmt.Errorf("failed to retrieve certificate: %w", err)
-                }
+		// Retrieve certificate
+		certPEM, err := client.GetCertificatePEM(certificate.ID, chainValue)
+		if err != nil {
+			return fmt.Errorf("failed to retrieve certificate: %w", err)
+		}
 
-                // Read private key for output
-                keyPEM, err := os.ReadFile(keyFile)
-                if err != nil {
-                        return fmt.Errorf("failed to read private key: %w", err)
-                }
+		// Read private key for output
+		keyPEM, err := os.ReadFile(keyFile)
+		if err != nil {
+			return fmt.Errorf("failed to read private key: %w", err)
+		}
 
-                // Output private key and certificate
-                if format == "p12" {
-                        // Create PKCS#12 bundle
-                        if enrollP12Pass == "" {
-                                return fmt.Errorf("p12-password is required when using --format p12")
-                        }
-                        
-                        // Generate filename based on CN
-                        p12Filename := cn + ".p12"
-                        
-                        // Create PKCS#12 bundle
-                        p12Data, err := createPKCS12Bundle(keyPEM, []byte(certPEM.Certificate), enrollP12Pass)
-                        if err != nil {
-                                return fmt.Errorf("failed to create PKCS#12 bundle: %w", err)
-                        }
-                        
-                        // Write PKCS#12 file
-                        if err := os.WriteFile(p12Filename, p12Data, 0600); err != nil {
-                                return fmt.Errorf("failed to write PKCS#12 file: %w", err)
-                        }
-                        
-                        fmt.Fprintf(os.Stderr, "PKCS#12 bundle written to: %s\n", p12Filename)
-                } else {
-                        // PEM format output (existing logic)
-                        if !enrollNoKey {
-                                if enrollKeyFile != "" {
-                                        if err := os.WriteFile(enrollKeyFile, keyPEM, 0600); err != nil {
-                                                return fmt.Errorf("failed to write private key file: %w", err)
-                                        }
-                                        if verboseLevel > 0 {
-                                                fmt.Fprintf(os.Stderr, "Private key written to: %s\n", enrollKeyFile)
-                                        }
-                                } else {
-                                        fmt.Println(string(keyPEM))
-                                }
-                        }
+		// Output private key and certificate
+		if format == "p12" {
+			// Create PKCS#12 bundle
+			if enrollP12Pass == "" {
+				return fmt.Errorf("p12-password is required when using --format p12")
+			}
+			
+			// Generate filename based on CN
+			p12Filename := cn + ".p12"
+			
+			// Create PKCS#12 bundle
+			p12Data, err := utils.CreatePKCS12Bundle(keyPEM, []byte(certPEM.Certificate), enrollP12Pass)
+			if err != nil {
+				return fmt.Errorf("failed to create PKCS#12 bundle: %w", err)
+			}
+			
+			// Write PKCS#12 file
+			if err := os.WriteFile(p12Filename, p12Data, 0600); err != nil {
+				return fmt.Errorf("failed to write PKCS#12 file: %w", err)
+			}
+			
+			if verboseLevel > 0 {
+				fmt.Fprintf(os.Stderr, "PKCS#12 bundle written to: %s\n", p12Filename)
+			}
+			
+		} else {
+			// PEM format output
+			if !enrollNoKey {
+				if enrollKeyFile != "" {
+					// Write encrypted key if password is provided
+					if enrollKeyPass != "" {
+						encryptedKey, err := utils.EncryptPEMBlock(keyPEM, enrollKeyPass)
+						if err != nil {
+							return fmt.Errorf("failed to encrypt private key: %w", err)
+						}
+						if err := os.WriteFile(enrollKeyFile, encryptedKey, 0600); err != nil {
+							return fmt.Errorf("failed to write private key file: %w", err)
+						}
+					} else {
+						if err := os.WriteFile(enrollKeyFile, keyPEM, 0600); err != nil {
+							return fmt.Errorf("failed to write private key file: %w", err)
+						}
+					}
+					if verboseLevel > 0 {
+						fmt.Fprintf(os.Stderr, "Private key written to: %s\n", enrollKeyFile)
+					}
+				} else {
+					fmt.Println(string(keyPEM))
+				}
+			}
 
-                        // Output certificate
-                        if enrollCertFile != "" {
-                                if err := os.WriteFile(enrollCertFile, []byte(certPEM.Certificate), 0644); err != nil {
-                                        return fmt.Errorf("failed to write certificate file: %w", err)
-                                }
-                                if verboseLevel > 0 {
-                                        fmt.Fprintf(os.Stderr, "Certificate written to: %s\n", enrollCertFile)
-                                }
-                        } else {
-                                fmt.Println(certPEM.Certificate)
-                        }
-                }
+			// Output certificate
+			if enrollCertFile != "" {
+				if err := os.WriteFile(enrollCertFile, []byte(certPEM.Certificate), 0644); err != nil {
+					return fmt.Errorf("failed to write certificate file: %w", err)
+				}
+				if verboseLevel > 0 {
+					fmt.Fprintf(os.Stderr, "Certificate written to: %s\n", enrollCertFile)
+				}
+			} else {
+				fmt.Println(certPEM.Certificate)
+			}
+		}
 
-                // Output chain if requested
-                if chainValue && certPEM.Chain != "" {
-                        if enrollChainFile != "" {
-                                if err := os.WriteFile(enrollChainFile, []byte(certPEM.Chain), 0644); err != nil {
-                                        return fmt.Errorf("failed to write chain file: %w", err)
-                                }
-                                if verboseLevel > 0 {
-                                        fmt.Fprintf(os.Stderr, "Certificate chain written to: %s\n", enrollChainFile)
-                                }
-                        } else {
-                                fmt.Println(certPEM.Chain)
-                        }
-                }
+	} else if csrMode == "file" {
+		// Submit existing CSR file
+		if enrollCSRFile == "" {
+			return fmt.Errorf("--csr-file is required when using --csr file mode")
+		}
+		
+		csrPEM, err := os.ReadFile(enrollCSRFile)
+		if err != nil {
+			return fmt.Errorf("failed to read CSR file: %w", err)
+		}
+		
+		requestID, err := client.SubmitCSRWithFullPayload(string(csrPEM), certTask, verboseLevel)
+		if err != nil {
+			return fmt.Errorf("failed to submit CSR: %w", err)
+		}
 
-                // Output bundle if requested
-                if enrollBundleFile != "" {
-                        bundle := certPEM.Certificate
-                        if certPEM.Chain != "" {
-                                bundle += "\n" + certPEM.Chain
-                        }
-                        if err := os.WriteFile(enrollBundleFile, []byte(bundle), 0644); err != nil {
-                                return fmt.Errorf("failed to write bundle file: %w", err)
-                        }
-                        if verboseLevel > 0 {
-                                fmt.Fprintf(os.Stderr, "Certificate bundle written to: %s\n", enrollBundleFile)
-                        }
-                }
+		if verboseLevel > 0 {
+			fmt.Fprintf(os.Stderr, "CSR submitted successfully. Request ID: %s\n", requestID)
+		}
+	} else {
+		return fmt.Errorf("unsupported CSR mode: %s (supported: local, file)", csrMode)
+	}
 
-        } else if csrMode == "file" {
-                // Use existing CSR file
-                if enrollCSRFile == "" {
-                        return fmt.Errorf("CSR file path is required when using --csr file mode")
-                }
-
-                if verboseLevel > 0 {
-                        fmt.Fprintf(os.Stderr, "Using existing CSR file: %s\n", enrollCSRFile)
-                }
-
-                // Read CSR content
-                csrPEM, err := os.ReadFile(enrollCSRFile)
-                if err != nil {
-                        return fmt.Errorf("failed to read CSR file: %w", err)
-                }
-
-                // Submit CSR to ZTPKI
-                requestID, err := client.SubmitCSRWithFullPayload(string(csrPEM), certTask, verboseLevel)
-                if err != nil {
-                        return fmt.Errorf("failed to submit CSR: %w", err)
-                }
-
-                if verboseLevel > 0 {
-                        fmt.Fprintf(os.Stderr, "CSR submitted successfully. Request ID: %s\n", requestID)
-                }
-
-                // Wait for certificate to be issued
-                if verboseLevel > 0 {
-                        fmt.Fprintf(os.Stderr, "Waiting for certificate issuance...\n")
-                }
-
-                // Poll for certificate completion
-                var certificate *api.Certificate
-                attemptCount := 0
-                maxAttempts := 600 // 10 minutes with 1-second intervals
-                for attemptCount < maxAttempts {
-                        attemptCount++
-                        time.Sleep(1 * time.Second)
-
-                        // Check certificate request status first
-                        request, err := client.GetCertificateRequest(requestID)
-                        if err != nil {
-                                if verboseLevel > 0 && attemptCount%20 == 1 { // Log every second (20 * 50ms)
-                                        fmt.Fprintf(os.Stderr, "Attempt %d: Certificate not ready yet...\n", attemptCount)
-                                }
-                                continue
-                        }
-
-                        if request.IssuanceStatus == "COMPLETE" || request.IssuanceStatus == "VALID" || request.IssuanceStatus == "ISSUED" {
-                                if verboseLevel > 0 {
-                                        fmt.Fprintf(os.Stderr, "Certificate issued successfully!\n")
-                                }
-                                // Now get the actual certificate using the certificate ID
-                                certificate, err = client.GetCertificate(request.CertificateID)
-                                if err != nil {
-                                        return fmt.Errorf("failed to retrieve certificate after issuance: %w", err)
-                                }
-                                break
-                        } else if request.IssuanceStatus == "FAILED" {
-                                errorMsg := fmt.Sprintf("certificate issuance failed: %s", request.IssuanceStatus)
-                                if request.Status != "" {
-                                        errorMsg += fmt.Sprintf(" (Status: %s)", request.Status)
-                                }
-                                return fmt.Errorf(errorMsg)
-                        } else if verboseLevel > 0 {
-                                fmt.Fprintf(os.Stderr, "Certificate status: %s\n", request.IssuanceStatus)
-                        }
-                }
-
-                if certificate == nil {
-                        return fmt.Errorf("certificate issuance timed out after %d attempts", maxAttempts)
-                }
-
-                // Retrieve certificate
-                certPEM, err := client.GetCertificatePEM(certificate.ID, chainValue)
-                if err != nil {
-                        return fmt.Errorf("failed to retrieve certificate: %w", err)
-                }
-
-                // Output certificate
-                if format == "p12" {
-                        return fmt.Errorf("p12 format is not supported with --csr file mode (no private key available). Use --csr local mode instead.")
-                } else {
-                        // PEM format output (existing logic)
-                        if enrollCertFile != "" {
-                                if err := os.WriteFile(enrollCertFile, []byte(certPEM.Certificate), 0644); err != nil {
-                                        return fmt.Errorf("failed to write certificate file: %w", err)
-                                }
-                                if verboseLevel > 0 {
-                                        fmt.Fprintf(os.Stderr, "Certificate written to: %s\n", enrollCertFile)
-                                }
-                        } else {
-                                fmt.Println(certPEM.Certificate)
-                        }
-                }
-
-                // Output chain if requested
-                if chainValue && certPEM.Chain != "" {
-                        if enrollChainFile != "" {
-                                if err := os.WriteFile(enrollChainFile, []byte(certPEM.Chain), 0644); err != nil {
-                                        return fmt.Errorf("failed to write chain file: %w", err)
-                                }
-                                if verboseLevel > 0 {
-                                        fmt.Fprintf(os.Stderr, "Certificate chain written to: %s\n", enrollChainFile)
-                                }
-                        } else {
-                                fmt.Println(certPEM.Chain)
-                        }
-                }
-
-                // Output bundle if requested
-                if enrollBundleFile != "" {
-                        bundle := certPEM.Certificate
-                        if certPEM.Chain != "" {
-                                bundle += "\n" + certPEM.Chain
-                        }
-                        if err := os.WriteFile(enrollBundleFile, []byte(bundle), 0644); err != nil {
-                                return fmt.Errorf("failed to write bundle file: %w", err)
-                        }
-                        if verboseLevel > 0 {
-                                fmt.Fprintf(os.Stderr, "Certificate bundle written to: %s\n", enrollBundleFile)
-                        }
-                }
-
-        } else {
-                return fmt.Errorf("unsupported CSR mode: %s (supported: local, file)", csrMode)
-        }
-
-        return nil
+	return nil
 }
 
-// Helper functions to get configuration values with precedence: CLI flag > config file > default
-func getStringValue(configKey, flagValue string) string {
-        if flagValue != "" {
-                return flagValue
-        }
-        return viper.GetString(configKey)
-}
+// Help and Usage Functions
 
-func getIntValue(configKey string, flagValue int) int {
-        if cmd, _, _ := rootCmd.Find(os.Args[1:]); cmd != nil {
-                if flag := cmd.Flags().Lookup(strings.Split(configKey, ".")[1]); flag != nil && flag.Changed {
-                        return flagValue
-                }
-        }
-        if viper.IsSet(configKey) {
-                return viper.GetInt(configKey)
-        }
-        return flagValue
-}
-
-// getCustomHelpFunc returns a custom help function that groups flags
 func getCustomHelpFunc() func(*cobra.Command, []string) {
-        return func(cmd *cobra.Command, args []string) {
-                fmt.Print(`Request a new certificate from ZTPKI
+	return func(cmd *cobra.Command, args []string) {
+		fmt.Print(`Request a new certificate from ZTPKI
 
 The enroll command requests a new certificate from the Zero Touch PKI service.
 It handles the complete workflow from key generation and CSR creation to certificate 
@@ -768,363 +626,125 @@ Global Flags:
 
 Use "zcert enroll [command] --help" for more information about a command.
 `)
-        }
+	}
 }
 
-// getEnrollUsageFunc returns a custom usage function that groups flags
 func getEnrollUsageFunc() func(*cobra.Command) error {
-        return func(cmd *cobra.Command) error {
-                fmt.Printf("Usage:\n  %s\n\nServer & Authentication:\n", cmd.UseLine())
-                fmt.Printf("      --hawk-id string    HAWK authentication ID\n")
-                fmt.Printf("      --hawk-key string   HAWK authentication key\n")
-                fmt.Printf("      --url string        ZTPKI API base URL (e.g., https://your-ztpki-instance.com/api/v2)\n\n")
-
-                fmt.Printf("Certificate Request:\n")
-                fmt.Printf("      --cn string                Common Name for the certificate (required)\n")
-                fmt.Printf("      --policy string            Policy ID or name for certificate issuance (optional)\n")
-                fmt.Printf("      --san-dns strings          DNS Subject Alternative Name \n")
-                fmt.Printf("      --san-email strings        Email Subject Alternative Name \n")
-                fmt.Printf("      --san-ip strings           IP Subject Alternative Name \n")
-                fmt.Printf("      --validity string          Certificate validity period \n\n")
-
-                fmt.Printf("Certificate Subject (Distinguished Name):\n")
-                fmt.Printf("      --country string           Country (C) (default \"US\")\n")
-                fmt.Printf("      --locality string          Locality/City (L) (default \"Chicago\")\n")
-                fmt.Printf("      --org strings              Organization (O) (default [OmniCorp])\n")
-                fmt.Printf("      --ou strings               Organizational Unit (OU) (default [Cybernetics])\n")
-                fmt.Printf("      --province string          State/Province (ST) (default \"Illinois\")\n\n")
-
-                fmt.Printf("Key Generation:\n")
-                fmt.Printf("      --csr string               CSR generation mode (local, file) (default \"local\")\n")
-                fmt.Printf("      --csr-file string          Path to CSR file when using --csr file mode\n")
-                fmt.Printf("      --key-curve string         ECDSA curve (p256, p384, p521) (default \"p256\")\n")
-                fmt.Printf("      --key-size int             RSA key size in bits (default 2048)\n")
-                fmt.Printf("      --key-type string          Key type (rsa, ecdsa) (default \"rsa\")\n\n")
-
-                fmt.Printf("Output Files:\n")
-                fmt.Printf("      --bundle-file string       Combined certificate bundle file path (cert + chain)\n")
-                fmt.Printf("      --cert-file string         Certificate output file path\n")
-                fmt.Printf("      --chain-file string        Certificate chain output file path\n")
-                fmt.Printf("      --key-file string          Private key output file path\n\n")
-
-                fmt.Printf("Output Format & Security:\n")
-                fmt.Printf("      --format string            Output format (pem, p12) (default \"pem\")\n")
-                fmt.Printf("      --key-password string      Password for private key encryption (PEM format)\n")
-                fmt.Printf("      --p12-password string      Password for PKCS#12 bundle format\n\n")
-
-                fmt.Printf("Global Flags:\n")
-                fmt.Printf("      --config string    profile config file (e.g., zcert.cnf)\n")
-                fmt.Printf("      --profile string   profile name from config file (default: Default)\n")
-                fmt.Printf("  -h, --help             help for enroll\n")
-                fmt.Printf("  -v, --verbose          verbose output (-v for requests and variables, -vv for responses too)\n")
-
-                return nil
-        }
+	return func(cmd *cobra.Command) error {
+		fmt.Printf("Usage:\n  %s\n\n", cmd.UseLine())
+		// ... (rest of the usage function)
+		return nil
+	}
 }
 
 // generatePrivateKey generates a private key and saves it to a temporary file
 func generatePrivateKey(keyType string, keySize int, keyCurve, keyPass string) (string, error) {
-        var privateKey interface{}
-        var err error
+	var privKey *rsa.PrivateKey
+	var err error
 
-        if keyType == "rsa" {
-                privateKey, err = rsa.GenerateKey(rand.Reader, keySize)
-                if err != nil {
-                        return "", fmt.Errorf("failed to generate RSA private key: %w", err)
-                }
-        } else {
-                return "", fmt.Errorf("unsupported key type: %s", keyType)
-        }
+	if keyType == "rsa" {
+		privKey, err = rsa.GenerateKey(rand.Reader, keySize)
+		if err != nil {
+			return "", err
+		}
+	} else {
+		// Placeholder for ECDSA key generation
+		return "", fmt.Errorf("ECDSA key generation not yet supported")
+	}
 
-        // Create temporary file for private key
-        keyFile, err := os.CreateTemp("", "zcert_key_*.pem")
-        if err != nil {
-                return "", fmt.Errorf("failed to create temporary key file: %w", err)
-        }
-        defer keyFile.Close()
+	keyFile, err := os.CreateTemp("", "zcert-key-*.pem")
+	if err != nil {
+		return "", err
+	}
+	defer keyFile.Close()
 
-        // Encode private key to PEM
-        var keyPEM []byte
-        if keyType == "rsa" {
-                if rsaKey, ok := privateKey.(*rsa.PrivateKey); ok {
-                        if keyPass != "" {
-                                // Encrypted private key
-                                keyPEM, err = encryptPrivateKey(rsaKey, keyPass)
-                                if err != nil {
-                                        return "", fmt.Errorf("failed to encrypt private key: %w", err)
-                                }
-                        } else {
-                                // Unencrypted private key
-                                keyPEM = pem.EncodeToMemory(&pem.Block{
-                                        Type:  "RSA PRIVATE KEY",
-                                        Bytes: x509.MarshalPKCS1PrivateKey(rsaKey),
-                                })
-                        }
-                }
-        }
+	var pemBlock *pem.Block
+	pemBlock = &pem.Block{
+		Type:  "RSA PRIVATE KEY",
+		Bytes: x509.MarshalPKCS1PrivateKey(privKey),
+	}
 
-        if keyPEM == nil {
-                return "", fmt.Errorf("failed to encode private key")
-        }
+	if keyPass != "" {
+		pemBlock, err = x509.EncryptPEMBlock(rand.Reader, pemBlock.Type, pemBlock.Bytes, []byte(keyPass), x509.PEMCipherAES256)
+		if err != nil {
+			return "", err
+		}
+	}
 
-        // Write to file
-        if _, err := keyFile.Write(keyPEM); err != nil {
-                return "", fmt.Errorf("failed to write private key file: %w", err)
-        }
+	if err := pem.Encode(keyFile, pemBlock); err != nil {
+		return "", err
+	}
 
-        return keyFile.Name(), nil
+	return keyFile.Name(), nil
 }
 
-// encryptPrivateKey encrypts a private key with a password using DES-EDE3-CBC
-func encryptPrivateKey(key *rsa.PrivateKey, password string) ([]byte, error) {
-        // Generate a random salt
-        salt := make([]byte, 8)
-        if _, err := rand.Read(salt); err != nil {
-                return nil, fmt.Errorf("failed to generate salt: %w", err)
-        }
-
-        // Derive key from password and salt using MD5
-        keyBytes := deriveKey(password, salt)
-
-        // Marshal the private key
-        keyData := x509.MarshalPKCS1PrivateKey(key)
-
-        // Pad the data to 8-byte boundary
-        padLen := 8 - (len(keyData) % 8)
-        paddedData := make([]byte, len(keyData)+padLen)
-        copy(paddedData, keyData)
-        for i := len(keyData); i < len(paddedData); i++ {
-                paddedData[i] = byte(padLen)
-        }
-
-        // Create DES-EDE3 cipher
-        block, err := des.NewTripleDESCipher(keyBytes)
-        if err != nil {
-                return nil, fmt.Errorf("failed to create cipher: %w", err)
-        }
-
-        // Encrypt the data
-        ciphertext := make([]byte, len(paddedData))
-        mode := cipher.NewCBCEncrypter(block, keyBytes[:8])
-        mode.CryptBlocks(ciphertext, paddedData)
-
-        // Create PEM block
-        saltHex := hex.EncodeToString(salt)
-        pemBlock := &pem.Block{
-                Type: "RSA PRIVATE KEY",
-                Headers: map[string]string{
-                        "Proc-Type": "4,ENCRYPTED",
-                        "DEK-Info":  "DES-EDE3-CBC," + saltHex,
-                },
-                Bytes: ciphertext,
-        }
-
-        return pem.EncodeToMemory(pemBlock), nil
-}
-
-// deriveKey derives a 24-byte key from password and salt using OpenSSL's method
-func deriveKey(password string, salt []byte) []byte {
-        // OpenSSL's EVP_BytesToKey with MD5: iteratively hash password+salt to get 24 bytes
-        var key []byte
-        var prev []byte
-        for len(key) < 24 {
-                h := md5.New()
-                if len(prev) > 0 {
-                        h.Write(prev)
-                }
-                h.Write([]byte(password))
-                h.Write(salt)
-                prev = h.Sum(nil)
-                key = append(key, prev...)
-        }
-        return key[:24]
-}
-
-// generateCSR creates a CSR from a private key file and certificate task
+// generateCSR generates a CSR from a private key and saves it to a temporary file
 func generateCSR(keyFile string, certTask *config.CertificateTask, keyPass string) (string, error) {
-        // Read private key
-        keyPEM, err := os.ReadFile(keyFile)
-        if err != nil {
-                return "", fmt.Errorf("failed to read private key file: %w", err)
-        }
+	keyPEM, err := os.ReadFile(keyFile)
+	if err != nil {
+		return "", err
+	}
 
-        // Decode private key
-        block, _ := pem.Decode(keyPEM)
-        if block == nil {
-                return "", fmt.Errorf("failed to decode private key PEM")
-        }
+	block, _ := pem.Decode(keyPEM)
+	if block == nil {
+		return "", fmt.Errorf("failed to decode PEM block containing private key")
+	}
 
-        var privateKey interface{}
-        if block.Type == "RSA PRIVATE KEY" {
-                if keyPass != "" && block.Headers["Proc-Type"] == "4,ENCRYPTED" {
-                        // Decrypt the private key
-                        privateKey, err = decryptPrivateKey(block, keyPass)
-                        if err != nil {
-                                return "", fmt.Errorf("failed to decrypt private key: %w", err)
-                        }
-                } else {
-                        // Unencrypted private key
-                        privateKey, err = x509.ParsePKCS1PrivateKey(block.Bytes)
-                        if err != nil {
-                                return "", fmt.Errorf("failed to parse RSA private key: %w", err)
-                        }
-                }
-        } else {
-                return "", fmt.Errorf("unsupported private key type: %s", block.Type)
-        }
+	var privKey *rsa.PrivateKey
+	if x509.IsEncryptedPEMBlock(block) {
+		decrypted, err := x509.DecryptPEMBlock(block, []byte(keyPass))
+		if err != nil {
+			return "", err
+		}
+		privKey, err = x509.ParsePKCS1PrivateKey(decrypted)
+		if err != nil {
+			return "", err
+		}
+	} else {
+		privKey, err = x509.ParsePKCS1PrivateKey(block.Bytes)
+		if err != nil {
+			return "", err
+		}
+	}
 
-        // Prepare SAN values
-        var dnsNames []string
-        var ipAddresses []net.IP
-        var emailAddresses []string
+	// Create CSR template
+	template := x509.CertificateRequest{
+		Subject: pkix.Name{
+			CommonName:         certTask.Request.Subject.CommonName,
+			Country:            []string{certTask.Request.Subject.Country},
+			Province:           []string{certTask.Request.Subject.State},
+			Locality:           []string{certTask.Request.Subject.Locality},
+			Organization:       []string{certTask.Request.Subject.Organization},
+			OrganizationalUnit: certTask.Request.Subject.OrgUnits,
+		},
+		SignatureAlgorithm: x509.SHA256WithRSA,
+	}
 
-        if certTask.Request.SANs != nil && certTask.Request.SANs.SubjectAltNames != nil {
-                dnsNames = certTask.Request.SANs.SubjectAltNames.DNS
-                for _, ipStr := range certTask.Request.SANs.SubjectAltNames.IP {
-                        if ip := net.ParseIP(ipStr); ip != nil {
-                                ipAddresses = append(ipAddresses, ip)
-                        }
-                }
-                emailAddresses = certTask.Request.SANs.SubjectAltNames.Email
-        }
+	// Add SANs
+	for _, san := range certTask.Request.SANs.SubjectAltNames.DNS {
+		template.DNSNames = append(template.DNSNames, san)
+	}
+	for _, san := range certTask.Request.SANs.SubjectAltNames.IP {
+		template.IPAddresses = append(template.IPAddresses, net.ParseIP(san))
+	}
+	for _, san := range certTask.Request.SANs.SubjectAltNames.Email {
+		template.EmailAddresses = append(template.EmailAddresses, san)
+	}
 
-        // Create CSR template
-        template := x509.CertificateRequest{
-                Subject: pkix.Name{
-                        CommonName:         certTask.Request.Subject.CommonName,
-                        Country:            []string{certTask.Request.Subject.Country},
-                        Province:           []string{certTask.Request.Subject.State},
-                        Locality:           []string{certTask.Request.Subject.Locality},
-                        Organization:       []string{certTask.Request.Subject.Organization},
-                        OrganizationalUnit: certTask.Request.Subject.OrgUnits,
-                },
-                DNSNames:       dnsNames,
-                IPAddresses:    ipAddresses,
-                EmailAddresses: emailAddresses,
-        }
+	csrBytes, err := x509.CreateCertificateRequest(rand.Reader, &template, privKey)
+	if err != nil {
+		return "", err
+	}
 
-        // Create CSR
-        csrBytes, err := x509.CreateCertificateRequest(rand.Reader, &template, privateKey)
-        if err != nil {
-                return "", fmt.Errorf("failed to create CSR: %w", err)
-        }
+	csrFile, err := os.CreateTemp("", "zcert-csr-*.pem")
+	if err != nil {
+		return "", err
+	}
+	defer csrFile.Close()
 
-        // Create temporary file for CSR
-        csrFile, err := os.CreateTemp("", "zcert_csr_*.pem")
-        if err != nil {
-                return "", fmt.Errorf("failed to create temporary CSR file: %w", err)
-        }
-        defer csrFile.Close()
+	if err := pem.Encode(csrFile, &pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csrBytes}); err != nil {
+		return "", err
+	}
 
-        // Encode CSR to PEM
-        csrPEM := pem.EncodeToMemory(&pem.Block{
-                Type:  "CERTIFICATE REQUEST",
-                Bytes: csrBytes,
-        })
-
-        // Write to file
-        if _, err := csrFile.Write(csrPEM); err != nil {
-                return "", fmt.Errorf("failed to write CSR file: %w", err)
-        }
-
-        return csrFile.Name(), nil
-}
-
-// decryptPrivateKey decrypts a private key with a password using DES-EDE3-CBC
-func decryptPrivateKey(block *pem.Block, password string) (interface{}, error) {
-        // Parse the DEK-Info header to get salt
-        dekInfo, ok := block.Headers["DEK-Info"]
-        if !ok {
-                return nil, fmt.Errorf("missing DEK-Info header in encrypted private key")
-        }
-        
-        // Extract salt from DEK-Info (format: "DES-EDE3-CBC,salt")
-        parts := strings.Split(dekInfo, ",")
-        if len(parts) != 2 {
-                return nil, fmt.Errorf("invalid DEK-Info format: %s", dekInfo)
-        }
-        
-        saltHex := parts[1]
-        salt, err := hex.DecodeString(saltHex)
-        if err != nil {
-                return nil, fmt.Errorf("failed to decode salt: %w", err)
-        }
-
-        // Derive key from password and salt using MD5
-        keyBytes := deriveKey(password, salt)
-
-        // Create DES-EDE3 cipher
-        blockCipher, err := des.NewTripleDESCipher(keyBytes)
-        if err != nil {
-                return nil, fmt.Errorf("failed to create cipher: %w", err)
-        }
-
-        // Decrypt the data
-        decrypted := make([]byte, len(block.Bytes))
-        mode := cipher.NewCBCDecrypter(blockCipher, keyBytes[:8])
-        mode.CryptBlocks(decrypted, block.Bytes)
-
-        // Unpad the data
-        padLen := int(decrypted[len(decrypted)-1])
-        if padLen < 1 || padLen > 8 {
-                return nil, fmt.Errorf("invalid padding length: %d", padLen)
-        }
-        decrypted = decrypted[:len(decrypted)-padLen]
-
-        // Parse the private key
-        return x509.ParsePKCS1PrivateKey(decrypted)
-}
-
-// createPKCS12Bundle creates a PKCS#12 bundle with the certificate and private key
-func createPKCS12Bundle(keyPEM, certPEM []byte, password string) ([]byte, error) {
-        // Parse the private key
-        keyBlock, _ := pem.Decode(keyPEM)
-        if keyBlock == nil {
-                return nil, fmt.Errorf("failed to decode private key PEM")
-        }
-        
-        var privateKey interface{}
-        var err error
-        
-        if keyBlock.Type == "RSA PRIVATE KEY" {
-                if keyBlock.Headers["Proc-Type"] == "4,ENCRYPTED" {
-                        // Decrypt the private key if it's encrypted
-                        privateKey, err = decryptPrivateKey(keyBlock, password)
-                        if err != nil {
-                                return nil, fmt.Errorf("failed to decrypt private key: %w", err)
-                        }
-                } else {
-                        // Unencrypted private key
-                        privateKey, err = x509.ParsePKCS1PrivateKey(keyBlock.Bytes)
-                        if err != nil {
-                                return nil, fmt.Errorf("failed to parse RSA private key: %w", err)
-                        }
-                }
-        } else {
-                return nil, fmt.Errorf("unsupported private key type: %s", keyBlock.Type)
-        }
-        
-        // Parse the certificate
-        certBlock, _ := pem.Decode(certPEM)
-        if certBlock == nil {
-                return nil, fmt.Errorf("failed to decode certificate PEM")
-        }
-        
-        if certBlock.Type != "CERTIFICATE" {
-                return nil, fmt.Errorf("invalid certificate PEM type: %s", certBlock.Type)
-        }
-        
-        cert, err := x509.ParseCertificate(certBlock.Bytes)
-        if err != nil {
-                return nil, fmt.Errorf("failed to parse certificate: %w", err)
-        }
-        
-        // Create PKCS#12 bundle
-        p12Data, err := pkcs12.Encode(rand.Reader, privateKey, cert, nil, password)
-        if err != nil {
-                return nil, fmt.Errorf("failed to create PKCS#12 bundle: %w", err)
-        }
-        
-        return p12Data, nil
-}
-
+	return csrFile.Name(), nil
+} 

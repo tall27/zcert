@@ -8,6 +8,30 @@ import (
 	"strings"
 )
 
+// A map of supported legacy PQC algorithms for case-insensitive lookup.
+// The key is the uppercase name, and the value is the canonical lowercase name for OpenSSL.
+var supportedLegacyAlgorithms = map[string]string{
+	"DILITHIUM2": "dilithium2",
+	"DILITHIUM3": "dilithium3",
+	"DILITHIUM5": "dilithium5",
+	"MLDSA44":    "mldsa44", // ML-DSA-44 (NIST OID 2.16.840.1.101.3.4.3.17)
+	"MLDSA65":    "mldsa65", // ML-DSA-65 (NIST OID 2.16.840.1.101.3.4.3.18)
+	"MLDSA87":    "mldsa87", // ML-DSA-87 (NIST OID 2.16.840.1.101.3.4.3.19)
+	"FALCON512":  "falcon512",
+	"FALCON1024": "falcon1024",
+	"SLHDSA128F": "sphincssha2128fsimple",
+	"SLHDSA192F": "sphincssha2192fsimple",
+}
+
+// A map of supported modern PQC algorithms for case-insensitive lookup.
+var supportedModernAlgorithms = map[string]bool{
+	"MLDSA44":    true,
+	"MLDSA65":    true,
+	"MLDSA87":    true,
+	"SLHDSA128F": true,
+	"SLHDSA192F": true,
+}
+
 // PQCAlgorithm represents a supported PQC algorithm
 type PQCAlgorithm string
 
@@ -19,7 +43,17 @@ const (
 	// SLH-DSA variants
 	SLHDSA128F PQCAlgorithm = "SLHDSA128F"
 	SLHDSA192F PQCAlgorithm = "SLHDSA192F"
-	SLHDSA256F PQCAlgorithm = "SLHDSA256F"
+	// Kyber variants
+	Kyber512 PQCAlgorithm = "Kyber512"
+	Kyber768 PQCAlgorithm = "Kyber768"
+	Kyber1024 PQCAlgorithm = "Kyber1024"
+	// Falcon variants
+	Falcon512 PQCAlgorithm = "Falcon512"
+	Falcon1024 PQCAlgorithm = "Falcon1024"
+	// Dilithium variants (legacy names)
+	Dilithium2 PQCAlgorithm = "Dilithium2"
+	Dilithium3 PQCAlgorithm = "Dilithium3"
+	Dilithium5 PQCAlgorithm = "Dilithium5"
 )
 
 // PQCGenerator handles PQC certificate generation
@@ -50,43 +84,77 @@ func NewPQCGenerator(openSSLPath, tempDir string, verbose, noCleanup, legacyAlgN
 
 // ValidateAlgorithm checks if the provided algorithm is supported
 func (g *PQCGenerator) ValidateAlgorithm(alg string) error {
-	alg = strings.ToUpper(alg)
-	switch PQCAlgorithm(alg) {
-	case MLDSA44, MLDSA65, MLDSA87, SLHDSA128F, SLHDSA192F, SLHDSA256F:
-		return nil
+	upperAlg := strings.ToUpper(alg)
+	if g.LegacyAlgNames {
+		if _, ok := supportedLegacyAlgorithms[upperAlg]; ok {
+			return nil
+		}
+	} else {
+		if _, ok := supportedModernAlgorithms[upperAlg]; ok {
+			return nil
+		}
+	}
+	return fmt.Errorf("unsupported PQC algorithm: %s", alg)
+}
+
+// convertToLegacyAlgorithm converts a PQC algorithm name to its legacy OpenSSL name if legacy mode is enabled
+func (g *PQCGenerator) convertToLegacyAlgorithm(algorithm string) string {
+	if !g.LegacyAlgNames {
+		if g.Verbose {
+			fmt.Fprintf(os.Stderr, "DEBUG: Legacy algorithm names disabled, using original algorithm: %s\n", algorithm)
+		}
+		return algorithm
+	}
+
+	// Check if there's a specific legacy algorithm override
+	if g.LegacyPQCAlgorithm != "" {
+		if g.Verbose {
+			fmt.Fprintf(os.Stderr, "DEBUG: Using legacy algorithm override: %s -> %s\n", algorithm, g.LegacyPQCAlgorithm)
+		}
+		return g.LegacyPQCAlgorithm
+	}
+
+	// Convert to uppercase for case-insensitive lookup
+	upperAlg := strings.ToUpper(algorithm)
+
+	// Look up in the supported legacy algorithms map
+	if legacyAlg, exists := supportedLegacyAlgorithms[upperAlg]; exists {
+		if g.Verbose {
+			fmt.Fprintf(os.Stderr, "DEBUG: Found legacy algorithm mapping: %s -> %s\n", algorithm, legacyAlg)
+		}
+		return legacyAlg
+	}
+
+	// If not found, return the original algorithm (converted to lowercase for OpenSSL)
+	lowerAlg := strings.ToLower(algorithm)
+	if g.Verbose {
+		fmt.Fprintf(os.Stderr, "DEBUG: No legacy mapping found, using lowercase: %s -> %s\n", algorithm, lowerAlg)
+	}
+	return lowerAlg
+}
+
+// Helper to determine if an algorithm is MLDSA (NIST standardized)
+func isMLDSA(algorithm string) bool {
+	switch strings.ToLower(algorithm) {
+	case "mldsa44", "mldsa65", "mldsa87":
+		return true
 	default:
-		return fmt.Errorf("unsupported PQC algorithm: %s", alg)
+		return false
 	}
 }
 
-// convertToLegacyAlgorithm converts modern algorithm names to legacy names for OpenSSL 3.5
-func (g *PQCGenerator) convertToLegacyAlgorithm(algorithm string) string {
-	if !g.LegacyAlgNames {
-		return algorithm
+// getMaskedArgs creates a copy of command arguments and masks any passwords.
+func getMaskedArgs(args []string) []string {
+	maskedArgs := make([]string, len(args))
+	copy(maskedArgs, args)
+	for i, arg := range maskedArgs {
+		if (arg == "-passout" || arg == "-passin") && i+1 < len(maskedArgs) {
+			if strings.HasPrefix(maskedArgs[i+1], "pass:") {
+				maskedArgs[i+1] = "pass:*****"
+			}
+		}
 	}
-	
-	// If a specific legacy algorithm name is provided, use it
-	if g.LegacyPQCAlgorithm != "" {
-		return g.LegacyPQCAlgorithm
-	}
-	
-	// Otherwise, convert modern names to legacy names
-	switch strings.ToUpper(algorithm) {
-	case "MLDSA44":
-		return "dilithium2"
-	case "MLDSA65":
-		return "dilithium3"
-	case "MLDSA87":
-		return "dilithium5"
-	case "SLHDSA128F":
-		return "sphincs+-sha256-128f-simple"
-	case "SLHDSA192F":
-		return "sphincs+-sha256-192f-simple"
-	case "SLHDSA256F":
-		return "sphincs+-sha256-256f-simple"
-	default:
-		return algorithm
-	}
+	return maskedArgs
 }
 
 // GenerateKey generates a PQC private key using OpenSSL
@@ -97,27 +165,35 @@ func (g *PQCGenerator) GenerateKey(algorithm string) (string, error) {
 
 	// Convert to legacy algorithm name if needed
 	legacyAlgorithm := g.convertToLegacyAlgorithm(algorithm)
-	
 	keyFile := filepath.Join(g.TempDir, fmt.Sprintf("%s.key", strings.ToLower(algorithm)))
-	
+
 	var cmd *exec.Cmd
-	
-	if g.LegacyAlgNames {
-		// Use legacy OpenSSL command with provider
-		cmd = exec.Command(g.OpenSSLPath, "genpkey",
+
+	// Provider selection based on algorithm
+	if isMLDSA(legacyAlgorithm) {
+		// Use only default provider for MLDSA
+		args := []string{"genpkey",
 			"-algorithm", legacyAlgorithm,
+			"-provider", "default",
 			"-provider-path", g.TempDir,
-			"-provider", "oqsprovider",
-			"-out", keyFile)
+			"-out", keyFile}
+		cmd = exec.Command(g.OpenSSLPath, args...)
 	} else {
-		// Use modern OpenSSL command
-		cmd = exec.Command(g.OpenSSLPath, "genpkey",
-			"-algorithm", algorithm,
-			"-out", keyFile)
+		// Use oqsprovider and default for all other PQC algorithms
+		args := []string{"genpkey",
+			"-algorithm", legacyAlgorithm,
+			"-provider", "default",
+			"-provider", "oqsprovider",
+			"-provider-path", g.TempDir,
+			"-out", keyFile}
+		cmd = exec.Command(g.OpenSSLPath, args...)
 	}
 
+	// Set OPENSSL_MODULES environment variable to help OpenSSL find oqsprovider.dll
+	cmd.Env = append(os.Environ(), "OPENSSL_MODULES="+g.TempDir)
+
 	if g.Verbose {
-		fmt.Printf("[zcert] OpenSSL command: %s\n", strings.Join(cmd.Args, " "))
+		fmt.Printf("[zcert] OpenSSL command: %s\n", strings.Join(getMaskedArgs(cmd.Args), " "))
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 	}
@@ -133,40 +209,53 @@ func (g *PQCGenerator) GenerateKey(algorithm string) (string, error) {
 }
 
 // GenerateCSR generates a CSR using the provided key and subject information
-func (g *PQCGenerator) GenerateCSR(keyFile string, subject Subject, sans []string) (string, error) {
+func (g *PQCGenerator) GenerateCSR(keyFile string, subject Subject, sans []string, password string) (string, error) {
 	// Generate OpenSSL config
 	configFile := filepath.Join(g.TempDir, "openssl.cnf")
 	if err := g.generateOpenSSLConfig(configFile, subject, sans); err != nil {
 		return "", err
 	}
 
-	// Generate CSR
 	csrFile := filepath.Join(g.TempDir, filepath.Base(keyFile[:len(keyFile)-4])+".csr")
-	
+
 	var cmd *exec.Cmd
-	
-	if g.LegacyAlgNames {
-		// Use legacy OpenSSL command with provider (generate CSR, not self-signed cert)
-		cmd = exec.Command(g.OpenSSLPath, "req",
+
+	// Determine algorithm from key file name
+	algo := strings.TrimSuffix(filepath.Base(keyFile), ".key")
+	if isMLDSA(algo) {
+		// Use only default provider for MLDSA
+		args := []string{"req",
 			"-new",
 			"-key", keyFile,
 			"-out", csrFile,
 			"-subj", subject.String(),
 			"-provider", "default",
-			"-provider-path", g.TempDir,
-			"-provider", "oqsprovider")
+			"-provider-path", g.TempDir}
+		if password != "" {
+			args = append(args, "-passin", "pass:"+password)
+		}
+		cmd = exec.Command(g.OpenSSLPath, args...)
 	} else {
-		// Use modern OpenSSL command
-		cmd = exec.Command(g.OpenSSLPath, "req",
-			"-config", configFile,
+		// Use oqsprovider and default for all other PQC algorithms
+		args := []string{"req",
 			"-new",
 			"-key", keyFile,
 			"-out", csrFile,
-			"-subj", subject.String())
+			"-subj", subject.String(),
+			"-provider", "default",
+			"-provider", "oqsprovider",
+			"-provider-path", g.TempDir}
+		if password != "" {
+			args = append(args, "-passin", "pass:"+password)
+		}
+		cmd = exec.Command(g.OpenSSLPath, args...)
 	}
 
+	// Set OPENSSL_MODULES environment variable to help OpenSSL find oqsprovider.dll
+	cmd.Env = append(os.Environ(), "OPENSSL_MODULES="+g.TempDir)
+
 	if g.Verbose {
-		fmt.Printf("[zcert] OpenSSL command: %s\n", strings.Join(cmd.Args, " "))
+		fmt.Printf("[zcert] OpenSSL command: %s\n", strings.Join(getMaskedArgs(cmd.Args), " "))
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 	}
@@ -271,4 +360,33 @@ func (g *PQCGenerator) Cleanup(files ...string) {
 			os.Remove(file)
 		}
 	}
+}
+
+// EncryptKey encrypts a PQC private key using OpenSSL pkcs8
+func (g *PQCGenerator) EncryptKey(keyFile, password, outputFile string) error {
+	args := []string{"pkcs8", 
+		"-in", keyFile,
+		"-topk8",
+		"-out", outputFile,
+		"-passout", "pass:"+password,
+		"-provider-path", g.TempDir,
+		"-provider", "default",
+		"-provider", "oqsprovider"}
+	
+	cmd := exec.Command(g.OpenSSLPath, args...)
+
+	// Set OPENSSL_MODULES environment variable to help OpenSSL find oqsprovider.dll
+	cmd.Env = append(os.Environ(), "OPENSSL_MODULES="+g.TempDir)
+
+	if g.Verbose {
+		fmt.Printf("[zcert] OpenSSL encryption command: %s\n", strings.Join(getMaskedArgs(cmd.Args), " "))
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+	}
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("failed to encrypt PQC key: %w", err)
+	}
+
+	return nil
 } 

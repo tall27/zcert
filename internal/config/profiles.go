@@ -96,7 +96,7 @@ type ProfileConfig struct {
 }
 
 // LoadProfileConfig loads profiles from an INI-style configuration file
-func LoadProfileConfig(filename string) (*ProfileConfig, error) {
+func LoadProfileConfig(filename string, preferPQC bool) (*ProfileConfig, error) {
         file, err := os.Open(filename)
         if err != nil {
                 return nil, fmt.Errorf("failed to open config file %s: %w", filename, err)
@@ -215,6 +215,13 @@ func LoadProfileConfig(filename string) (*ProfileConfig, error) {
 
         if err := scanner.Err(); err != nil {
                 return nil, fmt.Errorf("error reading config file: %w", err)
+        }
+
+        // Prefer [pqc] as default if requested and it exists
+        if preferPQC {
+                if pqc, ok := config.Profiles["pqc"]; ok {
+                        config.Default = pqc
+                }
         }
 
         // Ensure we have a default profile
@@ -443,5 +450,5 @@ func LoadConfig(filename string) (*ProfileConfig, error) {
 
         // Load CNF/INI format configuration files only
         // YAML playbook files are handled separately in yaml.go
-        return LoadProfileConfig(filename)
+        return LoadProfileConfig(filename, false)
 }
