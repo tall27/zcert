@@ -1,11 +1,22 @@
 package cmd
 
 import (
+	"crypto/cipher"
+	"crypto/des"
+	"crypto/md5"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/hex"
+	"encoding/pem"
 	"fmt"
-	"github.com/spf13/cobra"
+	"net"
 	"os"
 	"strings"
 	"time"
+	"github.com/spf13/cobra"
+	"software.sslmate.com/src/go-pkcs12"
 	"zcert/internal/api"
 	"zcert/internal/cert"
 	"zcert/internal/config"
@@ -54,6 +65,7 @@ func init() {
 	pqcCmd.Flags().String("key-password", "", "Password for private key encryption")
 	pqcCmd.Flags().String("p12-password", "", "Password for PKCS#12 bundle")
 	pqcCmd.Flags().Bool("no-key-output", false, "Don't output private key to file")
+	pqcCmd.Flags().Bool("chain", false, "Include certificate chain")
 
 	// Operational Flags
 	pqcCmd.Flags().String("validity", "", "Certificate validity period (30d, 6m, 1y, etc.)")
@@ -75,14 +87,14 @@ func runPQC(cmd *cobra.Command, args []string) error {
 	}
 
 	// Create PQC generator with correct signature
-	generator := cert.NewPQCGenerator(cfg.OpenSSLPath, cfg.TempDir, cfg.Verbose, cfg.NoClean)
+	generator := cert.NewPQCGenerator(cfg.OpenSSLPath, cfg.TempDir, cfg.Verbose, cfg.NoCleanup, cfg.LegacyAlgNames, cfg.LegacyPQCAlgorithm)
 
 	// Generate PQC key
 	keyFile, err := generator.GenerateKey(cfg.Algorithm)
 	if err != nil {
 		return fmt.Errorf("failed to generate PQC key: %w", err)
 	}
-	if !cfg.NoClean {
+	if !cfg.NoCleanup {
 		defer generator.Cleanup(keyFile)
 	}
 
@@ -121,7 +133,7 @@ func runPQC(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to generate CSR: %w", err)
 	}
-	if !cfg.NoClean {
+	if !cfg.NoCleanup {
 		defer generator.Cleanup(csrFile)
 	}
 
@@ -234,6 +246,50 @@ func runPQC(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to retrieve certificate: %w", err)
 	}
 	
+	// Validate format
+	format := cfg.Format
+	if format != "pem" && format != "p12" {
+		return fmt.Errorf("unsupported output format: %s (supported: pem, p12)", format)
+	}
+	
+	// Handle PKCS#12 format
+	if format == "p12" {
+		if cfg.P12Password == "" {
+			return fmt.Errorf("p12-password is required when using --format p12")
+		}
+		
+		// Read private key for PKCS#12 bundle
+		keyPEM, err := os.ReadFile(keyFile)
+		if err != nil {
+			return fmt.Errorf("failed to read private key for PKCS#12 bundle: %w", err)
+		}
+		
+		// Create PKCS#12 filename
+		p12Filename := cfg.CertFile
+		if p12Filename == "" {
+			p12Filename = cfg.CommonName + ".p12"
+		}
+		
+		// Create PKCS#12 bundle
+		p12Data, err := createPKCS12Bundle(keyPEM, []byte(certPEM.Certificate), cfg.P12Password)
+		if err != nil {
+			return fmt.Errorf("failed to create PKCS#12 bundle: %w", err)
+		}
+		
+		// Write PKCS#12 file
+		if err := os.WriteFile(p12Filename, p12Data, 0600); err != nil {
+			return fmt.Errorf("failed to write PKCS#12 file: %w", err)
+		}
+		
+		if verboseLevel > 0 {
+			fmt.Fprintf(os.Stderr, "PKCS#12 bundle written to: %s\n", p12Filename)
+		}
+		
+		// Don't output individual files when using PKCS#12 format
+		return nil
+	}
+	
+	// PEM format output
 	// Write certificate and chain to files as per pqc's output options
 	if cfg.CertFile != "" {
 		if err := os.WriteFile(cfg.CertFile, []byte(certPEM.Certificate), 0644); err != nil {
@@ -266,11 +322,62 @@ func runPQC(cmd *cobra.Command, args []string) error {
 		}
 	}
 	
-	// Always write the private key
-	if cfg.KeyFile != "" && keyFile != "" {
-		copyFile(keyFile, cfg.KeyFile)
+	// Handle private key output
+	if !cfg.NoKeyOutput && keyFile != "" {
+		// Read the generated private key
+		keyPEM, err := os.ReadFile(keyFile)
+		if err != nil {
+			return fmt.Errorf("failed to read private key: %w", err)
+		}
+		
+		// Determine key output filename
+		keyOutputFile := cfg.KeyFile
+		if keyOutputFile == "" {
+			keyOutputFile = cfg.CommonName + ".key"
+		}
+		
+		// Handle key encryption if password is provided
+		if cfg.KeyPassword != "" {
+			// Parse the private key
+			keyBlock, _ := pem.Decode(keyPEM)
+			if keyBlock == nil {
+				return fmt.Errorf("failed to decode private key PEM")
+			}
+			
+			// Decrypt if already encrypted, then re-encrypt with new password
+			var privateKey interface{}
+			if x509.IsEncryptedPEMBlock(keyBlock) {
+				privateKey, err = decryptPrivateKey(keyBlock, "")
+				if err != nil {
+					return fmt.Errorf("failed to decrypt existing private key: %w", err)
+				}
+			} else {
+				// Parse unencrypted key
+				privateKey, err = x509.ParsePKCS1PrivateKey(keyBlock.Bytes)
+				if err != nil {
+					return fmt.Errorf("failed to parse private key: %w", err)
+				}
+			}
+			
+			// Encrypt with new password
+			encryptedKey, err := encryptPrivateKey(privateKey.(*rsa.PrivateKey), cfg.KeyPassword)
+			if err != nil {
+				return fmt.Errorf("failed to encrypt private key: %w", err)
+			}
+			
+			// Write encrypted key
+			if err := os.WriteFile(keyOutputFile, encryptedKey, 0600); err != nil {
+				return fmt.Errorf("failed to write encrypted private key: %w", err)
+			}
+		} else {
+			// Write unencrypted key
+			if err := os.WriteFile(keyOutputFile, keyPEM, 0600); err != nil {
+				return fmt.Errorf("failed to write private key: %w", err)
+			}
+		}
+		
 		if verboseLevel > 0 {
-			fmt.Fprintf(os.Stderr, "Private key written to: %s\n", cfg.KeyFile)
+			fmt.Fprintf(os.Stderr, "Private key written to: %s\n", keyOutputFile)
 		}
 	}
 	
@@ -283,7 +390,9 @@ type PQCConfig struct {
 	TempDir     string
 	Algorithm   string
 	Verbose     bool
-	NoClean     bool
+	NoCleanup   bool
+	LegacyAlgNames bool
+	LegacyPQCAlgorithm string
 
 	// Certificate configuration
 	CommonName           string
@@ -323,7 +432,7 @@ func loadPQCConfig(cmd *cobra.Command) (*PQCConfig, error) {
 		OpenSSLPath: "openssl",
 		TempDir:     os.TempDir(),
 		Verbose:     false, // Will be set by global verbose level
-		NoClean:     false,
+		NoCleanup:   false,
 	}
 
 	// Load configuration file
@@ -378,7 +487,9 @@ func loadPQCConfig(cmd *cobra.Command) (*PQCConfig, error) {
 		return nil, fmt.Errorf("pqc-algorithm must be specified either via --pqc-algorithm flag or in the selected profile of the config file (profile: %s)", profile)
 	}
 	
-	cfg.NoClean = profileSection.NoClean // Read NoClean from the profile section
+	cfg.NoCleanup = profileSection.NoCleanup // Read NoCleanup from the profile section
+	cfg.LegacyAlgNames = profileSection.LegacyAlgNames
+	cfg.LegacyPQCAlgorithm = profileSection.LegacyPQCAlgorithm
 
 	// Map certificate configuration
 	cfg.CommonName, _ = cmd.Flags().GetString("cn")
@@ -418,4 +529,181 @@ func loadPQCConfig(cmd *cobra.Command) (*PQCConfig, error) {
 	cfg.Validity = fmt.Sprintf("%d", profileSection.Validity)
 
 	return cfg, nil
+}
+
+// encryptPrivateKey encrypts a private key with a password using DES-EDE3-CBC
+func encryptPrivateKey(key *rsa.PrivateKey, password string) ([]byte, error) {
+	// Generate random salt
+	salt := make([]byte, 8)
+	if _, err := rand.Read(salt); err != nil {
+		return nil, fmt.Errorf("failed to generate salt: %w", err)
+	}
+	
+	// Derive key from password and salt using MD5
+	keyBytes := deriveKey(password, salt)
+	
+	// Create DES-EDE3-CBC cipher
+	block, err := des.NewTripleDESCipher(keyBytes[:24])
+	if err != nil {
+		return nil, fmt.Errorf("failed to create cipher: %w", err)
+	}
+	
+	// Encrypt the private key
+	keyData := x509.MarshalPKCS1PrivateKey(key)
+	paddedData := pkcs7Pad(keyData, block.BlockSize())
+	
+	ciphertext := make([]byte, len(paddedData))
+	mode := cipher.NewCBCEncrypter(block, keyBytes[:8])
+	mode.CryptBlocks(ciphertext, paddedData)
+	
+	// Create PEM block with encryption info
+	blockType := "RSA PRIVATE KEY"
+	headers := map[string]string{
+		"Proc-Type": "4,ENCRYPTED",
+		"DEK-Info":  fmt.Sprintf("DES-EDE3-CBC,%s", hex.EncodeToString(salt)),
+	}
+	
+	pemBlock := &pem.Block{
+		Type:    blockType,
+		Headers: headers,
+		Bytes:   ciphertext,
+	}
+	
+	return pem.EncodeToMemory(pemBlock), nil
+}
+
+// deriveKey derives a 24-byte key from password and salt using OpenSSL's method
+func deriveKey(password string, salt []byte) []byte {
+	// OpenSSL's EVP_BytesToKey with MD5: iteratively hash password+salt to get 24 bytes
+	key := make([]byte, 24)
+	hash := md5.New()
+	
+	// First iteration: hash password + salt
+	hash.Write([]byte(password))
+	hash.Write(salt)
+	copy(key[:16], hash.Sum(nil))
+	
+	// Second iteration: hash previous result + password + salt
+	hash.Reset()
+	hash.Write(key[:16])
+	hash.Write([]byte(password))
+	hash.Write(salt)
+	copy(key[16:], hash.Sum(nil)[:8])
+	
+	return key
+}
+
+// pkcs7Pad adds PKCS#7 padding to data
+func pkcs7Pad(data []byte, blockSize int) []byte {
+	padding := blockSize - len(data)%blockSize
+	padtext := make([]byte, padding)
+	for i := range padtext {
+		padtext[i] = byte(padding)
+	}
+	return append(data, padtext...)
+}
+
+// decryptPrivateKey decrypts a private key with a password using DES-EDE3-CBC
+func decryptPrivateKey(block *pem.Block, password string) (interface{}, error) {
+	if !x509.IsEncryptedPEMBlock(block) {
+		return nil, fmt.Errorf("PEM block is not encrypted")
+	}
+	
+	// Extract salt from DEK-Info header
+	dekInfo := block.Headers["DEK-Info"]
+	if dekInfo == "" {
+		return nil, fmt.Errorf("missing DEK-Info header in encrypted private key")
+	}
+	
+	parts := strings.Split(dekInfo, ",")
+	if len(parts) != 2 {
+		return nil, fmt.Errorf("invalid DEK-Info format")
+	}
+	
+	salt, err := hex.DecodeString(parts[1])
+	if err != nil {
+		return nil, fmt.Errorf("invalid salt in DEK-Info: %w", err)
+	}
+	
+	// Derive key from password and salt using MD5
+	keyBytes := deriveKey(password, salt)
+	
+	// Create DES-EDE3-CBC cipher
+	cipherBlock, err := des.NewTripleDESCipher(keyBytes[:24])
+	if err != nil {
+		return nil, fmt.Errorf("failed to create cipher: %w", err)
+	}
+	
+	// Decrypt the private key
+	plaintext := make([]byte, len(block.Bytes))
+	mode := cipher.NewCBCDecrypter(cipherBlock, keyBytes[:8])
+	mode.CryptBlocks(plaintext, block.Bytes)
+	
+	// Remove PKCS#7 padding
+	plaintext = pkcs7Unpad(plaintext)
+	
+	// Parse the private key
+	privateKey, err := x509.ParsePKCS1PrivateKey(plaintext)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse decrypted private key: %w", err)
+	}
+	
+	return privateKey, nil
+}
+
+// pkcs7Unpad removes PKCS#7 padding from data
+func pkcs7Unpad(data []byte) []byte {
+	if len(data) == 0 {
+		return data
+	}
+	padding := int(data[len(data)-1])
+	if padding > len(data) {
+		return data
+	}
+	return data[:len(data)-padding]
+}
+
+// createPKCS12Bundle creates a PKCS#12 bundle with the certificate and private key
+func createPKCS12Bundle(keyPEM, certPEM []byte, password string) ([]byte, error) {
+	// Parse the private key
+	keyBlock, _ := pem.Decode(keyPEM)
+	if keyBlock == nil {
+		return nil, fmt.Errorf("failed to decode private key PEM")
+	}
+	
+	var privateKey interface{}
+	var err error
+	
+	if x509.IsEncryptedPEMBlock(keyBlock) {
+		// Decrypt the private key
+		privateKey, err = decryptPrivateKey(keyBlock, password)
+		if err != nil {
+			return nil, fmt.Errorf("failed to decrypt private key: %w", err)
+		}
+	} else {
+		// Parse unencrypted private key
+		privateKey, err = x509.ParsePKCS1PrivateKey(keyBlock.Bytes)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse private key: %w", err)
+		}
+	}
+	
+	// Parse the certificate
+	certBlock, _ := pem.Decode(certPEM)
+	if certBlock == nil {
+		return nil, fmt.Errorf("failed to decode certificate PEM")
+	}
+	
+	cert, err := x509.ParseCertificate(certBlock.Bytes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse certificate: %w", err)
+	}
+	
+	// Create PKCS#12 bundle
+	p12Data, err := pkcs12.Encode(rand.Reader, privateKey, cert, nil, password)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create PKCS#12 bundle: %w", err)
+	}
+	
+	return p12Data, nil
 } 

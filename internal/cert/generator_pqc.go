@@ -27,19 +27,23 @@ type PQCGenerator struct {
 	OpenSSLPath    string
 	TempDir        string
 	Verbose        bool
-	NoClean        bool
+	NoCleanup      bool
+	LegacyAlgNames bool
+	LegacyPQCAlgorithm string
 	ExtKeyUsage    []string
 	CertPolicy     []string
 	GeneratedFiles []string // Track files created by OpenSSL
 }
 
 // NewPQCGenerator creates a new PQC generator instance
-func NewPQCGenerator(openSSLPath, tempDir string, verbose, noClean bool) *PQCGenerator {
+func NewPQCGenerator(openSSLPath, tempDir string, verbose, noCleanup, legacyAlgNames bool, legacyPQCAlgorithm string) *PQCGenerator {
 	return &PQCGenerator{
 		OpenSSLPath:    openSSLPath,
 		TempDir:        tempDir,
 		Verbose:        verbose,
-		NoClean:        noClean,
+		NoCleanup:      noCleanup,
+		LegacyAlgNames: legacyAlgNames,
+		LegacyPQCAlgorithm: legacyPQCAlgorithm,
 		GeneratedFiles: []string{},
 	}
 }
@@ -55,16 +59,62 @@ func (g *PQCGenerator) ValidateAlgorithm(alg string) error {
 	}
 }
 
+// convertToLegacyAlgorithm converts modern algorithm names to legacy names for OpenSSL 3.5
+func (g *PQCGenerator) convertToLegacyAlgorithm(algorithm string) string {
+	if !g.LegacyAlgNames {
+		return algorithm
+	}
+	
+	// If a specific legacy algorithm name is provided, use it
+	if g.LegacyPQCAlgorithm != "" {
+		return g.LegacyPQCAlgorithm
+	}
+	
+	// Otherwise, convert modern names to legacy names
+	switch strings.ToUpper(algorithm) {
+	case "MLDSA44":
+		return "dilithium2"
+	case "MLDSA65":
+		return "dilithium3"
+	case "MLDSA87":
+		return "dilithium5"
+	case "SLHDSA128F":
+		return "sphincs+-sha256-128f-simple"
+	case "SLHDSA192F":
+		return "sphincs+-sha256-192f-simple"
+	case "SLHDSA256F":
+		return "sphincs+-sha256-256f-simple"
+	default:
+		return algorithm
+	}
+}
+
 // GenerateKey generates a PQC private key using OpenSSL
 func (g *PQCGenerator) GenerateKey(algorithm string) (string, error) {
 	if err := g.ValidateAlgorithm(algorithm); err != nil {
 		return "", err
 	}
 
+	// Convert to legacy algorithm name if needed
+	legacyAlgorithm := g.convertToLegacyAlgorithm(algorithm)
+	
 	keyFile := filepath.Join(g.TempDir, fmt.Sprintf("%s.key", strings.ToLower(algorithm)))
-	cmd := exec.Command(g.OpenSSLPath, "genpkey",
-		"-algorithm", algorithm,
-		"-out", keyFile)
+	
+	var cmd *exec.Cmd
+	
+	if g.LegacyAlgNames {
+		// Use legacy OpenSSL command with provider
+		cmd = exec.Command(g.OpenSSLPath, "genpkey",
+			"-algorithm", legacyAlgorithm,
+			"-provider-path", g.TempDir,
+			"-provider", "oqsprovider",
+			"-out", keyFile)
+	} else {
+		// Use modern OpenSSL command
+		cmd = exec.Command(g.OpenSSLPath, "genpkey",
+			"-algorithm", algorithm,
+			"-out", keyFile)
+	}
 
 	if g.Verbose {
 		fmt.Printf("[zcert] OpenSSL command: %s\n", strings.Join(cmd.Args, " "))
@@ -92,12 +142,28 @@ func (g *PQCGenerator) GenerateCSR(keyFile string, subject Subject, sans []strin
 
 	// Generate CSR
 	csrFile := filepath.Join(g.TempDir, filepath.Base(keyFile[:len(keyFile)-4])+".csr")
-	cmd := exec.Command(g.OpenSSLPath, "req",
-		"-config", configFile,
-		"-new",
-		"-key", keyFile,
-		"-out", csrFile,
-		"-subj", subject.String())
+	
+	var cmd *exec.Cmd
+	
+	if g.LegacyAlgNames {
+		// Use legacy OpenSSL command with provider (generate CSR, not self-signed cert)
+		cmd = exec.Command(g.OpenSSLPath, "req",
+			"-new",
+			"-key", keyFile,
+			"-out", csrFile,
+			"-subj", subject.String(),
+			"-provider", "default",
+			"-provider-path", g.TempDir,
+			"-provider", "oqsprovider")
+	} else {
+		// Use modern OpenSSL command
+		cmd = exec.Command(g.OpenSSLPath, "req",
+			"-config", configFile,
+			"-new",
+			"-key", keyFile,
+			"-out", csrFile,
+			"-subj", subject.String())
+	}
 
 	if g.Verbose {
 		fmt.Printf("[zcert] OpenSSL command: %s\n", strings.Join(cmd.Args, " "))
@@ -193,9 +259,9 @@ keyUsage = digitalSignature, nonRepudiation`
 	return os.WriteFile(configFile, []byte(configContent), 0644)
 }
 
-// Cleanup removes temporary files unless NoClean is true
+// Cleanup removes temporary files unless NoCleanup is true
 func (g *PQCGenerator) Cleanup(files ...string) {
-	if g.NoClean {
+	if g.NoCleanup {
 		return
 	}
 

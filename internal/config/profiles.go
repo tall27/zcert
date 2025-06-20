@@ -81,8 +81,12 @@ type Profile struct {
         OutDir    string
         NoKeyOut  bool
         Chain     bool
-        NoClean   bool
+        NoCleanup   bool
         PQCAlgorithm string
+        LegacyAlgNames bool
+        LegacyPQCAlgorithm string
+        OpenSSLPath string
+        TempDir    string
 }
 
 // ProfileConfig manages multiple profiles
@@ -158,50 +162,53 @@ func LoadProfileConfig(filename string) (*ProfileConfig, error) {
 
                         // Parse configuration values
                         switch strings.ToLower(key) {
-                        case "url", "base_url":
+                        case "url", "base-url":
                                 currentProfile.URL = value
-                        case "key-id", "key_id", "keyid", "hawk_id", "hawk-id":
+                        case "key-id", "hawk-id":
                                 currentProfile.KeyID = value
-                        case "secret", "hawk_key", "hawk-key", "hawk-api":
+                        case "secret", "hawk-key", "hawk-api":
                                 currentProfile.Secret = value
-                        case "account", "account_id", "account-id":
+                        case "account", "account-id":
                                 currentProfile.Account = value
-
                         case "format":
                                 currentProfile.Format = value
-                        case "policy", "policy_id", "policyid":
+                        case "policy", "policy-id":
                                 currentProfile.PolicyID = value
-                        case "p12-password", "p12_password", "p12pass":
+                        case "p12-password", "p12-pass":
                                 currentProfile.P12Pass = value
-                        case "key-size", "key_size", "keysize":
+                        case "key-size":
                                 if size, err := strconv.Atoi(value); err == nil {
                                         currentProfile.KeySize = size
                                 }
-                        case "key-type", "key_type", "keytype":
+                        case "key-type":
                                 currentProfile.KeyType = value
-                        case "validity", "validity_days":
-                                // Handle validity with suffixes (e.g., "5d", "30", "1y")
+                        case "validity":
                                 if days, err := strconv.Atoi(value); err == nil {
-                                        // Plain integer - treat as days
                                         currentProfile.Validity = days
                                 } else {
-                                        // Try parsing as validity period with suffixes
                                         if validityPeriod, err := parseValidityPeriodSimple(value); err == nil {
-                                                // Convert to total days
                                                 totalDays := validityPeriod.Years*365 + validityPeriod.Months*30 + validityPeriod.Days
                                                 currentProfile.Validity = totalDays
                                         }
                                 }
-                        case "output-dir", "output_dir", "outdir":
+                        case "output-dir":
                                 currentProfile.OutDir = value
-                        case "no-key-output", "no_key_output", "nokeyout":
+                        case "no-key-output":
                                 currentProfile.NoKeyOut = strings.ToLower(value) == "true"
-                        case "chain", "include_chain":
+                        case "chain":
                                 currentProfile.Chain = strings.ToLower(value) == "true"
-                        case "no-clean", "noclean":
-                                currentProfile.NoClean = strings.ToLower(value) == "true"
+                        case "no-cleanup":
+                                currentProfile.NoCleanup = strings.ToLower(value) == "true"
                         case "pqc-algorithm":
                                 currentProfile.PQCAlgorithm = value
+                        case "legacy-alg-names":
+                                currentProfile.LegacyAlgNames = strings.ToLower(value) == "true"
+                        case "legacy-pqc-algorithm":
+                                currentProfile.LegacyPQCAlgorithm = value
+                        case "openssl-path":
+                                currentProfile.OpenSSLPath = value
+                        case "temp-dir":
+                                currentProfile.TempDir = value
                         }
                 }
         }
@@ -393,7 +400,7 @@ func MergeProfileWithFlags(profile *Profile, flagURL, flagKeyID, flagSecret, fla
                 if profile.Validity > 0 {
                         merged.Validity = profile.Validity
                 }
-                merged.NoClean = profile.NoClean
+                merged.NoCleanup = profile.NoCleanup
         }
 
         // Override with command-line flags (highest priority)
