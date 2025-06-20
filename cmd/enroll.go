@@ -150,63 +150,110 @@ func runEnroll(cmd *cobra.Command, args []string) error {
 
 	// Use profile configuration if available
 	profile := GetCurrentProfile()
-	var finalProfile *config.Profile
-	var chainValue bool
-	chainFlag := cmd.Flags().Changed("chain")
+
+	// Create final configuration following hierarchy: CLI > Config > Environment
+	finalProfile := &config.Profile{
+		Algo:   "sha256",
+		Format: "pem", // default format
+	}
+
+	// Step 1: Start with environment variables as base
+	if url := os.Getenv("ZTPKI_URL"); url != "" {
+		finalProfile.URL = url
+	}
+	if hawkID := os.Getenv("ZTPKI_HAWK_ID"); hawkID != "" {
+		finalProfile.KeyID = hawkID
+	}
+	if hawkKey := os.Getenv("ZTPKI_HAWK_SECRET"); hawkKey != "" {
+		finalProfile.Secret = hawkKey
+	}
+	if policy := os.Getenv("ZTPKI_POLICY_ID"); policy != "" {
+		finalProfile.PolicyID = policy
+	}
+
+	// Step 2: Override with config file values if available
 	if profile != nil {
-		finalProfile = config.MergeProfileWithFlags(
-			profile,
-			enrollURL, enrollHawkID, enrollHawkKey,
-			enrollFormat, enrollPolicy, enrollP12Pass,
-			enrollKeySize, enrollKeyType,
-		)
-		if chainFlag {
-			chainValue, _ = cmd.Flags().GetBool("chain")
+		if profile.URL != "" {
+			finalProfile.URL = profile.URL
+		}
+		if profile.KeyID != "" {
+			finalProfile.KeyID = profile.KeyID
+		}
+		if profile.Secret != "" {
+			finalProfile.Secret = profile.Secret
+		}
+		if profile.PolicyID != "" {
+			finalProfile.PolicyID = profile.PolicyID
+		}
+		if profile.Format != "" {
+			finalProfile.Format = profile.Format
+		}
+		if profile.P12Pass != "" {
+			finalProfile.P12Pass = profile.P12Pass
+		}
+		if profile.KeySize > 0 {
+			finalProfile.KeySize = profile.KeySize
 		} else {
-			chainValue = profile.Chain
+			finalProfile.KeySize = 2048 // default
 		}
+		if profile.KeyType != "" {
+			finalProfile.KeyType = profile.KeyType
+		} else {
+			finalProfile.KeyType = "rsa" // default
+		}
+		if profile.Validity > 0 {
+			finalProfile.Validity = profile.Validity
+		}
+		finalProfile.Chain = profile.Chain
 	} else {
-		// Fallback to environment variables if CLI flags are not set
-		url := enrollURL
-		if url == "" {
-			url = os.Getenv("ZTPKI_URL")
-		}
-		hawkID := enrollHawkID
-		if hawkID == "" {
-			hawkID = os.Getenv("ZTPKI_HAWK_ID")
-		}
-		hawkKey := enrollHawkKey
-		if hawkKey == "" {
-			hawkKey = os.Getenv("ZTPKI_HAWK_SECRET")
-		}
-		policy := enrollPolicy
-		if policy == "" {
-			policy = os.Getenv("ZTPKI_POLICY_ID")
-		}
-		finalProfile = &config.Profile{
-			URL:      url,
-			KeyID:    hawkID,
-			Secret:   hawkKey,
-			Algo:     "sha256",
-			Format:   enrollFormat,
-			PolicyID: policy,
-			P12Pass:  enrollP12Pass,
-		}
-		if finalProfile.Format == "" {
-			finalProfile.Format = "pem"
-		}
+		// Set defaults when no profile
+		finalProfile.KeySize = 2048
+		finalProfile.KeyType = "rsa"
+	}
+
+	// Step 3: Override with CLI flags (highest priority)
+	if enrollURL != "" {
+		finalProfile.URL = enrollURL
+	}
+	if enrollHawkID != "" {
+		finalProfile.KeyID = enrollHawkID
+	}
+	if enrollHawkKey != "" {
+		finalProfile.Secret = enrollHawkKey
+	}
+	if enrollPolicy != "" {
+		finalProfile.PolicyID = enrollPolicy
+	}
+	if enrollFormat != "" {
+		finalProfile.Format = enrollFormat
+	}
+	if enrollP12Pass != "" {
+		finalProfile.P12Pass = enrollP12Pass
+	}
+	if cmd.Flags().Changed("key-size") {
+		finalProfile.KeySize = enrollKeySize
+	}
+	if cmd.Flags().Changed("key-type") {
+		finalProfile.KeyType = enrollKeyType
+	}
+
+	// Handle chain flag
+	var chainValue bool
+	if cmd.Flags().Changed("chain") {
 		chainValue, _ = cmd.Flags().GetBool("chain")
+	} else {
+		chainValue = finalProfile.Chain
 	}
 
 	// Validate required authentication parameters
 	if finalProfile.URL == "" {
-		return fmt.Errorf("ZTPKI URL is required (use --url flag or config file)")
+		return fmt.Errorf("ZTPKI URL is required (use --url flag, config file, or ZTPKI_URL environment variable)")
 	}
 	if finalProfile.KeyID == "" {
-		return fmt.Errorf("HAWK ID is required (use --hawk-id flag or config file)")
+		return fmt.Errorf("HAWK ID is required (use --hawk-id flag, config file, or ZTPKI_HAWK_ID environment variable)")
 	}
 	if finalProfile.Secret == "" {
-		return fmt.Errorf("HAWK key is required (use --hawk-key flag or config file)")
+		return fmt.Errorf("HAWK key is required (use --hawk-key flag, config file, or ZTPKI_HAWK_SECRET environment variable)")
 	}
 
 	// Create API client with profile settings
@@ -224,7 +271,7 @@ func runEnroll(cmd *cobra.Command, args []string) error {
 	// Show variable hierarchy in verbose mode (both -v and -vv)
 	if verboseLevel > 0 {
 		fmt.Printf("\n=== Variable Hierarchy (CLI > Config > Environment) ===\n")
-		
+
 		// ZTPKI URL
 		var urlSource string
 		if enrollURL != "" {
@@ -232,11 +279,11 @@ func runEnroll(cmd *cobra.Command, args []string) error {
 		} else if profile != nil && profile.URL != "" {
 			urlSource = "Config"
 		} else if os.Getenv("ZTPKI_URL") != "" {
-			urlSource = "ENV Variable"
+			urlSource = "Environment"
 		} else {
 			urlSource = "Not set"
 		}
-		fmt.Printf("ZTPKI_URL - %s - %s\n", urlSource, finalProfile.URL)
+		fmt.Printf("ZTPKI_URL: %s (%s)\n", finalProfile.URL, urlSource)
 
 		// HAWK ID
 		var hawkIDSource string
@@ -245,11 +292,11 @@ func runEnroll(cmd *cobra.Command, args []string) error {
 		} else if profile != nil && profile.KeyID != "" {
 			hawkIDSource = "Config"
 		} else if os.Getenv("ZTPKI_HAWK_ID") != "" {
-			hawkIDSource = "ENV Variable"
+			hawkIDSource = "Environment"
 		} else {
 			hawkIDSource = "Not set"
 		}
-		fmt.Printf("ZTPKI_HAWK_ID - %s - %s\n", hawkIDSource, finalProfile.KeyID)
+		fmt.Printf("ZTPKI_HAWK_ID: %s (%s)\n", finalProfile.KeyID, hawkIDSource)
 
 		// HAWK Secret
 		var hawkSecretSource string
@@ -258,11 +305,11 @@ func runEnroll(cmd *cobra.Command, args []string) error {
 		} else if profile != nil && profile.Secret != "" {
 			hawkSecretSource = "Config"
 		} else if os.Getenv("ZTPKI_HAWK_SECRET") != "" {
-			hawkSecretSource = "ENV Variable"
+			hawkSecretSource = "Environment"
 		} else {
 			hawkSecretSource = "Not set"
 		}
-		fmt.Printf("ZTPKI_HAWK_SECRET - %s - %s\n", hawkSecretSource, maskSecret(finalProfile.Secret))
+		fmt.Printf("ZTPKI_HAWK_SECRET: %s (%s)\n", maskSecret(finalProfile.Secret), hawkSecretSource)
 
 		// Policy ID
 		var policySource string
@@ -271,12 +318,40 @@ func runEnroll(cmd *cobra.Command, args []string) error {
 		} else if profile != nil && profile.PolicyID != "" {
 			policySource = "Config"
 		} else if os.Getenv("ZTPKI_POLICY_ID") != "" {
-			policySource = "ENV Variable"
+			policySource = "Environment"
 		} else {
 			policySource = "Not set"
 		}
-		fmt.Printf("ZTPKI_POLICY_ID - %s - %s\n", policySource, finalProfile.PolicyID)
+		fmt.Printf("ZTPKI_POLICY_ID: %s (%s)\n", finalProfile.PolicyID, policySource)
 		fmt.Printf("===============================================\n\n")
+	}
+
+	// Step 4: Handle policy selection if no policy is specified
+	if finalProfile.PolicyID == "" {
+		fmt.Println("No policy specified. Fetching available policies...")
+		policies, err := client.GetPolicies()
+		if err != nil {
+			return fmt.Errorf("failed to fetch policies: %w", err)
+		}
+
+		if len(policies) == 0 {
+			return fmt.Errorf("no policies available")
+		}
+
+		fmt.Println("\nAvailable Policies:")
+		for i, policy := range policies {
+			fmt.Printf("%d. %s (ID: %s)\n", i+1, policy.Name, policy.ID)
+		}
+
+		fmt.Print("\nSelect a policy by number (1-", len(policies), "): ")
+		var selection int
+		_, err = fmt.Scanf("%d", &selection)
+		if err != nil || selection < 1 || selection > len(policies) {
+			return fmt.Errorf("invalid selection")
+		}
+
+		finalProfile.PolicyID = policies[selection-1].ID
+		fmt.Printf("Selected policy: %s (ID: %s)\n\n", policies[selection-1].Name, finalProfile.PolicyID)
 	}
 
 	// Get configuration values (CLI flags override config/profile)
@@ -289,7 +364,7 @@ func runEnroll(cmd *cobra.Command, args []string) error {
 	keySize := finalProfile.KeySize
 	keyType := finalProfile.KeyType
 	format := finalProfile.Format
-	
+
 	// Use validity from profile if not provided via CLI flag
 	validity := enrollValidity
 	if validity == "" && finalProfile.Validity > 0 {
