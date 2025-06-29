@@ -26,11 +26,12 @@ const (
 
 // OutputOptions provides options for custom file output
 type OutputOptions struct {
-        CertFile    string // Certificate output file path
-        KeyFile     string // Private key output file path
-        ChainFile   string // Certificate chain output file path
-        BundleFile  string // Combined certificate bundle file path (cert + chain)
-        KeyPassword string // Password for private key encryption
+        CertFile     string // Certificate output file path
+        KeyFile      string // Private key output file path
+        ChainFile    string // Certificate chain output file path
+        BundleFile   string // Combined certificate bundle file path (cert + chain)
+        KeyPassword  string // Password for private key encryption
+        IncludeChain bool   // Whether to include chain in stdout output
 }
 
 // Outputter handles certificate output in various formats
@@ -329,9 +330,11 @@ func (o *Outputter) outputPEMToFiles(cert *api.Certificate, privateKey interface
                 
                 fmt.Print(certPEM)
                 
-                // Include chain if available
-                for _, chainCert := range cert.Chain {
-                        fmt.Print(chainCert)
+                // Include chain if requested and available
+                if options.IncludeChain {
+                        for _, chainCert := range cert.Chain {
+                                fmt.Print(chainCert)
+                        }
                 }
         }
 

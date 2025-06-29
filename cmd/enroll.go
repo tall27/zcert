@@ -14,6 +14,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"zcert/internal/api"
+	"zcert/internal/cert"
 	"zcert/internal/config"
 	"zcert/internal/utils"
 )
@@ -531,16 +532,22 @@ func runEnroll(cmd *cobra.Command, args []string) error {
 				}
 			}
 
-			// Output certificate
-			if enrollCertFile != "" {
-				if err := os.WriteFile(enrollCertFile, []byte(certPEM.Certificate), 0644); err != nil {
-					return fmt.Errorf("failed to write certificate file: %w", err)
-				}
-				if verboseLevel > 0 {
-					fmt.Fprintf(os.Stderr, "Certificate written to: %s\n", enrollCertFile)
-				}
-			} else {
-				fmt.Println(certPEM.Certificate)
+			// Use the certificate output system
+			outputCert := convertPEMResponseToCertificate(certPEM, certificate)
+			
+			outputOptions := cert.OutputOptions{
+				CertFile:     enrollCertFile,
+				KeyFile:      enrollKeyFile,
+				ChainFile:    enrollChainFile,
+				BundleFile:   enrollBundleFile,
+				KeyPassword:  enrollKeyPass,
+				IncludeChain: chainValue,
+			}
+
+			outputter := cert.NewOutputter(format, "", enrollP12Pass)
+			err = outputter.OutputCertificateToFiles(outputCert, keyPEM, !enrollNoKey, outputOptions)
+			if err != nil {
+				return fmt.Errorf("failed to output certificate: %w", err)
 			}
 		}
 

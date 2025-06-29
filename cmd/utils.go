@@ -84,4 +84,29 @@ func CreateAPIClientFromProfile(profile *config.Profile, verboseLevel int) (*api
 	}
 
 	return client, nil
-} 
+}
+
+// convertPEMResponseToCertificate converts API CertificatePEMResponse to Certificate format for output
+func convertPEMResponseToCertificate(pemResp *api.CertificatePEMResponse, cert *api.Certificate) *api.Certificate {
+	if pemResp == nil {
+		return cert
+	}
+
+	// Create a new certificate object with PEM format and chain
+	result := &api.Certificate{
+		ID:          cert.ID,
+		CommonName:  cert.CommonName,
+		Certificate: pemResp.Certificate,
+		Status:      cert.Status,
+		CreatedDate: cert.CreatedDate,
+		ExpiryDate:  cert.ExpiryDate,
+	}
+
+	// Add chain if available
+	if pemResp.Chain != "" {
+		// Split the chain into individual certificates if needed
+		result.Chain = []string{pemResp.Chain}
+	}
+
+	return result
+}
