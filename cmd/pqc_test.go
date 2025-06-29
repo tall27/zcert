@@ -12,7 +12,7 @@ func TestPQC_IssueCertificate(t *testing.T) {
 	if os.Getenv("CI") != "" {
 		t.Skip("Skipping PQC test in CI environment")
 	}
-	_, err := os.Stat(".\openssl.exe")
+	_, err := os.Stat("./openssl.exe")
 	if err != nil {
 		t.Skip("OpenSSL not found, skipping PQC test")
 	}

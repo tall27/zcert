@@ -836,6 +836,80 @@ func (c *Client) convertRevocationReason(reason string) int {
         }
 }
 
+// EnrollmentWorkflow performs the complete certificate enrollment workflow
+// This includes CSR submission, polling for completion, and certificate retrieval
+func (c *Client) EnrollmentWorkflow(csrPEM string, certTask *config.CertificateTask) (*Certificate, error) {
+        // Submit CSR to ZTPKI
+        requestID, err := c.SubmitCSRWithFullPayload(csrPEM, certTask, c.verboseLevel)
+        if err != nil {
+                return nil, fmt.Errorf("failed to submit CSR: %w", err)
+        }
+
+        if c.verboseLevel > 0 {
+                fmt.Fprintf(os.Stderr, "CSR submitted successfully. Request ID: %s\n", requestID)
+        }
+
+        // Wait for certificate to be issued
+        if c.verboseLevel > 0 {
+                fmt.Fprintf(os.Stderr, "Waiting for certificate issuance...\n")
+        }
+
+        // Poll for certificate completion
+        certificate, err := c.PollForCertificateCompletion(requestID, 600) // 10 minutes with 1-second intervals
+        if err != nil {
+                return nil, err
+        }
+
+        return certificate, nil
+}
+
+// PollForCertificateCompletion polls the ZTPKI API until a certificate is issued or fails
+// maxAttempts specifies the maximum number of polling attempts (each attempt waits 1 second)
+func (c *Client) PollForCertificateCompletion(requestID string, maxAttempts int) (*Certificate, error) {
+        var certificate *Certificate
+        attemptCount := 0
+
+        for attemptCount < maxAttempts {
+                attemptCount++
+                time.Sleep(1 * time.Second)
+
+                // Check certificate request status first
+                request, err := c.GetCertificateRequest(requestID)
+                if err != nil {
+                        if c.verboseLevel > 0 && attemptCount%20 == 1 { // Log every 20 seconds
+                                fmt.Fprintf(os.Stderr, "Attempt %d: Certificate not ready yet...\n", attemptCount)
+                        }
+                        continue
+                }
+
+                if request.IssuanceStatus == "COMPLETE" || request.IssuanceStatus == "VALID" || request.IssuanceStatus == "ISSUED" {
+                        if c.verboseLevel > 0 {
+                                fmt.Fprintf(os.Stderr, "Certificate issued successfully!\n")
+                        }
+                        // Now get the actual certificate using the certificate ID
+                        certificate, err = c.GetCertificate(request.CertificateID)
+                        if err != nil {
+                                return nil, fmt.Errorf("failed to retrieve certificate after issuance: %w", err)
+                        }
+                        break
+                } else if request.IssuanceStatus == "FAILED" {
+                        errorMsg := fmt.Sprintf("certificate issuance failed: %s", request.IssuanceStatus)
+                        if request.Status != "" {
+                                errorMsg += fmt.Sprintf(" (Status: %s)", request.Status)
+                        }
+                        return nil, fmt.Errorf(errorMsg)
+                } else if c.verboseLevel > 0 {
+                        fmt.Fprintf(os.Stderr, "Certificate status: %s\n", request.IssuanceStatus)
+                }
+        }
+
+        if certificate == nil {
+                return nil, fmt.Errorf("certificate issuance timed out after %d attempts", maxAttempts)
+        }
+
+        return certificate, nil
+}
+
 // extractCNFromCSR extracts the Common Name from a PEM-encoded CSR
 func extractCNFromCSR(csrPEM string) (string, error) {
         block, _ := pem.Decode([]byte(csrPEM))

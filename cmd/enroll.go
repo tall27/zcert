@@ -10,7 +10,6 @@ import (
 	"net"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -256,16 +255,10 @@ func runEnroll(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("HAWK key is required (use --hawk-key flag, config file, or ZTPKI_HAWK_SECRET environment variable)")
 	}
 
-	// Create API client with profile settings
-	cfg := &config.Config{
-		BaseURL: finalProfile.URL,
-		HawkID:  finalProfile.KeyID,
-		HawkKey: finalProfile.Secret,
-	}
-
-	client, err := api.NewClientWithVerbose(cfg, verboseLevel)
+	// Create API client using the utility function
+	client, err := CreateAPIClientFromProfile(finalProfile, verboseLevel)
 	if err != nil {
-		return fmt.Errorf("failed to initialize API client: %w", err)
+		return err
 	}
 
 	// Show variable hierarchy in verbose mode (both -v and -vv)
@@ -469,61 +462,10 @@ func runEnroll(cmd *cobra.Command, args []string) error {
 			fmt.Fprintf(os.Stderr, "CSR generated successfully: %s\n", csrFile)
 		}
 
-		// Submit CSR to ZTPKI
-		requestID, err := client.SubmitCSRWithFullPayload(string(csrPEM), certTask, verboseLevel)
+		// Use the enrollment workflow function
+		certificate, err := client.EnrollmentWorkflow(string(csrPEM), certTask)
 		if err != nil {
-			return fmt.Errorf("failed to submit CSR: %w", err)
-		}
-
-		if verboseLevel > 0 {
-			fmt.Fprintf(os.Stderr, "CSR submitted successfully. Request ID: %s\n", requestID)
-		}
-
-		// Wait for certificate to be issued
-		if verboseLevel > 0 {
-			fmt.Fprintf(os.Stderr, "Waiting for certificate issuance...\n")
-		}
-
-		// Poll for certificate completion
-		var certificate *api.Certificate
-		attemptCount := 0
-		maxAttempts := 600 // 10 minutes with 1-second intervals
-		for attemptCount < maxAttempts {
-			attemptCount++
-			time.Sleep(1 * time.Second)
-
-			// Check certificate request status first
-			request, err := client.GetCertificateRequest(requestID)
-			if err != nil {
-				if verboseLevel > 0 && attemptCount%20 == 1 { // Log every second (20 * 50ms)
-					fmt.Fprintf(os.Stderr, "Attempt %d: Certificate not ready yet...\n", attemptCount)
-				}
-				continue
-			}
-
-			if request.IssuanceStatus == "COMPLETE" || request.IssuanceStatus == "VALID" || request.IssuanceStatus == "ISSUED" {
-				if verboseLevel > 0 {
-					fmt.Fprintf(os.Stderr, "Certificate issued successfully!\n")
-				}
-				// Now get the actual certificate using the certificate ID
-				certificate, err = client.GetCertificate(request.CertificateID)
-				if err != nil {
-					return fmt.Errorf("failed to retrieve certificate after issuance: %w", err)
-				}
-				break
-			} else if request.IssuanceStatus == "FAILED" {
-				errorMsg := fmt.Sprintf("certificate issuance failed: %s", request.IssuanceStatus)
-				if request.Status != "" {
-					errorMsg += fmt.Sprintf(" (Status: %s)", request.Status)
-				}
-				return fmt.Errorf(errorMsg)
-			} else if verboseLevel > 0 {
-				fmt.Fprintf(os.Stderr, "Certificate status: %s\n", request.IssuanceStatus)
-			}
-		}
-
-		if certificate == nil {
-			return fmt.Errorf("certificate issuance timed out after %d attempts", maxAttempts)
+			return err
 		}
 
 		// Retrieve certificate
@@ -613,13 +555,14 @@ func runEnroll(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("failed to read CSR file: %w", err)
 		}
 		
-		requestID, err := client.SubmitCSRWithFullPayload(string(csrPEM), certTask, verboseLevel)
+		// Use the enrollment workflow function for file mode too
+		_, err = client.EnrollmentWorkflow(string(csrPEM), certTask)
 		if err != nil {
-			return fmt.Errorf("failed to submit CSR: %w", err)
+			return err
 		}
 
 		if verboseLevel > 0 {
-			fmt.Fprintf(os.Stderr, "CSR submitted successfully. Request ID: %s\n", requestID)
+			fmt.Fprintf(os.Stderr, "Certificate enrollment completed successfully\n")
 		}
 	} else {
 		return fmt.Errorf("unsupported CSR mode: %s (supported: local, file)", csrMode)

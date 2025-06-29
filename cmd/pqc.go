@@ -4,10 +4,8 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"time"
 
 	"github.com/spf13/cobra"
-	"zcert/internal/api"
 	"zcert/internal/cert"
 	"zcert/internal/config"
 )
@@ -155,14 +153,14 @@ func runPQC(cmd *cobra.Command, args []string) error {
 		fmt.Println("[zcert] Submitting CSR for enrollment...")
 	}
 
-	// Create API client using the same approach as enroll command
-	apiConfig := &config.Config{
-		BaseURL: cfg.URL,
-		HawkID:  cfg.HawkID,
-		HawkKey: cfg.HawkKey,
+	// Create API client using the utility function
+	profile := &config.Profile{
+		URL:    cfg.URL,
+		KeyID:  cfg.HawkID,
+		Secret: cfg.HawkKey,
 	}
 
-	client, err := api.NewClientWithVerbose(apiConfig, verboseLevel)
+	client, err := CreateAPIClientFromProfile(profile, verboseLevel)
 	if err != nil {
 		return fmt.Errorf("failed to create API client: %w", err)
 	}
@@ -195,61 +193,10 @@ func runPQC(cmd *cobra.Command, args []string) error {
 		},
 	}
 
-	// Submit CSR to ZTPKI
-	requestID, err := client.SubmitCSRWithFullPayload(string(csrPEM), certTask, verboseLevel)
+	// Use the enrollment workflow function
+	certificate, err := client.EnrollmentWorkflow(string(csrPEM), certTask)
 	if err != nil {
-		return fmt.Errorf("failed to submit CSR: %w", err)
-	}
-
-	if verboseLevel > 1 {
-		fmt.Fprintf(os.Stderr, "CSR submitted successfully. Request ID: %s\n", requestID)
-	}
-
-	// Wait for certificate to be issued
-	if verboseLevel > 1 {
-		fmt.Fprintf(os.Stderr, "Waiting for certificate issuance...\n")
-	}
-
-	// Poll for certificate completion
-	var certificate *api.Certificate
-	attemptCount := 0
-	maxAttempts := 600 // 10 minutes with 1-second intervals
-	for attemptCount < maxAttempts {
-		attemptCount++
-		time.Sleep(1 * time.Second)
-
-		// Check certificate request status first
-		request, err := client.GetCertificateRequest(requestID)
-		if err != nil {
-			if verboseLevel > 1 && attemptCount%20 == 1 { // Log every 20 seconds
-				fmt.Fprintf(os.Stderr, "Attempt %d: Certificate not ready yet...\n", attemptCount)
-			}
-			continue
-		}
-
-		if request.IssuanceStatus == "COMPLETE" || request.IssuanceStatus == "VALID" || request.IssuanceStatus == "ISSUED" {
-			if verboseLevel > 1 {
-				fmt.Fprintf(os.Stderr, "Certificate issued successfully!\n")
-			}
-			// Now get the actual certificate using the certificate ID
-			certificate, err = client.GetCertificate(request.CertificateID)
-			if err != nil {
-				return fmt.Errorf("failed to retrieve certificate after issuance: %w", err)
-			}
-			break
-		} else if request.IssuanceStatus == "FAILED" {
-			errorMsg := fmt.Sprintf("certificate issuance failed: %s", request.IssuanceStatus)
-			if request.Status != "" {
-				errorMsg += fmt.Sprintf(" (Status: %s)", request.Status)
-			}
-			return fmt.Errorf(errorMsg)
-		} else if verboseLevel > 1 {
-			fmt.Fprintf(os.Stderr, "Certificate status: %s\n", request.IssuanceStatus)
-		}
-	}
-
-	if certificate == nil {
-		return fmt.Errorf("certificate issuance timed out after %d attempts", maxAttempts)
+		return err
 	}
 
 	// Retrieve certificate
@@ -358,6 +305,7 @@ func loadPQCConfig(cmd *cobra.Command) (*PQCConfig, error) {
 
 	// Ensure profileConfig is loaded
 	pc := profileConfig
+	var configFileError error
 	if pc == nil {
 		// Try to get config file from flag or default
 		cfgFileFlag, _ := cmd.Flags().GetString("config")
@@ -368,7 +316,13 @@ func loadPQCConfig(cmd *cobra.Command) (*PQCConfig, error) {
 		var err error
 		pc, err = config.LoadProfileConfig(cfgFile, true) // preferPQC=true
 		if err != nil {
-			return nil, err
+			configFileError = err
+			// If config file loading fails, create an empty profile config to allow environment variables and CLI flags
+			if verboseLevel > 1 {
+				fmt.Fprintf(os.Stderr, "DEBUG: Config file '%s' not found: %v\n", cfgFile, err)
+				fmt.Fprintf(os.Stderr, "DEBUG: Will try environment variables and CLI flags\n")
+			}
+			pc = &config.ProfileConfig{} // Create empty config to continue with env vars and CLI flags
 		}
 	}
 
@@ -411,7 +365,29 @@ func loadPQCConfig(cmd *cobra.Command) (*PQCConfig, error) {
 	}
 
 	if selectedProfile == nil {
-		return nil, fmt.Errorf("no valid profile found (tried --profile, 'pqc', and 'Default')")
+		// If no profile found, create one from environment variables
+		if verboseLevel > 1 {
+			fmt.Fprintf(os.Stderr, "DEBUG: No profile found, checking environment variables\n")
+		}
+		selectedProfile = &config.Profile{
+			Name:   "Environment",
+			URL:    os.Getenv("ZTPKI_URL"),
+			KeyID:  os.Getenv("ZTPKI_HAWK_ID"),
+			Secret: os.Getenv("ZTPKI_HAWK_SECRET"),
+			PolicyID: os.Getenv("ZTPKI_POLICY_ID"),
+			PQCAlgorithm: "MLDSA44", // Default PQC algorithm
+		}
+		
+		// If no environment variables are set either, return error with helpful message
+		if selectedProfile.URL == "" && selectedProfile.KeyID == "" && selectedProfile.Secret == "" {
+			var errorMsg string
+			if configFileError != nil {
+				errorMsg = fmt.Sprintf("no valid configuration found:\n  - Config file error: %v\n  - No environment variables set (ZTPKI_URL, ZTPKI_HAWK_ID, ZTPKI_HAWK_SECRET)\n  - Use --url, --hawk-id, --hawk-key flags as alternative", configFileError)
+			} else {
+				errorMsg = "no valid profile found and no environment variables set (tried --profile, 'pqc', 'Default' profiles and ZTPKI_URL/ZTPKI_HAWK_ID/ZTPKI_HAWK_SECRET environment variables)"
+			}
+			return nil, fmt.Errorf(errorMsg)
+		}
 	}
 
 	// Debug information about profile and settings only if verbose level is set
