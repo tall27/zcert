@@ -16,6 +16,7 @@ import (
 )
 
 var (
+        searchID       string
         searchCN       string
         searchIssuer   string
         searchSerial   string
@@ -50,6 +51,7 @@ Primary use cases:
   - Serial number search: --serial "ABC123"
 
 Examples:
+  zcert search --id "12345-abcd-6789"       # Find certificate by ID
   zcert search --cn test                    # Find certificates with "test" in Common Name
   zcert search --recent 7                   # Certificates issued in last 7 days
   zcert search --expiring 30                # Certificates expiring in 30 days
@@ -62,6 +64,7 @@ func init() {
         rootCmd.AddCommand(searchCmd)
 
         // Search criteria flags
+        searchCmd.Flags().StringVar(&searchID, "id", "", "Search by certificate ID or GUID")
         searchCmd.Flags().StringVar(&searchCN, "cn", "", "Search by Common Name (substring matching supported)")
         searchCmd.Flags().StringVar(&searchIssuer, "issuer", "", "Search by certificate issuer")
         searchCmd.Flags().StringVar(&searchSerial, "serial", "", "Search by serial number")
@@ -252,7 +255,39 @@ func runSearch(cmd *cobra.Command, args []string) error {
                 }
         }
 
-        // Build search parameters
+        // Handle direct ID lookup (more efficient than search)
+        if searchID != "" {
+                if verboseLevel > 0 {
+                        fmt.Fprintf(os.Stderr, "Looking up certificate by ID: %s\n", searchID)
+                }
+                
+                // Use direct certificate lookup for ID-based queries
+                certificate, err := client.GetCertificate(searchID)
+                if err != nil {
+                        return fmt.Errorf("failed to retrieve certificate by ID: %w", err)
+                }
+                
+                // Return single certificate in requested format
+                certificates := []api.Certificate{*certificate}
+                
+                if verboseLevel > 0 {
+                        fmt.Fprintf(os.Stderr, "Found certificate: %s\n", certificate.CommonName)
+                }
+                
+                // Output results in the requested format
+                switch strings.ToLower(searchFormat) {
+                case "table":
+                        return outputTable(certificates, searchWide)
+                case "json":
+                        return outputJSON(certificates)
+                case "csv":
+                        return outputCSV(certificates)
+                default:
+                        return fmt.Errorf("unsupported output format: %s", searchFormat)
+                }
+        }
+
+        // Build search parameters for non-ID searches
         searchParams := api.CertificateSearchParams{
                 Account:    finalProfile.Account,
                 CommonName: searchCN,
@@ -332,6 +367,9 @@ func runSearch(cmd *cobra.Command, args []string) error {
 
         if verboseLevel > 0 {
                 fmt.Fprintln(os.Stderr, "Searching certificates with criteria:")
+                if searchID != "" {
+                        fmt.Fprintf(os.Stderr, "  Certificate ID: %s\n", searchID)
+                }
                 if searchCN != "" {
                         fmt.Fprintf(os.Stderr, "  Common Name: %s\n", searchCN)
                 }
@@ -710,6 +748,7 @@ func getSearchUsageFunc() func(*cobra.Command) error {
                 fmt.Printf("      --hawk-key string   HAWK authentication key\n\n")
                 
                 fmt.Printf("Search Criteria:\n")
+                fmt.Printf("      --id string         Search by certificate ID or GUID\n")
                 fmt.Printf("      --cn string         Search by Common Name (substring matching supported)\n")
                 fmt.Printf("      --issuer string     Search by certificate issuer\n")
                 fmt.Printf("      --serial string     Search by serial number\n")
@@ -750,6 +789,7 @@ Primary use cases:
   - Serial number search: --serial "ABC123"
 
 Examples:
+  zcert search --id "12345-abcd-6789"       # Find certificate by ID
   zcert search --cn test                    # Find certificates with "test" in Common Name
   zcert search --recent 7                   # Certificates issued in last 7 days
   zcert search --expiring 30                # Certificates expiring in 30 days
@@ -765,6 +805,7 @@ Server & Authentication:
       --hawk-key string   HAWK authentication key
 
 Search Criteria:
+      --id string         Search by certificate ID or GUID
       --cn string         Search by Common Name (substring matching supported)
       --issuer string     Search by certificate issuer
       --serial string     Search by serial number

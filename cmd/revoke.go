@@ -16,6 +16,8 @@ var (
         revokeSerial   string
         revokeReason   string
         revokeForce    bool
+        revokeFirst    bool
+        revokeWide     bool
         // ZTPKI Authentication
         revokeURL      string
         revokeHawkID   string
@@ -88,6 +90,8 @@ func init() {
         // Revocation options
         revokeCmd.Flags().StringVar(&revokeReason, "reason", "unspecified", "Revocation reason (unspecified, keyCompromise, affiliationChanged, superseded, cessationOfOperation)")
         revokeCmd.Flags().BoolVar(&revokeForce, "force", false, "Skip confirmation prompt")
+        revokeCmd.Flags().BoolVar(&revokeFirst, "first", false, "Automatically select the first certificate when multiple matches found")
+        revokeCmd.Flags().BoolVar(&revokeWide, "wide", false, "Show full column content without truncation")
 
         // Set custom help and usage functions to group flags consistently
         revokeCmd.SetHelpFunc(getRevokeHelpFunc())
@@ -241,15 +245,23 @@ func runRevoke(cmd *cobra.Command, args []string) error {
                 }
 
                 if len(certificates) > 1 {
-                        fmt.Fprintf(os.Stderr, "Error: Multiple certificates found (%d):\n", len(certificates))
-                        for i, cert := range certificates {
-                                fmt.Fprintf(os.Stderr, "  [%d] ID: %s, CN: %s, Serial: %s\n", 
-                                        i+1, cert.ID, cert.CommonName, cert.SerialNumber)
+                        if revokeFirst {
+                                // Use first certificate when --first flag is specified
+                                fmt.Fprintf(os.Stderr, "Multiple certificates found (%d), using the first one (--first flag specified):\n", len(certificates))
+                                fmt.Fprintf(os.Stderr, "  Selected: ID: %s, CN: %s, Serial: %s\n", 
+                                        certificates[0].ID, certificates[0].CommonName, certificates[0].SerialNumber)
+                                certificate = &certificates[0]
+                        } else {
+                                // Use interactive selection if multiple certificates found
+                                selectedCert, err := utils.SelectCertificate(certificates, "Multiple certificates found", revokeWide)
+                                if err != nil {
+                                        return fmt.Errorf("certificate selection failed: %w", err)
+                                }
+                                certificate = selectedCert
                         }
-                        return fmt.Errorf("multiple certificates found, use --id to specify which one to revoke")
+                } else {
+                        certificate = &certificates[0]
                 }
-
-                certificate = &certificates[0]
         }
 
         if certificate == nil {
@@ -326,7 +338,9 @@ func getRevokeUsageFunc() func(*cobra.Command) error {
                 
                 fmt.Printf("Revocation Options:\n")
                 fmt.Printf("      --reason string     Revocation reason (default \"unspecified\")\n")
-                fmt.Printf("      --force             Skip confirmation prompt\n\n")
+                fmt.Printf("      --force             Skip confirmation prompt\n")
+                fmt.Printf("      --first             Automatically select first certificate when multiple found\n")
+                fmt.Printf("      --wide              Show full column content without truncation\n\n")
                 
                 fmt.Printf("Global Flags:\n")
                 fmt.Printf("      --config string     profile config file (e.g., zcert.cnf)\n")
@@ -368,6 +382,8 @@ Certificate Identification:
 Revocation Options:
       --reason string     Revocation reason (default "unspecified")
       --force             Skip confirmation prompt
+      --first             Automatically select first certificate when multiple found
+      --wide              Show full column content without truncation
 
 Global Flags:
       --config string     profile config file (e.g., zcert.cnf)

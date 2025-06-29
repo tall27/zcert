@@ -6,6 +6,7 @@ import (
         "os"
         "strconv"
         "strings"
+        "text/tabwriter"
 
         "zcert/internal/api"
 )
@@ -226,4 +227,111 @@ func DisplayWarning(message string) {
 // DisplayInfo formats and displays an informational message to stderr
 func DisplayInfo(message string) {
         fmt.Fprintf(os.Stderr, "Info: %s\n", message)
+}
+
+// SelectCertificate presents an interactive menu for certificate selection
+func SelectCertificate(certificates []api.Certificate, prompt string, wide bool) (*api.Certificate, error) {
+        if len(certificates) == 0 {
+                return nil, fmt.Errorf("no certificates available for selection")
+        }
+        
+        // If only one certificate, use it automatically
+        if len(certificates) == 1 {
+                fmt.Fprintf(os.Stderr, "Found 1 certificate: %s (ID: %s)\n", 
+                        certificates[0].CommonName, certificates[0].ID)
+                return &certificates[0], nil
+        }
+        
+        // Check if this is an interactive session
+        if !IsInteractive() {
+                return nil, fmt.Errorf("multiple certificates found (%d) but running in non-interactive mode. Use --id to specify a particular certificate:\n%s", 
+                        len(certificates), formatCertificateList(certificates))
+        }
+        
+        // Display available certificates in table format (same as search command)
+        fmt.Fprintf(os.Stderr, "\n%s (%d found):\n", prompt, len(certificates))
+        
+        w := tabwriter.NewWriter(os.Stderr, 0, 0, 2, ' ', 0)
+        
+        // Header
+        fmt.Fprintln(w, "#\tID\tCOMMON NAME\tSERIAL\tSTATUS\tISSUER\tEXPIRES")
+        fmt.Fprintln(w, "-\t----\t-----------\t------\t------\t------\t--------")
+        
+        // Data rows
+        for i, cert := range certificates {
+                var id, cn, serial, issuer string
+                
+                if wide {
+                        // Show full values without truncation
+                        id = cert.ID
+                        cn = cert.CommonName
+                        serial = cert.SerialNumber
+                        issuer = cert.Issuer
+                } else {
+                        // Truncate long values for table display
+                        id = truncateString(cert.ID, 12)
+                        cn = truncateString(cert.CommonName, 25)
+                        serial = truncateString(cert.SerialNumber, 16)
+                        issuer = truncateString(cert.Issuer, 20)
+                }
+                
+                status := cert.Status
+                expires := cert.ExpiryDate.Format("2006-01-02")
+                
+                fmt.Fprintf(w, "%d\t%s\t%s\t%s\t%s\t%s\t%s\n", 
+                        i+1, id, cn, serial, status, issuer, expires)
+        }
+        
+        w.Flush()
+        
+        // Get user selection
+        for {
+                fmt.Fprintf(os.Stderr, "\nSelect a certificate (enter number): ")
+                
+                reader := bufio.NewReader(os.Stdin)
+                input, err := reader.ReadString('\n')
+                if err != nil {
+                        return nil, err
+                }
+                
+                input = strings.TrimSpace(input)
+                if input == "" {
+                        fmt.Fprintf(os.Stderr, "Please enter a valid number.\n")
+                        continue
+                }
+                
+                selection, err := strconv.Atoi(input)
+                if err != nil {
+                        fmt.Fprintf(os.Stderr, "Please enter a valid number: %v\n", err)
+                        continue
+                }
+                
+                if selection < 1 || selection > len(certificates) {
+                        fmt.Fprintf(os.Stderr, "Please select a number between 1 and %d\n", len(certificates))
+                        continue
+                }
+                
+                selectedCert := &certificates[selection-1]
+                fmt.Fprintf(os.Stderr, "Selected certificate: %s (ID: %s)\n", 
+                        selectedCert.CommonName, selectedCert.ID)
+                return selectedCert, nil
+        }
+}
+
+// formatCertificateList formats a list of certificates for display in error messages
+func formatCertificateList(certificates []api.Certificate) string {
+        var builder strings.Builder
+        for i, cert := range certificates {
+                builder.WriteString(fmt.Sprintf("  [%d] ID: %s, CN: %s, Serial: %s\n", 
+                        i+1, cert.ID, cert.CommonName, cert.SerialNumber))
+        }
+        return builder.String()
+}
+
+// truncateString truncates a string to maxLen characters, adding "..." if truncated
+func truncateString(s string, maxLen int) string {
+        if len(s) <= maxLen {
+                return s
+        }
+        return s[:maxLen-3] + "..."
 }

@@ -9,6 +9,7 @@ import (
         "zcert/internal/api"
         "zcert/internal/cert"
         "zcert/internal/config"
+        "zcert/internal/utils"
 )
 
 var (
@@ -20,6 +21,8 @@ var (
         retrieveOutfile  string
         retrieveP12Pass  string
         retrieveChain    bool
+        retrieveFirst    bool
+        retrieveWide     bool
         // ZTPKI Authentication
         retrieveURL      string
         retrieveHawkID   string
@@ -60,6 +63,8 @@ func init() {
         retrieveCmd.Flags().StringVar(&retrieveOutfile, "file", "", "Output file path")
         retrieveCmd.Flags().StringVar(&retrieveP12Pass, "p12-password", "", "Password for PKCS#12 format")
         retrieveCmd.Flags().BoolVar(&retrieveChain, "chain", false, "Include certificate chain")
+        retrieveCmd.Flags().BoolVar(&retrieveFirst, "first", false, "Automatically select the first certificate when multiple matches found")
+        retrieveCmd.Flags().BoolVar(&retrieveWide, "wide", false, "Show full column content without truncation")
 
         // Set custom help and usage functions to group flags consistently
         retrieveCmd.SetHelpFunc(getRetrieveHelpFunc())
@@ -190,12 +195,15 @@ func runRetrieve(cmd *cobra.Command, args []string) error {
         }
 
         var certificate *api.Certificate
+        var certificateID string
 
         // Retrieve by ID (most direct method)
         if retrieveID != "" {
                 if verboseLevel > 0 {
                         fmt.Fprintf(os.Stderr, "Retrieving certificate by ID: %s\n", retrieveID)
                 }
+                certificateID = retrieveID
+                // Get basic certificate info first for display
                 certificate, err = client.GetCertificate(retrieveID)
                 if err != nil {
                         return fmt.Errorf("failed to retrieve certificate by ID: %w", err)
@@ -223,15 +231,24 @@ func runRetrieve(cmd *cobra.Command, args []string) error {
                 }
 
                 if len(certificates) > 1 {
-                        fmt.Fprintf(os.Stderr, "Warning: Multiple certificates found (%d), using the first one:\n", len(certificates))
-                        for i, cert := range certificates {
-                                fmt.Fprintf(os.Stderr, "  [%d] ID: %s, CN: %s, Serial: %s\n", 
-                                        i+1, cert.ID, cert.CommonName, cert.SerialNumber)
+                        if retrieveFirst {
+                                // Use first certificate when --first flag is specified
+                                fmt.Fprintf(os.Stderr, "Multiple certificates found (%d), using the first one (--first flag specified):\n", len(certificates))
+                                fmt.Fprintf(os.Stderr, "  Selected: ID: %s, CN: %s, Serial: %s\n", 
+                                        certificates[0].ID, certificates[0].CommonName, certificates[0].SerialNumber)
+                                certificate = &certificates[0]
+                        } else {
+                                // Use interactive selection if multiple certificates found
+                                selectedCert, err := utils.SelectCertificate(certificates, "Multiple certificates found", retrieveWide)
+                                if err != nil {
+                                        return fmt.Errorf("certificate selection failed: %w", err)
+                                }
+                                certificate = selectedCert
                         }
-                        fmt.Fprintln(os.Stderr, "Use --id to specify a particular certificate.")
+                } else {
+                        certificate = &certificates[0]
                 }
-
-                certificate = &certificates[0]
+                certificateID = certificate.ID
         }
 
         if certificate == nil {
@@ -243,18 +260,28 @@ func runRetrieve(cmd *cobra.Command, args []string) error {
                         certificate.CommonName, certificate.SerialNumber, certificate.ExpiryDate)
         }
 
-        // Get certificate chain if requested
-        if retrieveChain {
-                if verboseLevel > 0 {
-                        fmt.Fprintln(os.Stderr, "Retrieving certificate chain...")
-                }
-                
-                chain, err := client.GetCertificateChain(certificate.ID)
-                if err != nil {
-                        fmt.Fprintf(os.Stderr, "Warning: Failed to retrieve certificate chain: %v\n", err)
+        // Now get the proper PEM format using the certificate ID
+        pemResponse, err := client.GetCertificatePEM(certificateID, retrieveChain)
+        if err != nil {
+                if retrieveChain {
+                        // Try without chain if chain retrieval fails
+                        if verboseLevel > 0 {
+                                fmt.Fprintf(os.Stderr, "Warning: Failed to retrieve certificate with chain: %v\n", err)
+                                fmt.Fprintln(os.Stderr, "Retrieving certificate without chain...")
+                        }
+                        pemResponse, err = client.GetCertificatePEM(certificateID, false)
+                        if err != nil {
+                                return fmt.Errorf("failed to retrieve certificate in PEM format: %w", err)
+                        }
                 } else {
-                        certificate.Chain = chain
+                        return fmt.Errorf("failed to retrieve certificate in PEM format: %w", err)
                 }
+        }
+
+        // Update certificate with proper PEM data
+        certificate.Certificate = pemResponse.Certificate
+        if pemResponse.Chain != "" {
+                certificate.Chain = []string{pemResponse.Chain}
         }
 
         // Output certificate
@@ -287,7 +314,9 @@ func getRetrieveUsageFunc() func(*cobra.Command) error {
                 fmt.Printf("      --format string         Output format (pem, p12, jks) (default \"pem\")\n")
                 fmt.Printf("      --file string           Output file path\n")
                 fmt.Printf("      --p12-password string   Password for PKCS#12 format\n")
-                fmt.Printf("      --chain                 Include certificate chain\n\n")
+                fmt.Printf("      --chain                 Include certificate chain\n")
+                fmt.Printf("      --first                 Automatically select first certificate when multiple found\n")
+                fmt.Printf("      --wide                  Show full column content without truncation\n\n")
                 
                 fmt.Printf("Global Flags:\n")
                 fmt.Printf("      --config string     profile config file (e.g., zcert.cnf)\n")
@@ -333,6 +362,8 @@ Output Options:
       --file string           Output file path
       --p12-password string   Password for PKCS#12 format
       --chain                 Include certificate chain
+      --first                 Automatically select first certificate when multiple found
+      --wide                  Show full column content without truncation
 
 Global Flags:
       --config string     profile config file (e.g., zcert.cnf)
