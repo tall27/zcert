@@ -1,0 +1,10 @@
+# Invalid YAML syntax test
+config:
+  connection:
+    credentials:
+      hawk-id: 'test-id'
+      hawk-api: 'test-secret
+      # Missing closing quote above
+      platform: 'https://test.com'
+certificateTasks:
+  - name: "InvalidCert"
