@@ -275,16 +275,12 @@ func runSearch(cmd *cobra.Command, args []string) error {
                 }
                 
                 // Output results in the requested format
-                switch strings.ToLower(searchFormat) {
-                case "table":
-                        return outputTable(certificates, searchWide)
-                case "json":
-                        return outputJSON(certificates)
-                case "csv":
-                        return outputCSV(certificates)
-                default:
-                        return fmt.Errorf("unsupported output format: %s", searchFormat)
+                opts := &utils.CertificateOutputOptions{
+                        Format: strings.ToLower(searchFormat),
+                        Wide:   searchWide,
+                        Writer: os.Stdout,
                 }
+                return utils.OutputCertificates(certificates, opts)
         }
 
         // Build search parameters for non-ID searches
@@ -423,16 +419,12 @@ func runSearch(cmd *cobra.Command, args []string) error {
                 }
                 
                 // Output results in the requested format
-                switch strings.ToLower(searchFormat) {
-                case "table":
-                        return outputTable(certificates, searchWide)
-                case "json":
-                        return outputJSON(certificates)
-                case "csv":
-                        return outputCSV(certificates)
-                default:
-                        return fmt.Errorf("unsupported output format: %s", searchFormat)
+                opts := &utils.CertificateOutputOptions{
+                        Format: strings.ToLower(searchFormat),
+                        Wide:   searchWide,
+                        Writer: os.Stdout,
                 }
+                return utils.OutputCertificates(certificates, opts)
         } else if needsClientFiltering {
                 // For client-side filtering, remove substring filters from server request
                 expandedParams := searchParams
@@ -489,16 +481,12 @@ func runSearch(cmd *cobra.Command, args []string) error {
         }
 
         // Output results in the requested format
-        switch strings.ToLower(searchFormat) {
-        case "table":
-                return outputTable(certificates, searchWide)
-        case "json":
-                return outputJSON(certificates)
-        case "csv":
-                return outputCSV(certificates)
-        default:
-                return fmt.Errorf("unsupported output format: %s", searchFormat)
+        opts := &utils.CertificateOutputOptions{
+                Format: strings.ToLower(searchFormat),
+                Wide:   searchWide,
+                Writer: os.Stdout,
         }
+        return utils.OutputCertificates(certificates, opts)
 }
 
 // searchExpiredCertificates implements smart pagination to find expired certificates
@@ -657,87 +645,6 @@ func applyClientSideFilters(certificates []api.Certificate, commonName, serial, 
         return filtered
 }
 
-func outputTable(certificates []api.Certificate, wide bool) error {
-        w := tabwriter.NewWriter(os.Stdout, 0, 0, 2, ' ', 0)
-        
-        // Header
-        fmt.Fprintln(w, "ID\tCOMMON NAME\tSERIAL\tSTATUS\tISSUER\tEXPIRES")
-        fmt.Fprintln(w, "----\t-----------\t------\t------\t------\t--------")
-        
-        // Data rows
-        for _, cert := range certificates {
-                var id, cn, serial, issuer string
-                
-                if wide {
-                        // Show full values without truncation
-                        id = cert.ID
-                        cn = cert.CommonName
-                        serial = cert.SerialNumber
-                        issuer = cert.Issuer
-                } else {
-                        // Truncate long values for table display
-                        id = truncateString(cert.ID, 12)
-                        cn = truncateString(cert.CommonName, 25)
-                        serial = truncateString(cert.SerialNumber, 16)
-                        issuer = truncateString(cert.Issuer, 20)
-                }
-                
-                status := cert.Status
-                expires := cert.ExpiryDate.Format("2006-01-02")
-                
-                fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\t%s\n", 
-                        id, cn, serial, status, issuer, expires)
-        }
-        
-        return w.Flush()
-}
-
-func outputJSON(certificates []api.Certificate) error {
-        // Simple JSON output - in a real implementation, you'd use json.Marshal
-        fmt.Println("[")
-        for i, cert := range certificates {
-                fmt.Printf("  {\n")
-                fmt.Printf("    \"id\": \"%s\",\n", cert.ID)
-                fmt.Printf("    \"commonName\": \"%s\",\n", cert.CommonName)
-                fmt.Printf("    \"serialNumber\": \"%s\",\n", cert.SerialNumber)
-                fmt.Printf("    \"status\": \"%s\",\n", cert.Status)
-                fmt.Printf("    \"issuer\": \"%s\",\n", cert.Issuer)
-                fmt.Printf("    \"expiryDate\": \"%s\",\n", cert.ExpiryDate.Format(time.RFC3339))
-                fmt.Printf("    \"policyId\": \"%s\"\n", cert.PolicyID)
-                if i < len(certificates)-1 {
-                        fmt.Printf("  },\n")
-                } else {
-                        fmt.Printf("  }\n")
-                }
-        }
-        fmt.Println("]")
-        return nil
-}
-
-func outputCSV(certificates []api.Certificate) error {
-        // CSV header
-        fmt.Println("ID,Common Name,Serial Number,Status,Issuer,Expiry Date,Policy ID")
-        
-        // CSV data
-        for _, cert := range certificates {
-                fmt.Printf("\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",\"%s\"\n",
-                        cert.ID,
-                        cert.CommonName,
-                        cert.SerialNumber,
-                        cert.Status,
-                        cert.Issuer,
-                        cert.ExpiryDate.Format("2006-01-02 15:04:05"),
-                        cert.PolicyID)
-        }
-        return nil
-}
-
-func truncateString(s string, maxLen int) string {
-        if len(s) <= maxLen {
-                return s
-        }
-        return s[:maxLen-3] + "..."
-}
 
 // getSearchUsageFunc returns a custom usage function that groups flags
 func getSearchUsageFunc() func(*cobra.Command) error {

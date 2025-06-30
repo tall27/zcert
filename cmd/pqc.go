@@ -8,6 +8,7 @@ import (
 	"github.com/spf13/cobra"
 	"zcert/internal/cert"
 	"zcert/internal/config"
+	"zcert/internal/utils"
 )
 
 var pqcCmd = &cobra.Command{
@@ -192,11 +193,20 @@ func runPQC(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	// Retrieve certificate
-	certPEM, err := client.GetCertificatePEM(certificate.ID, cfg.Chain)
-	if err != nil {
-		return fmt.Errorf("failed to retrieve certificate: %w", err)
+	// Retrieve certificate using standardized chain handling
+	chainOpts := &utils.ChainRetrievalOptions{
+		IncludeChain: cfg.Chain,
+		FallbackMode: true,
+		VerboseLevel: 0, // PQC command doesn't expose verbose flag
 	}
+	
+	result, err := utils.RetrieveCertificateWithChainResult(client, certificate.ID, chainOpts)
+	if err != nil {
+		return err
+	}
+	
+	certificate = result.Certificate
+	certPEM := result.PEMResponse
 
 	// Read private key for output
 	var keyPEM []byte

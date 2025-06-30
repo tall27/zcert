@@ -260,28 +260,28 @@ func runRetrieve(cmd *cobra.Command, args []string) error {
                         certificate.CommonName, certificate.SerialNumber, certificate.ExpiryDate)
         }
 
-        // Now get the proper PEM format using the certificate ID
-        pemResponse, err := client.GetCertificatePEM(certificateID, retrieveChain)
-        if err != nil {
-                if retrieveChain {
-                        // Try without chain if chain retrieval fails
-                        if verboseLevel > 0 {
-                                fmt.Fprintf(os.Stderr, "Warning: Failed to retrieve certificate with chain: %v\n", err)
-                                fmt.Fprintln(os.Stderr, "Retrieving certificate without chain...")
-                        }
-                        pemResponse, err = client.GetCertificatePEM(certificateID, false)
-                        if err != nil {
-                                return fmt.Errorf("failed to retrieve certificate in PEM format: %w", err)
-                        }
-                } else {
-                        return fmt.Errorf("failed to retrieve certificate in PEM format: %w", err)
-                }
+        // Now get the proper PEM format using standardized chain handling
+        chainOpts := &utils.ChainRetrievalOptions{
+                IncludeChain: retrieveChain,
+                FallbackMode: true,
+                VerboseLevel: verboseLevel,
         }
-
-        // Update certificate with proper PEM data
-        certificate.Certificate = pemResponse.Certificate
-        if pemResponse.Chain != "" {
-                certificate.Chain = []string{pemResponse.Chain}
+        
+        result, err := utils.RetrieveCertificateWithChainResult(client, certificateID, chainOpts)
+        if err != nil {
+                return err
+        }
+        
+        certificate = result.Certificate
+        
+        if verboseLevel > 0 {
+                if result.ChainRetrieved {
+                        fmt.Fprintf(os.Stderr, "Certificate retrieved with chain\n")
+                } else if retrieveChain && result.FallbackUsed {
+                        fmt.Fprintf(os.Stderr, "Certificate retrieved without chain (fallback used)\n")
+                } else {
+                        fmt.Fprintf(os.Stderr, "Certificate retrieved without chain\n")
+                }
         }
 
         // Output certificate

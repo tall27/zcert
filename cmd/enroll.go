@@ -468,10 +468,27 @@ func runEnroll(cmd *cobra.Command, args []string) error {
 			return err
 		}
 
-		// Retrieve certificate
-		certPEM, err := client.GetCertificatePEM(certificate.ID, chainValue)
+		// Retrieve certificate using standardized chain handling
+		chainOpts := &utils.ChainRetrievalOptions{
+			IncludeChain: chainValue,
+			FallbackMode: true,
+			VerboseLevel: verboseLevel,
+		}
+		
+		result, err := utils.RetrieveCertificateWithChainResult(client, certificate.ID, chainOpts)
 		if err != nil {
-			return fmt.Errorf("failed to retrieve certificate: %w", err)
+			return err
+		}
+		
+		certificate = result.Certificate
+		certPEM := result.PEMResponse
+		
+		if verboseLevel > 0 {
+			if result.ChainRetrieved {
+				fmt.Fprintf(os.Stderr, "Certificate retrieved with chain\n")
+			} else if chainValue && result.FallbackUsed {
+				fmt.Fprintf(os.Stderr, "Certificate retrieved without chain (fallback used)\n")
+			}
 		}
 
 		// Read private key for output
