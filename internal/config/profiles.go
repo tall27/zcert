@@ -87,6 +87,15 @@ type Profile struct {
         LegacyPQCAlgorithm string
         OpenSSLPath string
         TempDir    string
+        // PQC-specific settings
+        Cleanup bool // Controls cleanup of openssl.cnf file (default: true)
+        // Subject defaults for OpenSSL config generation
+        SubjectCountry string
+        SubjectProvince string
+        SubjectLocality string
+        SubjectOrganization string
+        SubjectOrganizationalUnit string
+        SubjectCommonName string
 }
 
 // ProfileConfig manages multiple profiles
@@ -110,12 +119,26 @@ func LoadProfileConfig(filename string, preferPQC bool) (*ProfileConfig, error) 
         scanner := bufio.NewScanner(file)
         var currentProfile *Profile
         var currentSection string
+        var inSubjectSection bool
+        var subjectContent strings.Builder
 
         for scanner.Scan() {
                 line := strings.TrimSpace(scanner.Text())
                 
-                // Skip empty lines and comments
-                if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, ";") {
+                // Skip empty lines and comments (but not when in subject section)
+                if !inSubjectSection && (line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, ";")) {
+                        continue
+                }
+                
+                // Handle multi-line subject section
+                if inSubjectSection {
+                        subjectContent.WriteString(line + "\n")
+                        if strings.Contains(line, "}") {
+                                // End of subject section
+                                parseSubjectContent(currentProfile, subjectContent.String())
+                                inSubjectSection = false
+                                subjectContent.Reset()
+                        }
                         continue
                 }
 
@@ -130,6 +153,7 @@ func LoadProfileConfig(filename string, preferPQC bool) (*ProfileConfig, error) 
                                 Format:  "pem",    // Default format
                                 KeySize: 2048,     // Default key size
                                 KeyType: "rsa",    // Default key type
+                                Cleanup: true,     // Default cleanup for openssl.cnf
                         }
                         
                         config.Profiles[currentSection] = currentProfile
@@ -209,6 +233,35 @@ func LoadProfileConfig(filename string, preferPQC bool) (*ProfileConfig, error) 
                                 currentProfile.OpenSSLPath = value
                         case "temp-dir":
                                 currentProfile.TempDir = value
+                        case "cleanup":
+                                currentProfile.Cleanup = strings.ToLower(value) == "true"
+                        case "subject-country", "country":
+                                currentProfile.SubjectCountry = value
+                        case "subject-province", "province", "state":
+                                currentProfile.SubjectProvince = value
+                        case "subject-locality", "locality":
+                                currentProfile.SubjectLocality = value
+                        case "subject-organization", "organization":
+                                currentProfile.SubjectOrganization = value
+                        case "subject-organizational-unit", "organizational-unit", "ou":
+                                currentProfile.SubjectOrganizationalUnit = value
+                        case "subject-common-name", "common-name":
+                                currentProfile.SubjectCommonName = value
+                        case "subject":
+                                // Check if this is a multi-line subject section starting with {
+                                if strings.Contains(value, "{") {
+                                        inSubjectSection = true
+                                        subjectContent.WriteString(value + "\n")
+                                        if strings.Contains(value, "}") {
+                                                // Single line subject section
+                                                parseSubjectContent(currentProfile, value)
+                                                inSubjectSection = false
+                                                subjectContent.Reset()
+                                        }
+                                } else {
+                                        // Parse single-line subject format
+                                        parseSubjectSection(currentProfile, value)
+                                }
                         }
                 }
         }
@@ -247,6 +300,81 @@ func expandEnvVars(value string) string {
                 }
                 return match // Return original if no env var found
         })
+}
+
+// parseSubjectSection parses subject configuration from various formats
+func parseSubjectSection(profile *Profile, value string) {
+        // Handle multi-line JSON-like format
+        if strings.Contains(value, "{") {
+                // This will be handled by the multi-line parser
+                return
+        }
+        
+        // Handle inline format: "CN=test,C=US,ST=CA,L=SF,O=Corp,OU=IT"
+        if strings.Contains(value, "=") {
+                pairs := strings.Split(value, ",")
+                for _, pair := range pairs {
+                        kv := strings.SplitN(strings.TrimSpace(pair), "=", 2)
+                        if len(kv) == 2 {
+                                key := strings.ToLower(strings.TrimSpace(kv[0]))
+                                val := strings.TrimSpace(kv[1])
+                                setSubjectField(profile, key, val)
+                        }
+                }
+        }
+}
+
+// setSubjectField sets a subject field on the profile
+func setSubjectField(profile *Profile, key, value string) {
+        switch strings.ToLower(strings.TrimSpace(key)) {
+        case "cn", "common_name":
+                profile.SubjectCommonName = value
+        case "c", "country":
+                profile.SubjectCountry = value
+        case "st", "state", "province":
+                profile.SubjectProvince = value
+        case "l", "locality":
+                profile.SubjectLocality = value
+        case "o", "organization":
+                profile.SubjectOrganization = value
+        case "ou", "organizational_unit":
+                profile.SubjectOrganizationalUnit = value
+        }
+}
+
+// parseSubjectContent parses the multi-line JSON-like subject content
+func parseSubjectContent(profile *Profile, content string) {
+        // Remove braces and clean up the content
+        content = strings.ReplaceAll(content, "{", "")
+        content = strings.ReplaceAll(content, "}", "")
+        
+        // Determine if this is single-line (comma-separated) or multi-line format
+        var entries []string
+        if strings.Contains(content, "\n") {
+                // Multi-line format: split by newlines
+                entries = strings.Split(content, "\n")
+        } else {
+                // Single-line format: split by commas
+                entries = strings.Split(content, ",")
+        }
+        
+        // Parse each key-value pair
+        for _, entry := range entries {
+                entry = strings.TrimSpace(entry)
+                if entry == "" {
+                        continue
+                }
+                
+                // Parse key = value format
+                if strings.Contains(entry, "=") {
+                        kv := strings.SplitN(entry, "=", 2)
+                        if len(kv) == 2 {
+                                key := strings.TrimSpace(kv[0])
+                                value := strings.TrimSpace(kv[1])
+                                setSubjectField(profile, key, value)
+                        }
+                }
+        }
 }
 
 // GetProfile returns a specific profile by name
@@ -331,10 +459,11 @@ hawk-api = your-hawk-secret
 policy = policy-id
 validity = 15
 chain = true 
-default_key_type = MLDSA44
-openssl_path = "./openssl.exe"
-temp_dir = "."
-cleanonsuccess = false
+pqc-algorithm = MLDSA44
+legacy-alg-names = true
+openssl-path = ./openssl
+temp-dir = .
+cleanup = false
 # Following are pqc specific settings
 subject = {
     common_name = PQC Certificate

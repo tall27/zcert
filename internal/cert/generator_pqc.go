@@ -2,6 +2,7 @@ package cert
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -67,6 +68,7 @@ type PQCGenerator struct {
 	ExtKeyUsage    []string
 	CertPolicy     []string
 	GeneratedFiles []string // Track files created by OpenSSL
+	OpenSSLCleanup bool     // Controls cleanup of openssl.cnf file
 }
 
 // NewPQCGenerator creates a new PQC generator instance
@@ -79,7 +81,13 @@ func NewPQCGenerator(openSSLPath, tempDir string, verbose, noCleanup, legacyAlgN
 		LegacyAlgNames: legacyAlgNames,
 		LegacyPQCAlgorithm: legacyPQCAlgorithm,
 		GeneratedFiles: []string{},
+		OpenSSLCleanup: true, // Default to true
 	}
+}
+
+// SetOpenSSLCleanup sets the OpenSSL config file cleanup behavior
+func (g *PQCGenerator) SetOpenSSLCleanup(cleanup bool) {
+	g.OpenSSLCleanup = cleanup
 }
 
 // ValidateAlgorithm checks if the provided algorithm is supported
@@ -228,7 +236,7 @@ func (g *PQCGenerator) GenerateCSR(keyFile string, subject Subject, sans []strin
 			"-new",
 			"-key", keyFile,
 			"-out", csrFile,
-			"-subj", subject.String(),
+			"-config", configFile,
 			"-provider", "default",
 			"-provider-path", g.TempDir}
 		if password != "" {
@@ -241,7 +249,7 @@ func (g *PQCGenerator) GenerateCSR(keyFile string, subject Subject, sans []strin
 			"-new",
 			"-key", keyFile,
 			"-out", csrFile,
-			"-subj", subject.String(),
+			"-config", configFile,
 			"-provider", "default",
 			"-provider", "oqsprovider",
 			"-provider-path", g.TempDir}
@@ -266,6 +274,11 @@ func (g *PQCGenerator) GenerateCSR(keyFile string, subject Subject, sans []strin
 
 	// Track the generated CSR file
 	g.GeneratedFiles = append(g.GeneratedFiles, csrFile)
+	
+	// Track the config file for cleanup if enabled
+	if g.OpenSSLCleanup {
+		g.GeneratedFiles = append(g.GeneratedFiles, configFile)
+	}
 
 	return csrFile, nil
 }
@@ -311,13 +324,19 @@ keyUsage = digitalSignature, nonRepudiation`
 	// Format SAN entries if present
 	var sanEntries []string
 	if hasSANs {
+		dnsCount := 1
+		ipCount := 1
+		emailCount := 1
 		for _, san := range sans {
-			if strings.Contains(san, ":") {
-				sanEntries = append(sanEntries, fmt.Sprintf("IP.%d = %s", len(sanEntries)+1, san))
-			} else if strings.Contains(san, "@") {
-				sanEntries = append(sanEntries, fmt.Sprintf("email.%d = %s", len(sanEntries)+1, san))
+			if strings.Contains(san, "@") {
+				sanEntries = append(sanEntries, fmt.Sprintf("email.%d = %s", emailCount, san))
+				emailCount++
+			} else if isIPAddress(san) {
+				sanEntries = append(sanEntries, fmt.Sprintf("IP.%d = %s", ipCount, san))
+				ipCount++
 			} else {
-				sanEntries = append(sanEntries, fmt.Sprintf("DNS.%d = %s", len(sanEntries)+1, san))
+				sanEntries = append(sanEntries, fmt.Sprintf("DNS.%d = %s", dnsCount, san))
+				dnsCount++
 			}
 		}
 	}
@@ -389,4 +408,9 @@ func (g *PQCGenerator) EncryptKey(keyFile, password, outputFile string) error {
 	}
 
 	return nil
+}
+
+// isIPAddress checks if a string is a valid IP address (IPv4 or IPv6)
+func isIPAddress(s string) bool {
+	return net.ParseIP(s) != nil
 } 

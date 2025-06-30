@@ -61,7 +61,7 @@ func init() {
 }
 
 func runPQC(cmd *cobra.Command, args []string) error {
-	cfg, err := loadPQCConfig(cmd)
+	cfg, selectedProfile, err := loadPQCConfig(cmd)
 	if err != nil {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
@@ -77,6 +77,7 @@ func runPQC(cmd *cobra.Command, args []string) error {
 
 	// Create PQC generator with correct signature
 	generator := cert.NewPQCGenerator(cfg.OpenSSLPath, cfg.TempDir, cfg.Verbose, cfg.NoCleanup, cfg.LegacyAlgNames, cfg.LegacyPQCAlgorithm)
+	generator.SetOpenSSLCleanup(cfg.OpenSSLCleanup)
 
 	// Always generate PQC key unencrypted
 	keyFile, err := generator.GenerateKey(cfg.Algorithm)
@@ -106,20 +107,24 @@ func runPQC(cmd *cobra.Command, args []string) error {
 		cfg.KeyFile = cfg.CommonName + ".key"
 	}
 
-	// Create subject information
+	// Create subject information - use profile defaults if CLI values not provided
 	subject := cert.Subject{
 		CommonName:         cfg.CommonName,
-		Country:            cfg.Country,
-		Province:           cfg.Province,
-		Locality:           cfg.Locality,
+		Country:            getSubjectValue(cfg.Country, selectedProfile.SubjectCountry),
+		Province:           getSubjectValue(cfg.Province, selectedProfile.SubjectProvince),
+		Locality:           getSubjectValue(cfg.Locality, selectedProfile.SubjectLocality),
 		Organization:       "",
 		OrganizationalUnit: "",
 	}
 	if len(cfg.Organizations) > 0 {
 		subject.Organization = cfg.Organizations[0]
+	} else if selectedProfile.SubjectOrganization != "" {
+		subject.Organization = selectedProfile.SubjectOrganization
 	}
 	if len(cfg.OrganizationalUnits) > 0 {
 		subject.OrganizationalUnit = cfg.OrganizationalUnits[0]
+	} else if selectedProfile.SubjectOrganizationalUnit != "" {
+		subject.OrganizationalUnit = selectedProfile.SubjectOrganizationalUnit
 	}
 
 	// Collect SANs
@@ -218,7 +223,7 @@ func runPQC(cmd *cobra.Command, args []string) error {
 		keyPEM = keyContent
 	}
 
-	// Use shared output function
+	// Write to files first
 	err = OutputCertificateWithFiles(certPEM, keyPEM, OutputCertificateOptions{
 		CertFile:     cfg.CertFile,
 		KeyFile:      cfg.KeyFile, 
@@ -233,6 +238,18 @@ func runPQC(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to output certificate: %w", err)
 	}
 
+	// Always display certificate and private key on terminal (regardless of file output)
+	if !cfg.NoKeyOutput && keyPEM != nil {
+		fmt.Print(string(keyPEM))
+		fmt.Println("") // Add blank line between key and certificate
+	}
+	fmt.Print(certPEM.Certificate)
+	
+	// Output chain certificates if available and requested
+	if cfg.Chain && certPEM.Chain != "" {
+		fmt.Print(certPEM.Chain)
+	}
+
 	return nil
 }
 
@@ -245,6 +262,7 @@ type PQCConfig struct {
 	NoCleanup   bool
 	LegacyAlgNames bool
 	LegacyPQCAlgorithm string
+	OpenSSLCleanup bool // Controls cleanup of openssl.cnf file
 
 	// Certificate configuration
 	CommonName           string
@@ -278,7 +296,7 @@ type PQCConfig struct {
 	Validity   string
 }
 
-func loadPQCConfig(cmd *cobra.Command) (*PQCConfig, error) {
+func loadPQCConfig(cmd *cobra.Command) (*PQCConfig, *config.Profile, error) {
 	// Initialize config with defaults
 	cfg := &PQCConfig{
 		OpenSSLPath: "openssl",
@@ -382,7 +400,7 @@ func loadPQCConfig(cmd *cobra.Command) (*PQCConfig, error) {
 			} else {
 				errorMsg = "no valid profile found and no environment variables set (tried --profile, 'pqc', 'Default' profiles and ZTPKI_URL/ZTPKI_HAWK_ID/ZTPKI_HAWK_SECRET environment variables)"
 			}
-			return nil, fmt.Errorf(errorMsg)
+			return nil, nil, fmt.Errorf(errorMsg)
 		}
 		
 		// If CLI flags are provided, update the environment profile with CLI values
@@ -403,6 +421,12 @@ func loadPQCConfig(cmd *cobra.Command) (*PQCConfig, error) {
 		fmt.Fprintf(os.Stderr, "DEBUG: PQC Algorithm: %s\n", selectedProfile.PQCAlgorithm)
 		fmt.Fprintf(os.Stderr, "DEBUG: LegacyAlgNames: %t\n", selectedProfile.LegacyAlgNames)
 		fmt.Fprintf(os.Stderr, "DEBUG: LegacyPQCAlgorithm: %s\n", selectedProfile.LegacyPQCAlgorithm)
+		fmt.Fprintf(os.Stderr, "DEBUG: Cleanup: %t\n", selectedProfile.Cleanup)
+		fmt.Fprintf(os.Stderr, "DEBUG: Subject Country: %s\n", selectedProfile.SubjectCountry)
+		fmt.Fprintf(os.Stderr, "DEBUG: Subject Province: %s\n", selectedProfile.SubjectProvince)
+		fmt.Fprintf(os.Stderr, "DEBUG: Subject Locality: %s\n", selectedProfile.SubjectLocality)
+		fmt.Fprintf(os.Stderr, "DEBUG: Subject Organization: %s\n", selectedProfile.SubjectOrganization)
+		fmt.Fprintf(os.Stderr, "DEBUG: Subject OU: %s\n", selectedProfile.SubjectOrganizationalUnit)
 	}
 
 	// Map profile config to PQCConfig
@@ -418,6 +442,7 @@ func loadPQCConfig(cmd *cobra.Command) (*PQCConfig, error) {
 	cfg.NoCleanup = selectedProfile.NoCleanup
 	cfg.LegacyAlgNames = selectedProfile.LegacyAlgNames
 	cfg.LegacyPQCAlgorithm = selectedProfile.LegacyPQCAlgorithm
+	cfg.OpenSSLCleanup = selectedProfile.Cleanup
 
 	// Algorithm selection: CLI flag takes precedence over profile
 	algoFlag, _ := cmd.Flags().GetString("pqc-algorithm")
@@ -495,7 +520,7 @@ func loadPQCConfig(cmd *cobra.Command) (*PQCConfig, error) {
 		}
 	}
 
-	return cfg, nil
+	return cfg, selectedProfile, nil
 }
 
 func printVariableHierarchyPQC(cmd *cobra.Command, cfg *PQCConfig) {
@@ -533,4 +558,12 @@ func printVariableHierarchyPQC(cmd *cobra.Command, cfg *PQCConfig) {
 	fmt.Printf("ZTPKI_POLICY_ID - %s - %s\n", policySource, policyValue)
 
 	fmt.Printf("===============================================\n\n")
+}
+
+// getSubjectValue returns the CLI value if not empty, otherwise returns the profile default
+func getSubjectValue(cliValue, profileValue string) string {
+	if cliValue != "" {
+		return cliValue
+	}
+	return profileValue
 }

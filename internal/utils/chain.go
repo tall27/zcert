@@ -7,6 +7,12 @@ import (
 	"zcert/internal/api"
 )
 
+// CertificateClient defines the interface for certificate operations needed by chain utilities
+type CertificateClient interface {
+	GetCertificate(id string) (*api.Certificate, error)
+	GetCertificatePEM(id string, includeChain bool) (*api.CertificatePEMResponse, error)
+}
+
 // ChainRetrievalOptions configures certificate chain retrieval behavior
 type ChainRetrievalOptions struct {
 	IncludeChain bool
@@ -15,7 +21,7 @@ type ChainRetrievalOptions struct {
 }
 
 // RetrieveCertificateWithChain retrieves a certificate with standardized chain handling
-func RetrieveCertificateWithChain(client *api.Client, certificateID string, opts *ChainRetrievalOptions) (*api.Certificate, *api.CertificatePEMResponse, error) {
+func RetrieveCertificateWithChain(client CertificateClient, certificateID string, opts *ChainRetrievalOptions) (*api.Certificate, *api.CertificatePEMResponse, error) {
 	if opts == nil {
 		opts = &ChainRetrievalOptions{
 			IncludeChain: false,
@@ -83,7 +89,7 @@ type ChainRetrievalResult struct {
 }
 
 // RetrieveCertificateWithChainResult retrieves a certificate with detailed chain retrieval information
-func RetrieveCertificateWithChainResult(client *api.Client, certificateID string, opts *ChainRetrievalOptions) (*ChainRetrievalResult, error) {
+func RetrieveCertificateWithChainResult(client CertificateClient, certificateID string, opts *ChainRetrievalOptions) (*ChainRetrievalResult, error) {
 	if opts == nil {
 		opts = &ChainRetrievalOptions{
 			IncludeChain: false,
