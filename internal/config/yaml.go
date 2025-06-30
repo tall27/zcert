@@ -278,7 +278,6 @@ config:
       platform: '{{ZTPKI_URL}}'
 
 certificateTasks:
-  # Example 1: Web Server Certificate with comprehensive configuration
   - name: "WebServerCert"
     renewBefore: 30d
     request:
@@ -328,21 +327,34 @@ certificateTasks:
         file: "./certs/api.crt"
         keyFile: "./certs/api.key"
 
-  # Example 3: PKCS12 format certificate
-  - name: "WindowsServiceCert"
-    renewBefore: 30d
+  # Example 3: Database Certificate with IP SAN
+  - name: "DatabaseCert"
+    renewBefore: 45d
     request:
       csr: local
       subject:
-        commonName: "service.example.com"
+        commonName: "db.example.com"
         country: US
+        state: California
+        locality: San Francisco
         organization: Example Corp
+        orgUnits: ["Database Team"]
       policy: '{{ZTPKI_POLICY_ID}}'
+      sans:
+        dns:
+          - "db.example.com"
+          - "db-primary.example.com"
+        ip:
+          - "10.0.1.100"
+          - "10.0.1.101"
     installations:
-      - format: PKCS12
-        file: "./certs/service.p12"
-        password: "YourSecurePassword123"
-        # afterInstallAction: "Import-PfxCertificate -FilePath ./certs/service.p12"
+      - format: PEM
+        file: "./certs/database.crt"
+        chainFile: "./certs/database.chain.crt"
+        keyFile: "./certs/database.key"
+        password: "db-cert-password"
+        backupExisting: true
+        afterInstallAction: "systemctl restart postgresql"
 
 # Notes:
 # - Replace {{ZTPKI_HAWK_ID}}, {{ZTPKI_HAWK_SECRET}}, {{ZTPKI_URL}}, and {{ZTPKI_POLICY_ID}} with your values
