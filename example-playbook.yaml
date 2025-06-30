@@ -8,27 +8,52 @@ config:
       hawk-id: '{{ZTPKI_HAWK_ID}}'
       hawk-api: '{{ZTPKI_HAWK_SECRET}}'
       platform: '{{ZTPKI_URL}}'
+
 certificateTasks:
+  # Example 1: Web Server Certificate with comprehensive configuration
   - name: "WebServerCert"
     renewBefore: 30d
     request:
       csr: local
       subject:
-        commonName: "abc.example.com"
+        commonName: "www.example.com"
         country: US
-        state: Utah
-        locality: Salt Lake City
+        state: California
+        locality: San Francisco
         organization: Example Corp
-      policy: '5fe6d368-896a-4883-97eb-f87148c90896'
-      # Enhanced SAN support matching ZTPKI schema
+      policy: '{{ZTPKI_POLICY_ID}}'
+      # Subject Alternative Names (SAN)
       sans:
         dns:
-          - "www.example.com"
+          - "example.com"
           - "api.example.com"
+          - "mail.example.com"
     installations:
       - format: PEM
-        file: "./certs/example.crt"
-        chainFile: "./certs/example.chain.crt"
-        keyFile: "./certs/example.key"
-        backupExisting: false
-        #afterInstallAction: "echo 'Certificate installed successfully'"
+        file: "./certs/webserver.crt"
+        chainFile: "./certs/webserver.chain.crt"
+        keyFile: "./certs/webserver.key"
+        backupExisting: true
+        # Optional: Run command after certificate installation
+        # afterInstallAction: "systemctl reload nginx"
+
+  # Example 2: Simple API Certificate (minimal configuration)
+  - name: "APICert"
+    renewBefore: 15d
+    request:
+      csr: local
+      subject:
+        commonName: "api.example.com"
+        country: US
+        organization: Example Corp
+      policy: '{{ZTPKI_POLICY_ID}}'
+    installations:
+      - format: PEM
+        file: "./certs/api.crt"
+        keyFile: "./certs/api.key"
+
+# Notes:
+# - Replace {{ZTPKI_HAWK_ID}}, {{ZTPKI_HAWK_SECRET}}, {{ZTPKI_URL}}, and {{ZTPKI_POLICY_ID}} with your values
+# - Or set environment variables: ZTPKI_HAWK_ID, ZTPKI_HAWK_SECRET, ZTPKI_URL, ZTPKI_POLICY_ID
+# - Create directory: mkdir -p ./certs
+# - Run: zcert run --file playbook.yaml

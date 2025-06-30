@@ -278,89 +278,77 @@ config:
       platform: '{{ZTPKI_URL}}'
 
 certificateTasks:
+  # Example 1: Web Server Certificate with comprehensive configuration
   - name: "WebServerCert"
     renewBefore: 30d
     request:
       csr: local
       subject:
-        commonName: "abc.example.com"
+        commonName: "www.example.com"
         country: US
-        state: Utah
-        locality: Salt Lake City
+        state: California
+        locality: San Francisco
         organization: Example Corp
-        orgUnits: ["IT Ops"]
-        # Additional DN components supported by ZTPKI:
-        domainComponents: ["example", "com"]  # DC fields
-        email: "admin@example.com"           # EMAIL field
-      policy: 'your-policy-id-here'
-      # Enhanced SAN support matching ZTPKI schema
+        # Additional optional fields:
+        # orgUnits: ["IT Department"]
+        # email: "admin@example.com"
+      policy: '{{ZTPKI_POLICY_ID}}'
+      # Subject Alternative Names (SAN)
       sans:
         dns:
-          - "www.example.com"
+          - "example.com"
           - "api.example.com"
           - "mail.example.com"
-        ip:
-          - "192.168.1.100"
-          - "10.0.0.50"
-        email:
-          - "webmaster@example.com"
-          - "support@example.com"
-        upn:
-          - "service@example.com"
-        uri:
-          - "https://api.example.com"
-      # Validity period (optional)
-      validity:
-        years: 1
-        months: 0
-        days: 0
-      # Custom fields (optional)
-      customFields:
-        department: "IT"
-        costCenter: "12345"
-      # Custom extensions (optional)
-      customExtensions:
-        "1.3.6.1.4.1.311.21.7": "302f06272b060104018237150884f09f0881fe9c1b85fd973886edbb1581edd1228149828fe83b86f9ea32020164020102"
-        "1.3.6.1.4.1.311.21.10": "3018300a06082b06010505070301300a06082b06010505070302"
-        "1.3.6.1.4.1.311.25.2": ""
-      # Additional metadata
-      comment: "Web server certificate for production environment"
-      expiryEmails:
-        - "admin@example.com"
-        - "security@example.com"
-      # Certificate reminder management
-      clearRemindersCertificateId: ""  # If replacing existing cert
+        # Optional: IP and email SANs
+        # ip:
+        #   - "192.168.1.100"
+        # email:
+        #   - "webmaster@example.com"
     installations:
       - format: PEM
-        file: "./certs/example.crt"
-        chainFile: "./certs/example.chain.crt"
-        keyFile: "./certs/example.key"
+        file: "./certs/webserver.crt"
+        chainFile: "./certs/webserver.chain.crt"
+        keyFile: "./certs/webserver.key"
         backupExisting: true
-        afterInstallAction: "echo 'Certificate installed successfully'"
-        # windows example: combine cert and chain files
-        # afterInstallAction: ('', (gc .\certs\example.crt -Raw)) | ac .\certs\example.chain.crt
-      
-      # Additional installation formats
-      - format: PKCS12
-        file: "./certs/example.p12"
-        password: "secure123"
-        afterInstallAction: "systemctl restart apache2"
+        # Optional: Run command after certificate installation
+        # afterInstallAction: "systemctl reload nginx"
 
-  # Example with minimal configuration
-  - name: "APIServerCert"
+  # Example 2: Simple API Certificate (minimal configuration)
+  - name: "APICert"
     renewBefore: 15d
     request:
       csr: local
       subject:
         commonName: "api.example.com"
-      policy: 'your-policy-id-here'
-      sans:
-        dns:
-          - "api-v2.example.com"
+        country: US
+        organization: Example Corp
+      policy: '{{ZTPKI_POLICY_ID}}'
     installations:
       - format: PEM
         file: "./certs/api.crt"
         keyFile: "./certs/api.key"
+
+  # Example 3: PKCS12 format certificate
+  - name: "WindowsServiceCert"
+    renewBefore: 30d
+    request:
+      csr: local
+      subject:
+        commonName: "service.example.com"
+        country: US
+        organization: Example Corp
+      policy: '{{ZTPKI_POLICY_ID}}'
+    installations:
+      - format: PKCS12
+        file: "./certs/service.p12"
+        password: "YourSecurePassword123"
+        # afterInstallAction: "Import-PfxCertificate -FilePath ./certs/service.p12"
+
+# Notes:
+# - Replace {{ZTPKI_HAWK_ID}}, {{ZTPKI_HAWK_SECRET}}, {{ZTPKI_URL}}, and {{ZTPKI_POLICY_ID}} with your values
+# - Or set environment variables: ZTPKI_HAWK_ID, ZTPKI_HAWK_SECRET, ZTPKI_URL, ZTPKI_POLICY_ID
+# - Create directory: mkdir -p ./certs
+# - Run: zcert run --file playbook.yaml
 `
 
         return os.WriteFile(filename, []byte(content), 0600) // Restrict to owner only
