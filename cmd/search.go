@@ -124,13 +124,13 @@ func runSearch(cmd *cobra.Command, args []string) error {
                 }
                 
                 if finalProfile.URL == "" {
-                        return fmt.Errorf("ZTPKI API URL is required. Set ZTPKI_URL environment variable or use --url flag")
+                        return utils.NewAuthURLError()
                 }
                 if finalProfile.KeyID == "" {
-                        return fmt.Errorf("HAWK ID is required. Set ZTPKI_HAWK_ID environment variable or use --hawk-id flag")
+                        return utils.NewAuthHawkIDError()
                 }
                 if finalProfile.Secret == "" {
-                        return fmt.Errorf("HAWK secret is required. Set ZTPKI_HAWK_SECRET environment variable or use --hawk-key flag")
+                        return utils.NewAuthHawkKeyError()
                 }
                 
                 cfg := &config.Config{
@@ -141,7 +141,7 @@ func runSearch(cmd *cobra.Command, args []string) error {
                 
                 client, err := api.NewClient(cfg)
                 if err != nil {
-                        return fmt.Errorf("failed to initialize API client: %w", err)
+                        return utils.NewAPIClientError(err)
                 }
                 
                 return listAllPolicies(client, searchLimit, searchFormat, searchWide)
@@ -175,13 +175,13 @@ func runSearch(cmd *cobra.Command, args []string) error {
 
         // Validate required authentication parameters
         if finalProfile.URL == "" {
-                return fmt.Errorf("ZTPKI URL is required (use --url flag or config file)")
+                return utils.NewAuthURLError()
         }
         if finalProfile.KeyID == "" {
-                return fmt.Errorf("HAWK ID is required (use --hawk-id flag or config file)")
+                return utils.NewAuthHawkIDError()
         }
         if finalProfile.Secret == "" {
-                return fmt.Errorf("HAWK key is required (use --hawk-key flag or config file)")
+                return utils.NewAuthHawkKeyError()
         }
 
         // Create API client with profile settings
@@ -193,7 +193,7 @@ func runSearch(cmd *cobra.Command, args []string) error {
 
         client, err := api.NewClientWithVerbose(cfg, verboseLevel)
         if err != nil {
-                return fmt.Errorf("failed to initialize API client: %w", err)
+                return utils.NewAPIClientError(err)
         }
 
         // Show variable hierarchy in verbose mode (both -v and -vv)
@@ -246,7 +246,7 @@ func runSearch(cmd *cobra.Command, args []string) error {
         if searchPolicy != "" {
                 resolvedID, err := resolvePolicySubstring(client, searchPolicy)
                 if err != nil {
-                        return fmt.Errorf("failed to resolve policy '%s': %w", searchPolicy, err)
+                        return utils.NewPolicyResolutionError(searchPolicy, err)
                 }
                 resolvedPolicyID = resolvedID
                 
@@ -935,7 +935,7 @@ func resolvePolicySubstring(client *api.Client, policySubstring string) (string,
         }
         
         if len(matches) == 0 {
-                return "", fmt.Errorf("no policies found matching '%s'", policySubstring)
+                return "", utils.NewPolicyNotFoundError(policySubstring)
         }
         
         if len(matches) == 1 {
@@ -947,5 +947,5 @@ func resolvePolicySubstring(client *api.Client, policySubstring string) (string,
         for i, policy := range matches {
                 fmt.Fprintf(os.Stderr, "  [%d] %s - %s\n", i+1, policy.Name, policy.ID)
         }
-        return "", fmt.Errorf("multiple policies match '%s', please be more specific", policySubstring)
+        return "", utils.NewPolicyAmbiguousError(policySubstring)
 }

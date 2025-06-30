@@ -319,25 +319,25 @@ func (c *Client) SubmitCSRWithFullPayload(csrPEM string, certTask *config.Certif
                 // Handle structured SANs
                 if certTask.Request.SANs.SubjectAltNames != nil {
                         if len(certTask.Request.SANs.SubjectAltNames.DNS) > 0 {
-                                sanMap["dnsNames"] = certTask.Request.SANs.SubjectAltNames.DNS
+                                sanMap["DNSNAME"] = certTask.Request.SANs.SubjectAltNames.DNS
                         }
                         if len(certTask.Request.SANs.SubjectAltNames.IP) > 0 {
-                                sanMap["ipAddresses"] = certTask.Request.SANs.SubjectAltNames.IP
+                                sanMap["IPADDRESS"] = certTask.Request.SANs.SubjectAltNames.IP
                         }
                         if len(certTask.Request.SANs.SubjectAltNames.Email) > 0 {
-                                sanMap["rfc822Names"] = certTask.Request.SANs.SubjectAltNames.Email
+                                sanMap["RFC822NAME"] = certTask.Request.SANs.SubjectAltNames.Email
                         }
                         if len(certTask.Request.SANs.SubjectAltNames.UPN) > 0 {
-                                sanMap["userPrincipalNames"] = certTask.Request.SANs.SubjectAltNames.UPN
+                                sanMap["UPN"] = certTask.Request.SANs.SubjectAltNames.UPN
                         }
                         if len(certTask.Request.SANs.SubjectAltNames.URI) > 0 {
-                                sanMap["uniformResourceIdentifiers"] = certTask.Request.SANs.SubjectAltNames.URI
+                                sanMap["URI"] = certTask.Request.SANs.SubjectAltNames.URI
                         }
                 }
                 
                 // Handle simple list format (backwards compatibility)
                 if len(certTask.Request.SANs.SimpleList) > 0 {
-                        sanMap["dnsNames"] = certTask.Request.SANs.SimpleList
+                        sanMap["DNSNAME"] = certTask.Request.SANs.SimpleList
                 }
                 
                 if len(sanMap) > 0 {

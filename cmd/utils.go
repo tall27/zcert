@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/viper"
 	"zcert/internal/api"
 	"zcert/internal/config"
+	"zcert/internal/utils"
 )
 
 // getStringValue gets a string value from Viper, falling back to a default if not set.
@@ -109,4 +110,99 @@ func convertPEMResponseToCertificate(pemResp *api.CertificatePEMResponse, cert *
 	}
 
 	return result
+}
+
+// OutputCertificateOptions provides options for certificate output
+type OutputCertificateOptions struct {
+	CertFile     string // Certificate output file path
+	KeyFile      string // Private key output file path
+	ChainFile    string // Certificate chain output file path
+	BundleFile   string // Combined certificate bundle file path (cert + chain)
+	KeyPassword  string // Password for private key encryption
+	NoKeyOutput  bool   // Don't output private key
+	IncludeChain bool   // Whether to include chain in stdout output
+	VerboseLevel int    // Verbose level for feedback
+}
+
+// OutputCertificateWithFiles outputs certificate and private key to files and/or stdout
+// This is the shared function used by both enroll and PQC commands
+func OutputCertificateWithFiles(certPEM *api.CertificatePEMResponse, keyPEM []byte, options OutputCertificateOptions) error {
+	// Handle private key output
+	if !options.NoKeyOutput && keyPEM != nil {
+		if options.KeyFile != "" {
+			// Write key to file
+			var keyToWrite []byte
+			var err error
+			
+			if options.KeyPassword != "" {
+				// Encrypt the key if password is provided
+				keyToWrite, err = utils.EncryptPEMBlock(keyPEM, options.KeyPassword)
+				if err != nil {
+					return fmt.Errorf("failed to encrypt private key: %w", err)
+				}
+			} else {
+				keyToWrite = keyPEM
+			}
+			
+			if err := os.WriteFile(options.KeyFile, keyToWrite, 0600); err != nil {
+				return fmt.Errorf("failed to write private key file: %w", err)
+			}
+			if options.VerboseLevel > 0 {
+				fmt.Fprintf(os.Stderr, "Private key written to: %s\n", options.KeyFile)
+			}
+		} else {
+			// Output key to stdout
+			fmt.Print(string(keyPEM))
+		}
+	}
+
+	// Write certificate file if specified
+	if options.CertFile != "" {
+		if err := os.WriteFile(options.CertFile, []byte(certPEM.Certificate), 0644); err != nil {
+			return fmt.Errorf("failed to write certificate file: %w", err)
+		}
+		if options.VerboseLevel > 0 {
+			fmt.Fprintf(os.Stderr, "Certificate written to: %s\n", options.CertFile)
+		}
+	}
+
+	// Write chain file if specified and chain is available
+	if options.ChainFile != "" && certPEM.Chain != "" {
+		if err := os.WriteFile(options.ChainFile, []byte(certPEM.Chain), 0644); err != nil {
+			return fmt.Errorf("failed to write chain file: %w", err)
+		}
+		if options.VerboseLevel > 0 {
+			fmt.Fprintf(os.Stderr, "Certificate chain written to: %s\n", options.ChainFile)
+		}
+	}
+
+	// Write bundle file if specified (cert + chain)
+	if options.BundleFile != "" {
+		bundleContent := certPEM.Certificate
+		if certPEM.Chain != "" {
+			bundleContent += certPEM.Chain
+		}
+		if err := os.WriteFile(options.BundleFile, []byte(bundleContent), 0644); err != nil {
+			return fmt.Errorf("failed to write bundle file: %w", err)
+		}
+		if options.VerboseLevel > 0 {
+			fmt.Fprintf(os.Stderr, "Certificate bundle written to: %s\n", options.BundleFile)
+		}
+	}
+
+	// Output certificate to stdout if no cert file specified
+	if options.CertFile == "" {
+		// Add empty line before certificate if key was output to stdout
+		if !options.NoKeyOutput && keyPEM != nil && options.KeyFile == "" {
+			fmt.Println("")
+		}
+		fmt.Println(certPEM.Certificate)
+	}
+
+	// Output chain certificates if available and requested
+	if options.IncludeChain && certPEM.Chain != "" {
+		fmt.Println(certPEM.Chain)
+	}
+
+	return nil
 }

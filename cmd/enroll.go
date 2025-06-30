@@ -14,7 +14,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"zcert/internal/api"
-	"zcert/internal/cert"
 	"zcert/internal/config"
 	"zcert/internal/utils"
 )
@@ -507,45 +506,17 @@ func runEnroll(cmd *cobra.Command, args []string) error {
 			}
 			
 		} else {
-			// PEM format output
-			if !enrollNoKey {
-				if enrollKeyFile != "" {
-					// Write encrypted key if password is provided
-					if enrollKeyPass != "" {
-						encryptedKey, err := utils.EncryptPEMBlock(keyPEM, enrollKeyPass)
-						if err != nil {
-							return fmt.Errorf("failed to encrypt private key: %w", err)
-						}
-						if err := os.WriteFile(enrollKeyFile, encryptedKey, 0600); err != nil {
-							return fmt.Errorf("failed to write private key file: %w", err)
-						}
-					} else {
-						if err := os.WriteFile(enrollKeyFile, keyPEM, 0600); err != nil {
-							return fmt.Errorf("failed to write private key file: %w", err)
-						}
-					}
-					if verboseLevel > 0 {
-						fmt.Fprintf(os.Stderr, "Private key written to: %s\n", enrollKeyFile)
-					}
-				} else {
-					fmt.Println(string(keyPEM))
-				}
-			}
-
-			// Use the certificate output system
-			outputCert := convertPEMResponseToCertificate(certPEM, certificate)
-			
-			outputOptions := cert.OutputOptions{
+			// PEM format output - use shared output function
+			err = OutputCertificateWithFiles(certPEM, keyPEM, OutputCertificateOptions{
 				CertFile:     enrollCertFile,
 				KeyFile:      enrollKeyFile,
 				ChainFile:    enrollChainFile,
 				BundleFile:   enrollBundleFile,
 				KeyPassword:  enrollKeyPass,
+				NoKeyOutput:  enrollNoKey,
 				IncludeChain: chainValue,
-			}
-
-			outputter := cert.NewOutputter(format, "", enrollP12Pass)
-			err = outputter.OutputCertificateToFiles(outputCert, keyPEM, !enrollNoKey, outputOptions)
+				VerboseLevel: verboseLevel,
+			})
 			if err != nil {
 				return fmt.Errorf("failed to output certificate: %w", err)
 			}

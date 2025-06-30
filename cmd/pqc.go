@@ -97,19 +97,12 @@ func runPQC(cmd *cobra.Command, args []string) error {
 		finalKeyFile = encryptedKeyFile
 	}
 
-	// Handle private key output
-	if !cfg.NoKeyOutput && finalKeyFile != "" {
-		keyOutputFile := cfg.KeyFile
-		if keyOutputFile == "" {
-			keyOutputFile = cfg.CommonName + ".key"
-		}
-		err = copyFile(finalKeyFile, keyOutputFile)
-		if err != nil {
-			return fmt.Errorf("failed to copy private key to output location: %w", err)
-		}
-		if verboseLevel > 1 {
-			fmt.Fprintf(os.Stderr, "Private key written to: %s\n", keyOutputFile)
-		}
+	// Set default output file names if not specified
+	if cfg.CertFile == "" {
+		cfg.CertFile = cfg.CommonName + ".crt"
+	}
+	if cfg.KeyFile == "" && !cfg.NoKeyOutput {
+		cfg.KeyFile = cfg.CommonName + ".key"
 	}
 
 	// Create subject information
@@ -205,42 +198,29 @@ func runPQC(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to retrieve certificate: %w", err)
 	}
 
-	// Output certificate
-	certOutputFile := cfg.CertFile
-	if certOutputFile == "" {
-		certOutputFile = cfg.CommonName + ".crt"
-	}
-	err = os.WriteFile(certOutputFile, []byte(certPEM.Certificate), 0644)
-	if err != nil {
-		return fmt.Errorf("failed to write certificate file: %w", err)
-	}
-	if verboseLevel > 1 {
-		fmt.Fprintf(os.Stderr, "Certificate written to: %s\n", certOutputFile)
-	}
-
-	// Output private key content to terminal first if not disabled
+	// Read private key for output
+	var keyPEM []byte
 	if !cfg.NoKeyOutput {
-		keyOutputFile := cfg.KeyFile
-		if keyOutputFile == "" {
-			keyOutputFile = cfg.CommonName + ".key"
-		}
-		keyContent, err := os.ReadFile(keyOutputFile)
+		keyContent, err := os.ReadFile(finalKeyFile)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Warning: Could not read private key file for terminal output: %v\n", err)
-		} else {
-			// Print private key content without additional line breaks
-			fmt.Print(string(keyContent))
+			return fmt.Errorf("failed to read private key for output: %w", err)
 		}
+		keyPEM = keyContent
 	}
 
-	// Output certificate content to terminal next with exactly one empty line
-	fmt.Println("")
-	fmt.Println(certPEM.Certificate)
-
-	// Output chain certificates if available and requested with one empty line
-	if cfg.Chain && certPEM.Chain != "" {
-		fmt.Println("")
-		fmt.Println(certPEM.Chain)
+	// Use shared output function
+	err = OutputCertificateWithFiles(certPEM, keyPEM, OutputCertificateOptions{
+		CertFile:     cfg.CertFile,
+		KeyFile:      cfg.KeyFile, 
+		ChainFile:    cfg.ChainFile,
+		BundleFile:   cfg.BundleFile,
+		KeyPassword:  cfg.KeyPassword,
+		NoKeyOutput:  cfg.NoKeyOutput,
+		IncludeChain: cfg.Chain,
+		VerboseLevel: verboseLevel,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to output certificate: %w", err)
 	}
 
 	return nil
@@ -378,8 +358,14 @@ func loadPQCConfig(cmd *cobra.Command) (*PQCConfig, error) {
 			PQCAlgorithm: "MLDSA44", // Default PQC algorithm
 		}
 		
-		// If no environment variables are set either, return error with helpful message
-		if selectedProfile.URL == "" && selectedProfile.KeyID == "" && selectedProfile.Secret == "" {
+		// Check if CLI flags provide the necessary authentication before returning error
+		hasURLFlag := cmd.Flags().Changed("url")
+		hasHawkIDFlag := cmd.Flags().Changed("hawk-id")
+		hasHawkKeyFlag := cmd.Flags().Changed("hawk-key")
+		
+		// If no environment variables are set and no CLI flags provided, return error
+		if selectedProfile.URL == "" && selectedProfile.KeyID == "" && selectedProfile.Secret == "" &&
+		   !hasURLFlag && !hasHawkIDFlag && !hasHawkKeyFlag {
 			var errorMsg string
 			if configFileError != nil {
 				errorMsg = fmt.Sprintf("no valid configuration found:\n  - Config file error: %v\n  - No environment variables set (ZTPKI_URL, ZTPKI_HAWK_ID, ZTPKI_HAWK_SECRET)\n  - Use --url, --hawk-id, --hawk-key flags as alternative", configFileError)
@@ -387,6 +373,17 @@ func loadPQCConfig(cmd *cobra.Command) (*PQCConfig, error) {
 				errorMsg = "no valid profile found and no environment variables set (tried --profile, 'pqc', 'Default' profiles and ZTPKI_URL/ZTPKI_HAWK_ID/ZTPKI_HAWK_SECRET environment variables)"
 			}
 			return nil, fmt.Errorf(errorMsg)
+		}
+		
+		// If CLI flags are provided, update the environment profile with CLI values
+		if hasURLFlag {
+			selectedProfile.URL, _ = cmd.Flags().GetString("url")
+		}
+		if hasHawkIDFlag {
+			selectedProfile.KeyID, _ = cmd.Flags().GetString("hawk-id")
+		}
+		if hasHawkKeyFlag {
+			selectedProfile.Secret, _ = cmd.Flags().GetString("hawk-key")
 		}
 	}
 
@@ -402,7 +399,7 @@ func loadPQCConfig(cmd *cobra.Command) (*PQCConfig, error) {
 	if selectedProfile.OpenSSLPath != "" {
 		cfg.OpenSSLPath = selectedProfile.OpenSSLPath
 	} else {
-		cfg.OpenSSLPath = "./openssl.exe"
+		cfg.OpenSSLPath = "openssl"
 	}
 	if selectedProfile.TempDir != "" {
 		cfg.TempDir = selectedProfile.TempDir
@@ -457,7 +454,7 @@ func loadPQCConfig(cmd *cobra.Command) (*PQCConfig, error) {
 	cfg.Policy = selectedProfile.PolicyID
 	cfg.Validity = fmt.Sprintf("%d", selectedProfile.Validity)
 
-	// Override with command-line flags
+	// Override with command-line flags (must happen before validation)
 	if cmd.Flags().Changed("url") {
 		cfg.URL, _ = cmd.Flags().GetString("url")
 	}
@@ -472,6 +469,20 @@ func loadPQCConfig(cmd *cobra.Command) (*PQCConfig, error) {
 	}
 	if cmd.Flags().Changed("validity") {
 		cfg.Validity, _ = cmd.Flags().GetString("validity")
+	}
+
+	// Also check CLI flags when building the environment profile
+	if selectedProfile.Name == "Environment" {
+		// Override environment profile with CLI flags if provided
+		if cmd.Flags().Changed("url") {
+			cfg.URL, _ = cmd.Flags().GetString("url")
+		}
+		if cmd.Flags().Changed("hawk-id") {
+			cfg.HawkID, _ = cmd.Flags().GetString("hawk-id")
+		}
+		if cmd.Flags().Changed("hawk-key") {
+			cfg.HawkKey, _ = cmd.Flags().GetString("hawk-key")
+		}
 	}
 
 	return cfg, nil

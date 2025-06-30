@@ -119,13 +119,13 @@ func runRetrieve(cmd *cobra.Command, args []string) error {
 
         // Validate required authentication parameters
         if finalProfile.URL == "" {
-                return fmt.Errorf("ZTPKI URL is required (use --url flag or config file)")
+                return utils.NewAuthURLError()
         }
         if finalProfile.KeyID == "" {
-                return fmt.Errorf("HAWK ID is required (use --hawk-id flag or config file)")
+                return utils.NewAuthHawkIDError()
         }
         if finalProfile.Secret == "" {
-                return fmt.Errorf("HAWK key is required (use --hawk-key flag or config file)")
+                return utils.NewAuthHawkKeyError()
         }
 
         // Create API client with profile settings
@@ -137,7 +137,7 @@ func runRetrieve(cmd *cobra.Command, args []string) error {
 
         client, err := api.NewClientWithVerbose(cfg, verboseLevel)
         if err != nil {
-                return fmt.Errorf("failed to initialize API client: %w", err)
+                return utils.NewAPIClientError(err)
         }
 
         // Show variable hierarchy in verbose mode (both -v and -vv)
@@ -187,7 +187,7 @@ func runRetrieve(cmd *cobra.Command, args []string) error {
 
         // Validate that at least one identifier is provided
         if retrieveID == "" && retrieveCN == "" && retrieveSerial == "" {
-                return fmt.Errorf("must specify at least one certificate identifier (--id, --cn, or --serial)")
+                return utils.NewCertificateIdentifierError()
         }
 
         if verboseLevel > 0 {
