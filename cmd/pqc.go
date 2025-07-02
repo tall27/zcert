@@ -15,7 +15,20 @@ var pqcCmd = &cobra.Command{
 	Use:   "pqc",
 	Short: "Generate and enroll Post-Quantum Cryptography certificates",
 	Long: `Generate and enroll Post-Quantum Cryptography certificates using OpenSSL 3.5+.
-Supports FIPS 204 (ML-DSA) and FIPS 205 (SLH-DSA) algorithms.`,
+Supports FIPS 204 (ML-DSA) and FIPS 205 (SLH-DSA) algorithms.
+
+Windows Setup:
+  1. Install OpenSSL 3.5+ with PQC support
+  2. Install oqsprovider.dll in OpenSSL modules directory
+  3. Add OpenSSL to PATH or use --openssl-path flag
+  4. Set OPENSSL_MODULES environment variable (optional)
+  
+For detailed Windows setup instructions, see: WINDOWS_PQC_SETUP.md
+
+Examples:
+  zcert pqc --cn myserver.local
+  zcert pqc --cn api.example.com --pqc-algorithm MLDSA65
+  zcert pqc --cn test.local --cert-file ./cert.pem --key-file ./key.pem`,
 	RunE: runPQC,
 }
 
@@ -58,16 +71,24 @@ func init() {
 
 	// Operational Flags
 	pqcCmd.Flags().String("validity", "", "Certificate validity period (30d, 6m, 1y, etc.)")
+	pqcCmd.Flags().String("openssl-path", "", "Path to OpenSSL executable (Windows: 'C:\\Program Files\\OpenSSL-Win64\\bin\\openssl.exe')")
+	pqcCmd.Flags().String("temp-dir", "", "Temporary directory for PQC operations")
 }
 
 func runPQC(cmd *cobra.Command, args []string) error {
+	// Get global verbose level early for diagnostics
+	verboseLevel := GetVerboseLevel()
+	
 	cfg, selectedProfile, err := loadPQCConfig(cmd)
 	if err != nil {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
 
-	// Get global verbose level
-	verboseLevel := GetVerboseLevel()
+	// Perform Windows PQC preflight check with explicitly configured OpenSSL path
+	if err := WindowsPQCPreflightCheck(cfg.OpenSSLPath, verboseLevel > 1); err != nil {
+		return err
+	}
+
 	cfg.Verbose = verboseLevel > 1
 
 	// Print variable hierarchy only if verbose level is explicitly set
@@ -430,12 +451,20 @@ func loadPQCConfig(cmd *cobra.Command) (*PQCConfig, *config.Profile, error) {
 	}
 
 	// Map profile config to PQCConfig
-	if selectedProfile.OpenSSLPath != "" {
+	// CLI flags take precedence over profile settings
+	opensslPathFlag, _ := cmd.Flags().GetString("openssl-path")
+	if opensslPathFlag != "" {
+		cfg.OpenSSLPath = opensslPathFlag
+	} else if selectedProfile.OpenSSLPath != "" {
 		cfg.OpenSSLPath = selectedProfile.OpenSSLPath
 	} else {
 		cfg.OpenSSLPath = "openssl"
 	}
-	if selectedProfile.TempDir != "" {
+	
+	tempDirFlag, _ := cmd.Flags().GetString("temp-dir")
+	if tempDirFlag != "" {
+		cfg.TempDir = tempDirFlag
+	} else if selectedProfile.TempDir != "" {
 		cfg.TempDir = selectedProfile.TempDir
 	}
 	cfg.Verbose = verboseLevel > 0 // Use global verbose level
