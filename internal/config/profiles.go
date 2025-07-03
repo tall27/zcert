@@ -1,414 +1,417 @@
 package config
 
 import (
-        "bufio"
-        "fmt"
-        "os"
-        "regexp"
-        "strconv"
-        "strings"
+	"bufio"
+	"fmt"
+	"os"
+	"regexp"
+	"strconv"
+	"strings"
 )
 
 // ValidityPeriod represents a parsed validity period
 type ValidityPeriod struct {
-        Years  int
-        Months int
-        Days   int
+	Years  int
+	Months int
+	Days   int
 }
 
 // parseValidityPeriodSimple parses validity period strings like "5d", "30", "1y6m"
 func parseValidityPeriodSimple(input string) (*ValidityPeriod, error) {
-        if input == "" {
-                return nil, fmt.Errorf("empty validity period")
-        }
+	if input == "" {
+		return nil, fmt.Errorf("empty validity period")
+	}
 
-        // If it's just a number, treat as days
-        if days, err := strconv.Atoi(input); err == nil {
-                return &ValidityPeriod{Days: days}, nil
-        }
+	// If it's just a number, treat as days
+	if days, err := strconv.Atoi(input); err == nil {
+		return &ValidityPeriod{Days: days}, nil
+	}
 
-        // Parse with suffixes
-        result := &ValidityPeriod{}
-        
-        // Regular expressions for different components
-        yearRegex := regexp.MustCompile(`(\d+)y`)
-        monthRegex := regexp.MustCompile(`(\d+)m`)
-        dayRegex := regexp.MustCompile(`(\d+)d`)
+	// Parse with suffixes
+	result := &ValidityPeriod{}
 
-        // Extract years
-        if yearMatch := yearRegex.FindStringSubmatch(input); yearMatch != nil {
-                if years, err := strconv.Atoi(yearMatch[1]); err == nil {
-                        result.Years = years
-                }
-        }
+	// Regular expressions for different components
+	yearRegex := regexp.MustCompile(`(\d+)y`)
+	monthRegex := regexp.MustCompile(`(\d+)m`)
+	dayRegex := regexp.MustCompile(`(\d+)d`)
 
-        // Extract months
-        if monthMatch := monthRegex.FindStringSubmatch(input); monthMatch != nil {
-                if months, err := strconv.Atoi(monthMatch[1]); err == nil {
-                        result.Months = months
-                }
-        }
+	// Extract years
+	if yearMatch := yearRegex.FindStringSubmatch(input); yearMatch != nil {
+		if years, err := strconv.Atoi(yearMatch[1]); err == nil {
+			result.Years = years
+		}
+	}
 
-        // Extract days
-        if dayMatch := dayRegex.FindStringSubmatch(input); dayMatch != nil {
-                if days, err := strconv.Atoi(dayMatch[1]); err == nil {
-                        result.Days = days
-                }
-        }
+	// Extract months
+	if monthMatch := monthRegex.FindStringSubmatch(input); monthMatch != nil {
+		if months, err := strconv.Atoi(monthMatch[1]); err == nil {
+			result.Months = months
+		}
+	}
 
-        // Validate that we found at least one component
-        if result.Years == 0 && result.Months == 0 && result.Days == 0 {
-                return nil, fmt.Errorf("invalid validity format: %s (expected formats: 30d, 6m, 1y, 30d6m, 1y6m, or plain number for days)", input)
-        }
+	// Extract days
+	if dayMatch := dayRegex.FindStringSubmatch(input); dayMatch != nil {
+		if days, err := strconv.Atoi(dayMatch[1]); err == nil {
+			result.Days = days
+		}
+	}
 
-        return result, nil
+	// Validate that we found at least one component
+	if result.Years == 0 && result.Months == 0 && result.Days == 0 {
+		return nil, fmt.Errorf("invalid validity format: %s (expected formats: 30d, 6m, 1y, 30d6m, 1y6m, or plain number for days)", input)
+	}
+
+	return result, nil
 }
 
 // Profile represents a configuration profile
 type Profile struct {
-        Name      string
-        URL       string
-        KeyID     string
-        Secret    string
-        Account   string
-        Algo      string
-        Format    string
-        PolicyID  string
-        P12Pass   string
-        KeySize   int
-        KeyType   string
-        Validity  int
-        OutDir    string
-        NoKeyOut  bool
-        Chain     bool
-        NoCleanup   bool
-        PQCAlgorithm string
-        LegacyAlgNames bool
-        LegacyPQCAlgorithm string
-        OpenSSLPath string
-        TempDir    string
-        // PQC-specific settings
-        Cleanup bool // Controls cleanup of openssl.cnf file (default: true)
-        // Subject defaults for OpenSSL config generation
-        SubjectCountry string
-        SubjectProvince string
-        SubjectLocality string
-        SubjectOrganization string
-        SubjectOrganizationalUnit string
-        SubjectCommonName string
+	Name               string
+	URL                string
+	KeyID              string
+	Secret             string
+	Account            string
+	Algo               string
+	Format             string
+	PolicyID           string
+	P12Pass            string
+	KeySize            int
+	KeyType            string
+	Validity           int
+	OutDir             string
+	NoKeyOut           bool
+	Chain              bool
+	NoCleanup          bool
+	PQCAlgorithm       string
+	LegacyAlgNames     bool
+	LegacyPQCAlgorithm string
+	OpenSSLPath        string
+	TempDir            string
+	ProviderPath       string // Path to OpenSSL providers (for -provider-path)
+	// PQC-specific settings
+	Cleanup bool // Controls cleanup of openssl.cnf file (default: true)
+	// Subject defaults for OpenSSL config generation
+	SubjectCountry            string
+	SubjectProvince           string
+	SubjectLocality           string
+	SubjectOrganization       string
+	SubjectOrganizationalUnit string
+	SubjectCommonName         string
 }
 
 // ProfileConfig manages multiple profiles
 type ProfileConfig struct {
-        Profiles map[string]*Profile
-        Default  *Profile
+	Profiles map[string]*Profile
+	Default  *Profile
 }
 
 // LoadProfileConfig loads profiles from an INI-style configuration file
 func LoadProfileConfig(filename string, preferPQC bool) (*ProfileConfig, error) {
-        file, err := os.Open(filename)
-        if err != nil {
-                return nil, fmt.Errorf("failed to open config file %s: %w", filename, err)
-        }
-        defer file.Close()
+	file, err := os.Open(filename)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open config file %s: %w", filename, err)
+	}
+	defer file.Close()
 
-        config := &ProfileConfig{
-                Profiles: make(map[string]*Profile),
-        }
+	config := &ProfileConfig{
+		Profiles: make(map[string]*Profile),
+	}
 
-        scanner := bufio.NewScanner(file)
-        var currentProfile *Profile
-        var currentSection string
-        var inSubjectSection bool
-        var subjectContent strings.Builder
+	scanner := bufio.NewScanner(file)
+	var currentProfile *Profile
+	var currentSection string
+	var inSubjectSection bool
+	var subjectContent strings.Builder
 
-        for scanner.Scan() {
-                line := strings.TrimSpace(scanner.Text())
-                
-                // Skip empty lines and comments (but not when in subject section)
-                if !inSubjectSection && (line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, ";")) {
-                        continue
-                }
-                
-                // Handle multi-line subject section
-                if inSubjectSection {
-                        subjectContent.WriteString(line + "\n")
-                        if strings.Contains(line, "}") {
-                                // End of subject section
-                                parseSubjectContent(currentProfile, subjectContent.String())
-                                inSubjectSection = false
-                                subjectContent.Reset()
-                        }
-                        continue
-                }
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
 
-                // Check for section headers [ProfileName]
-                if strings.HasPrefix(line, "[") && strings.HasSuffix(line, "]") {
-                        currentSection = strings.TrimSpace(line[1 : len(line)-1])
-                        
-                        // Create new profile
-                        currentProfile = &Profile{
-                                Name:    currentSection,
-                                Algo:    "sha256", // Default algorithm
-                                Format:  "pem",    // Default format
-                                KeySize: 2048,     // Default key size
-                                KeyType: "rsa",    // Default key type
-                                Cleanup: true,     // Default cleanup for openssl.cnf
-                        }
-                        
-                        config.Profiles[currentSection] = currentProfile
-                        
-                        // Set as default if it's the Default section
-                        if strings.ToLower(currentSection) == "default" {
-                                config.Default = currentProfile
-                        }
-                        continue
-                }
+		// Skip empty lines and comments (but not when in subject section)
+		if !inSubjectSection && (line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, ";")) {
+			continue
+		}
 
-                // Parse key=value pairs
-                if currentProfile != nil && strings.Contains(line, "=") {
-                        parts := strings.SplitN(line, "=", 2)
-                        if len(parts) != 2 {
-                                continue
-                        }
-                        
-                        key := strings.TrimSpace(parts[0])
-                        value := strings.TrimSpace(parts[1])
-                        
-                        // Remove quotes if present
-                        if (strings.HasPrefix(value, "\"") && strings.HasSuffix(value, "\"")) ||
-                                (strings.HasPrefix(value, "'") && strings.HasSuffix(value, "'")) {
-                                value = value[1 : len(value)-1]
-                        }
-                        
-                        // Expand environment variables in ${VAR} format
-                        value = expandEnvVars(value)
+		// Handle multi-line subject section
+		if inSubjectSection {
+			subjectContent.WriteString(line + "\n")
+			if strings.Contains(line, "}") {
+				// End of subject section
+				parseSubjectContent(currentProfile, subjectContent.String())
+				inSubjectSection = false
+				subjectContent.Reset()
+			}
+			continue
+		}
 
-                        // Parse configuration values
-                        switch strings.ToLower(key) {
-                        case "url", "base-url":
-                                currentProfile.URL = value
-                        case "key-id", "hawk-id":
-                                currentProfile.KeyID = value
-                        case "secret", "hawk-key", "hawk-api":
-                                currentProfile.Secret = value
-                        case "account", "account-id":
-                                currentProfile.Account = value
-                        case "format":
-                                currentProfile.Format = value
-                        case "policy", "policy-id":
-                                currentProfile.PolicyID = value
-                        case "p12-password", "p12-pass":
-                                currentProfile.P12Pass = value
-                        case "key-size":
-                                if size, err := strconv.Atoi(value); err == nil {
-                                        currentProfile.KeySize = size
-                                }
-                        case "key-type":
-                                currentProfile.KeyType = value
-                        case "validity":
-                                if days, err := strconv.Atoi(value); err == nil {
-                                        currentProfile.Validity = days
-                                } else {
-                                        if validityPeriod, err := parseValidityPeriodSimple(value); err == nil {
-                                                totalDays := validityPeriod.Years*365 + validityPeriod.Months*30 + validityPeriod.Days
-                                                currentProfile.Validity = totalDays
-                                        }
-                                }
-                        case "output-dir":
-                                currentProfile.OutDir = value
-                        case "no-key-output":
-                                currentProfile.NoKeyOut = strings.ToLower(value) == "true"
-                        case "chain":
-                                currentProfile.Chain = strings.ToLower(value) == "true"
-                        case "no-cleanup":
-                                currentProfile.NoCleanup = strings.ToLower(value) == "true"
-                        case "pqc-algorithm":
-                                currentProfile.PQCAlgorithm = value
-                        case "legacy-alg-names":
-                                currentProfile.LegacyAlgNames = strings.ToLower(value) == "true"
-                        case "legacy-pqc-algorithm":
-                                currentProfile.LegacyPQCAlgorithm = value
-                        case "openssl-path":
-                                currentProfile.OpenSSLPath = value
-                        case "temp-dir":
-                                currentProfile.TempDir = value
-                        case "cleanup":
-                                currentProfile.Cleanup = strings.ToLower(value) == "true"
-                        case "subject-country", "country":
-                                currentProfile.SubjectCountry = value
-                        case "subject-province", "province", "state":
-                                currentProfile.SubjectProvince = value
-                        case "subject-locality", "locality":
-                                currentProfile.SubjectLocality = value
-                        case "subject-organization", "organization":
-                                currentProfile.SubjectOrganization = value
-                        case "subject-organizational-unit", "organizational-unit", "ou":
-                                currentProfile.SubjectOrganizationalUnit = value
-                        case "subject-common-name", "common-name":
-                                currentProfile.SubjectCommonName = value
-                        case "subject":
-                                // Check if this is a multi-line subject section starting with {
-                                if strings.Contains(value, "{") {
-                                        inSubjectSection = true
-                                        subjectContent.WriteString(value + "\n")
-                                        if strings.Contains(value, "}") {
-                                                // Single line subject section
-                                                parseSubjectContent(currentProfile, value)
-                                                inSubjectSection = false
-                                                subjectContent.Reset()
-                                        }
-                                } else {
-                                        // Parse single-line subject format
-                                        parseSubjectSection(currentProfile, value)
-                                }
-                        }
-                }
-        }
+		// Check for section headers [ProfileName]
+		if strings.HasPrefix(line, "[") && strings.HasSuffix(line, "]") {
+			currentSection = strings.TrimSpace(line[1 : len(line)-1])
 
-        if err := scanner.Err(); err != nil {
-                return nil, fmt.Errorf("error reading config file: %w", err)
-        }
+			// Create new profile
+			currentProfile = &Profile{
+				Name:    currentSection,
+				Algo:    "sha256", // Default algorithm
+				Format:  "pem",    // Default format
+				KeySize: 2048,     // Default key size
+				KeyType: "rsa",    // Default key type
+				Cleanup: true,     // Default cleanup for openssl.cnf
+			}
 
-        // Prefer [pqc] as default if requested and it exists
-        if preferPQC {
-                if pqc, ok := config.Profiles["pqc"]; ok {
-                        config.Default = pqc
-                }
-        }
+			config.Profiles[currentSection] = currentProfile
 
-        // Ensure we have a default profile
-        if config.Default == nil && len(config.Profiles) > 0 {
-                // Use the first profile as default if no [Default] section exists
-                for _, profile := range config.Profiles {
-                        config.Default = profile
-                        break
-                }
-        }
+			// Set as default if it's the Default section
+			if strings.ToLower(currentSection) == "default" {
+				config.Default = currentProfile
+			}
+			continue
+		}
 
-        return config, nil
+		// Parse key=value pairs
+		if currentProfile != nil && strings.Contains(line, "=") {
+			parts := strings.SplitN(line, "=", 2)
+			if len(parts) != 2 {
+				continue
+			}
+
+			key := strings.TrimSpace(parts[0])
+			value := strings.TrimSpace(parts[1])
+
+			// Remove quotes if present
+			if (strings.HasPrefix(value, "\"") && strings.HasSuffix(value, "\"")) ||
+				(strings.HasPrefix(value, "'") && strings.HasSuffix(value, "'")) {
+				value = value[1 : len(value)-1]
+			}
+
+			// Expand environment variables in ${VAR} format
+			value = expandEnvVars(value)
+
+			// Parse configuration values
+			switch strings.ToLower(key) {
+			case "url", "base-url":
+				currentProfile.URL = value
+			case "key-id", "hawk-id":
+				currentProfile.KeyID = value
+			case "secret", "hawk-key", "hawk-api":
+				currentProfile.Secret = value
+			case "account", "account-id":
+				currentProfile.Account = value
+			case "format":
+				currentProfile.Format = value
+			case "policy", "policy-id":
+				currentProfile.PolicyID = value
+			case "p12-password", "p12-pass":
+				currentProfile.P12Pass = value
+			case "key-size":
+				if size, err := strconv.Atoi(value); err == nil {
+					currentProfile.KeySize = size
+				}
+			case "key-type":
+				currentProfile.KeyType = value
+			case "validity":
+				if days, err := strconv.Atoi(value); err == nil {
+					currentProfile.Validity = days
+				} else {
+					if validityPeriod, err := parseValidityPeriodSimple(value); err == nil {
+						totalDays := validityPeriod.Years*365 + validityPeriod.Months*30 + validityPeriod.Days
+						currentProfile.Validity = totalDays
+					}
+				}
+			case "output-dir":
+				currentProfile.OutDir = value
+			case "no-key-output":
+				currentProfile.NoKeyOut = strings.ToLower(value) == "true"
+			case "chain":
+				currentProfile.Chain = strings.ToLower(value) == "true"
+			case "no-cleanup":
+				currentProfile.NoCleanup = strings.ToLower(value) == "true"
+			case "pqc-algorithm":
+				currentProfile.PQCAlgorithm = value
+			case "legacy-alg-names":
+				currentProfile.LegacyAlgNames = strings.ToLower(value) == "true"
+			case "legacy-pqc-algorithm":
+				currentProfile.LegacyPQCAlgorithm = value
+			case "openssl-path":
+				currentProfile.OpenSSLPath = value
+			case "temp-dir":
+				currentProfile.TempDir = value
+			case "cleanup":
+				currentProfile.Cleanup = strings.ToLower(value) == "true"
+			case "subject-country", "country":
+				currentProfile.SubjectCountry = value
+			case "subject-province", "province", "state":
+				currentProfile.SubjectProvince = value
+			case "subject-locality", "locality":
+				currentProfile.SubjectLocality = value
+			case "subject-organization", "organization":
+				currentProfile.SubjectOrganization = value
+			case "subject-organizational-unit", "organizational-unit", "ou":
+				currentProfile.SubjectOrganizationalUnit = value
+			case "subject-common-name", "common-name":
+				currentProfile.SubjectCommonName = value
+			case "subject":
+				// Check if this is a multi-line subject section starting with {
+				if strings.Contains(value, "{") {
+					inSubjectSection = true
+					subjectContent.WriteString(value + "\n")
+					if strings.Contains(value, "}") {
+						// Single line subject section
+						parseSubjectContent(currentProfile, value)
+						inSubjectSection = false
+						subjectContent.Reset()
+					}
+				} else {
+					// Parse single-line subject format
+					parseSubjectSection(currentProfile, value)
+				}
+			case "provider-path":
+				currentProfile.ProviderPath = value
+			}
+		}
+	}
+
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("error reading config file: %w", err)
+	}
+
+	// Prefer [pqc] as default if requested and it exists
+	if preferPQC {
+		if pqc, ok := config.Profiles["pqc"]; ok {
+			config.Default = pqc
+		}
+	}
+
+	// Ensure we have a default profile
+	if config.Default == nil && len(config.Profiles) > 0 {
+		// Use the first profile as default if no [Default] section exists
+		for _, profile := range config.Profiles {
+			config.Default = profile
+			break
+		}
+	}
+
+	return config, nil
 }
 
 // expandEnvVars expands environment variables in ${VAR} format
 func expandEnvVars(value string) string {
-        re := regexp.MustCompile(`\$\{([^}]+)\}`)
-        return re.ReplaceAllStringFunc(value, func(match string) string {
-                // Extract variable name from ${VAR}
-                varName := match[2 : len(match)-1]
-                if envValue := os.Getenv(varName); envValue != "" {
-                        return envValue
-                }
-                return match // Return original if no env var found
-        })
+	re := regexp.MustCompile(`\$\{([^}]+)\}`)
+	return re.ReplaceAllStringFunc(value, func(match string) string {
+		// Extract variable name from ${VAR}
+		varName := match[2 : len(match)-1]
+		if envValue := os.Getenv(varName); envValue != "" {
+			return envValue
+		}
+		return match // Return original if no env var found
+	})
 }
 
 // parseSubjectSection parses subject configuration from various formats
 func parseSubjectSection(profile *Profile, value string) {
-        // Handle multi-line JSON-like format
-        if strings.Contains(value, "{") {
-                // This will be handled by the multi-line parser
-                return
-        }
-        
-        // Handle inline format: "CN=test,C=US,ST=CA,L=SF,O=Corp,OU=IT"
-        if strings.Contains(value, "=") {
-                pairs := strings.Split(value, ",")
-                for _, pair := range pairs {
-                        kv := strings.SplitN(strings.TrimSpace(pair), "=", 2)
-                        if len(kv) == 2 {
-                                key := strings.ToLower(strings.TrimSpace(kv[0]))
-                                val := strings.TrimSpace(kv[1])
-                                setSubjectField(profile, key, val)
-                        }
-                }
-        }
+	// Handle multi-line JSON-like format
+	if strings.Contains(value, "{") {
+		// This will be handled by the multi-line parser
+		return
+	}
+
+	// Handle inline format: "CN=test,C=US,ST=CA,L=SF,O=Corp,OU=IT"
+	if strings.Contains(value, "=") {
+		pairs := strings.Split(value, ",")
+		for _, pair := range pairs {
+			kv := strings.SplitN(strings.TrimSpace(pair), "=", 2)
+			if len(kv) == 2 {
+				key := strings.ToLower(strings.TrimSpace(kv[0]))
+				val := strings.TrimSpace(kv[1])
+				setSubjectField(profile, key, val)
+			}
+		}
+	}
 }
 
 // setSubjectField sets a subject field on the profile
 func setSubjectField(profile *Profile, key, value string) {
-        switch strings.ToLower(strings.TrimSpace(key)) {
-        case "cn", "common_name":
-                profile.SubjectCommonName = value
-        case "c", "country":
-                profile.SubjectCountry = value
-        case "st", "state", "province":
-                profile.SubjectProvince = value
-        case "l", "locality":
-                profile.SubjectLocality = value
-        case "o", "organization":
-                profile.SubjectOrganization = value
-        case "ou", "organizational_unit":
-                profile.SubjectOrganizationalUnit = value
-        }
+	switch strings.ToLower(strings.TrimSpace(key)) {
+	case "cn", "common_name":
+		profile.SubjectCommonName = value
+	case "c", "country":
+		profile.SubjectCountry = value
+	case "st", "state", "province":
+		profile.SubjectProvince = value
+	case "l", "locality":
+		profile.SubjectLocality = value
+	case "o", "organization":
+		profile.SubjectOrganization = value
+	case "ou", "organizational_unit":
+		profile.SubjectOrganizationalUnit = value
+	}
 }
 
 // parseSubjectContent parses the multi-line JSON-like subject content
 func parseSubjectContent(profile *Profile, content string) {
-        // Remove braces and clean up the content
-        content = strings.ReplaceAll(content, "{", "")
-        content = strings.ReplaceAll(content, "}", "")
-        
-        // Determine if this is single-line (comma-separated) or multi-line format
-        var entries []string
-        if strings.Contains(content, "\n") {
-                // Multi-line format: split by newlines
-                entries = strings.Split(content, "\n")
-        } else {
-                // Single-line format: split by commas
-                entries = strings.Split(content, ",")
-        }
-        
-        // Parse each key-value pair
-        for _, entry := range entries {
-                entry = strings.TrimSpace(entry)
-                if entry == "" {
-                        continue
-                }
-                
-                // Parse key = value format
-                if strings.Contains(entry, "=") {
-                        kv := strings.SplitN(entry, "=", 2)
-                        if len(kv) == 2 {
-                                key := strings.TrimSpace(kv[0])
-                                value := strings.TrimSpace(kv[1])
-                                setSubjectField(profile, key, value)
-                        }
-                }
-        }
+	// Remove braces and clean up the content
+	content = strings.ReplaceAll(content, "{", "")
+	content = strings.ReplaceAll(content, "}", "")
+
+	// Determine if this is single-line (comma-separated) or multi-line format
+	var entries []string
+	if strings.Contains(content, "\n") {
+		// Multi-line format: split by newlines
+		entries = strings.Split(content, "\n")
+	} else {
+		// Single-line format: split by commas
+		entries = strings.Split(content, ",")
+	}
+
+	// Parse each key-value pair
+	for _, entry := range entries {
+		entry = strings.TrimSpace(entry)
+		if entry == "" {
+			continue
+		}
+
+		// Parse key = value format
+		if strings.Contains(entry, "=") {
+			kv := strings.SplitN(entry, "=", 2)
+			if len(kv) == 2 {
+				key := strings.TrimSpace(kv[0])
+				value := strings.TrimSpace(kv[1])
+				setSubjectField(profile, key, value)
+			}
+		}
+	}
 }
 
 // GetProfile returns a specific profile by name
 func (pc *ProfileConfig) GetProfile(name string) *Profile {
-        if name == "" && pc.Default != nil {
-                return pc.Default
-        }
-        
-        if profile, exists := pc.Profiles[name]; exists {
-                return profile
-        }
-        
-        // Case-insensitive lookup
-        for profileName, profile := range pc.Profiles {
-                if strings.EqualFold(profileName, name) {
-                        return profile
-                }
-        }
-        
-        return nil
+	if name == "" && pc.Default != nil {
+		return pc.Default
+	}
+
+	if profile, exists := pc.Profiles[name]; exists {
+		return profile
+	}
+
+	// Case-insensitive lookup
+	for profileName, profile := range pc.Profiles {
+		if strings.EqualFold(profileName, name) {
+			return profile
+		}
+	}
+
+	return nil
 }
 
 // ListProfiles returns all available profile names
 func (pc *ProfileConfig) ListProfiles() []string {
-        profiles := make([]string, 0, len(pc.Profiles))
-        for name := range pc.Profiles {
-                profiles = append(profiles, name)
-        }
-        return profiles
+	profiles := make([]string, 0, len(pc.Profiles))
+	for name := range pc.Profiles {
+		profiles = append(profiles, name)
+	}
+	return profiles
 }
 
 // CreateExampleProfileConfig creates an example profile configuration file
 func CreateExampleProfileConfig(filename string) error {
-        content := `# zcert Profile Configuration File
+	content := `# zcert Profile Configuration File
 # This file supports multiple profiles with different ZTPKI settings
 # Use: zcert enroll --config zcert.cnf --cn "mycert.com" 
 #   or zcert search --config zcert.cnf --profile test --cn "mycert.com"
@@ -461,7 +464,9 @@ validity = 15
 chain = true 
 pqc-algorithm = MLDSA44
 legacy-alg-names = true
-openssl-path = ./openssl
+# Specify only the directory, not the file name:
+openssl-path = ./   # Directory containing OpenSSL executable (optional)
+provider-path = ./   # Directory containing oqsprovider library (optional)
 temp-dir = .
 cleanup = false
 # Following are pqc specific settings
@@ -474,110 +479,97 @@ subject = {
     organizational_unit = Cybernetics
 }
 `
-
-        return os.WriteFile(filename, []byte(content), 0600) // Restrict to owner only
+	return os.WriteFile(filename, []byte(content), 0600) // Restrict to owner only
 }
 
-// MergeProfileWithFlags merges profile settings with command-line flags and environment variables
-// Priority: CLI Parameters > Configuration File Variables > OS Environment Variables
+// Restore MergeProfileWithFlags for compatibility with other commands
 func MergeProfileWithFlags(profile *Profile, flagURL, flagKeyID, flagSecret, flagFormat, flagPolicy, flagP12Pass string, flagKeySize int, flagKeyType string) *Profile {
-        // Start with environment variables as base (lowest priority)
-        envProfile := &Profile{
-                Algo:    "sha256",
-                Format:  "pem",
-                KeySize: 2048,
-                KeyType: "rsa",
-        }
-        
-        // Apply environment variables
-        if envURL := os.Getenv("ZTPKI_URL"); envURL != "" {
-                envProfile.URL = envURL
-        }
-        if envKeyID := os.Getenv("ZTPKI_HAWK_ID"); envKeyID != "" {
-                envProfile.KeyID = envKeyID
-        }
-        if envSecret := os.Getenv("ZTPKI_HAWK_SECRET"); envSecret != "" {
-                envProfile.Secret = envSecret
-        }
-        // Don't apply ZTPKI_POLICY_ID here - handle it with proper priority later
+	// Start with environment variables as base (lowest priority)
+	envProfile := &Profile{
+		Algo:    "sha256",
+		Format:  "pem",
+		KeySize: 2048,
+		KeyType: "rsa",
+	}
 
-        // Override with configuration file values (medium priority)
-        merged := *envProfile
-        if profile != nil {
-                if profile.URL != "" {
-                        merged.URL = profile.URL
-                }
-                if profile.KeyID != "" {
-                        merged.KeyID = profile.KeyID
-                }
-                if profile.Secret != "" {
-                        merged.Secret = profile.Secret
-                }
-                if profile.PolicyID != "" {
-                        merged.PolicyID = profile.PolicyID
-                }
-                if profile.Format != "" {
-                        merged.Format = profile.Format
-                }
-                if profile.P12Pass != "" {
-                        merged.P12Pass = profile.P12Pass
-                }
-                if profile.KeySize > 0 {
-                        merged.KeySize = profile.KeySize
-                }
-                if profile.KeyType != "" {
-                        merged.KeyType = profile.KeyType
-                }
-                if profile.OutDir != "" {
-                        merged.OutDir = profile.OutDir
-                }
-                merged.NoKeyOut = profile.NoKeyOut
-                merged.Chain = profile.Chain
-                if profile.Validity > 0 {
-                        merged.Validity = profile.Validity
-                }
-                merged.NoCleanup = profile.NoCleanup
-        }
+	// Apply environment variables
+	if envURL := os.Getenv("ZTPKI_URL"); envURL != "" {
+		envProfile.URL = envURL
+	}
+	if envKeyID := os.Getenv("ZTPKI_HAWK_ID"); envKeyID != "" {
+		envProfile.KeyID = envKeyID
+	}
+	if envSecret := os.Getenv("ZTPKI_HAWK_SECRET"); envSecret != "" {
+		envProfile.Secret = envSecret
+	}
+	// Don't apply ZTPKI_POLICY_ID here - handle it with proper priority later
 
-        // Override with command-line flags (highest priority)
-        if flagURL != "" {
-                merged.URL = flagURL
-        }
-        if flagKeyID != "" {
-                merged.KeyID = flagKeyID
-        }
-        if flagSecret != "" {
-                merged.Secret = flagSecret
-        }
-        if flagPolicy != "" {
-                merged.PolicyID = flagPolicy
-        }
-        if flagFormat != "" {
-                merged.Format = flagFormat
-        }
-        if flagP12Pass != "" {
-                merged.P12Pass = flagP12Pass
-        }
-        if flagKeySize > 0 {
-                merged.KeySize = flagKeySize
-        }
-        if flagKeyType != "" {
-                merged.KeyType = flagKeyType
-        }
+	// Override with configuration file values (medium priority)
+	merged := *envProfile
+	if profile != nil {
+		if profile.URL != "" {
+			merged.URL = profile.URL
+		}
+		if profile.KeyID != "" {
+			merged.KeyID = profile.KeyID
+		}
+		if profile.Secret != "" {
+			merged.Secret = profile.Secret
+		}
+		if profile.PolicyID != "" {
+			merged.PolicyID = profile.PolicyID
+		}
+		if profile.Format != "" {
+			merged.Format = profile.Format
+		}
+		if profile.P12Pass != "" {
+			merged.P12Pass = profile.P12Pass
+		}
+		if profile.KeySize > 0 {
+			merged.KeySize = profile.KeySize
+		}
+		if profile.KeyType != "" {
+			merged.KeyType = profile.KeyType
+		}
+		if profile.OutDir != "" {
+			merged.OutDir = profile.OutDir
+		}
+		merged.NoKeyOut = profile.NoKeyOut
+		merged.Chain = profile.Chain
+		if profile.Validity > 0 {
+			merged.Validity = profile.Validity
+		}
+		merged.NoCleanup = profile.NoCleanup
+	}
 
-        // Always ensure sha256 is used
-        merged.Algo = "sha256"
+	// Override with command-line flags (highest priority)
+	if flagURL != "" {
+		merged.URL = flagURL
+	}
+	if flagKeyID != "" {
+		merged.KeyID = flagKeyID
+	}
+	if flagSecret != "" {
+		merged.Secret = flagSecret
+	}
+	if flagPolicy != "" {
+		merged.PolicyID = flagPolicy
+	}
+	if flagFormat != "" {
+		merged.Format = flagFormat
+	}
+	if flagP12Pass != "" {
+		merged.P12Pass = flagP12Pass
+	}
+	if flagKeySize > 0 {
+		merged.KeySize = flagKeySize
+	}
+	if flagKeyType != "" {
+		merged.KeyType = flagKeyType
+	}
 
-        return &merged
-}
+	// Always ensure sha256 is used
+	merged.Algo = "sha256"
 
-// LoadConfig loads configuration from either YAML or CNF format based on file extension
-func LoadConfig(filename string) (*ProfileConfig, error) {
-        if filename == "" {
-                return nil, fmt.Errorf("no configuration file specified")
-        }
-
-        // Load CNF/INI format configuration files only
-        // YAML playbook files are handled separately in yaml.go
-        return LoadProfileConfig(filename, false)
+	return &merged
 }

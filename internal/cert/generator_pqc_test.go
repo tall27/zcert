@@ -17,8 +17,8 @@ func TestPQCGeneratorOpenSSLCleanup(t *testing.T) {
 
 	// Test with cleanup enabled (default)
 	t.Run("Cleanup enabled", func(t *testing.T) {
-		generator := NewPQCGenerator("openssl", tempDir, false, false, false, "")
-		
+		generator := NewPQCGenerator("openssl", tempDir, false, false, false, "", "")
+
 		if !generator.OpenSSLCleanup {
 			t.Error("Expected OpenSSLCleanup to be true by default")
 		}
@@ -26,9 +26,9 @@ func TestPQCGeneratorOpenSSLCleanup(t *testing.T) {
 
 	// Test setting cleanup to false
 	t.Run("Set cleanup to false", func(t *testing.T) {
-		generator := NewPQCGenerator("openssl", tempDir, false, false, false, "")
+		generator := NewPQCGenerator("openssl", tempDir, false, false, false, "", "")
 		generator.SetOpenSSLCleanup(false)
-		
+
 		if generator.OpenSSLCleanup {
 			t.Error("Expected OpenSSLCleanup to be false after setting")
 		}
@@ -36,10 +36,10 @@ func TestPQCGeneratorOpenSSLCleanup(t *testing.T) {
 
 	// Test setting cleanup to true
 	t.Run("Set cleanup to true", func(t *testing.T) {
-		generator := NewPQCGenerator("openssl", tempDir, false, false, false, "")
+		generator := NewPQCGenerator("openssl", tempDir, false, false, false, "", "")
 		generator.SetOpenSSLCleanup(false)
 		generator.SetOpenSSLCleanup(true)
-		
+
 		if !generator.OpenSSLCleanup {
 			t.Error("Expected OpenSSLCleanup to be true after setting")
 		}
@@ -54,7 +54,7 @@ func TestPQCGeneratorOpenSSLConfigGeneration(t *testing.T) {
 	}
 	defer os.RemoveAll(tempDir)
 
-	generator := NewPQCGenerator("openssl", tempDir, false, false, false, "")
+	generator := NewPQCGenerator("openssl", tempDir, false, false, false, "", "")
 
 	// Test basic subject
 	subject := Subject{
@@ -135,11 +135,11 @@ func TestPQCGeneratorOpenSSLConfigGeneration(t *testing.T) {
 		configFile := filepath.Join(tempDir, "test-with-sans.cnf")
 		sans := []string{
 			"alt1.example.com",
-			"alt2.example.com", 
+			"alt2.example.com",
 			"192.168.1.1",
 			"test@example.com",
 		}
-		
+
 		err := generator.generateOpenSSLConfig(configFile, subject, sans)
 		if err != nil {
 			t.Fatalf("Failed to generate OpenSSL config: %v", err)
@@ -177,7 +177,7 @@ func TestPQCGeneratorOpenSSLConfigGeneration(t *testing.T) {
 	// Test with extended key usage
 	t.Run("Config with extended key usage", func(t *testing.T) {
 		generator.ExtKeyUsage = []string{"serverAuth", "clientAuth"}
-		
+
 		configFile := filepath.Join(tempDir, "test-ext-key-usage.cnf")
 		err := generator.generateOpenSSLConfig(configFile, subject, []string{})
 		if err != nil {
@@ -194,7 +194,7 @@ func TestPQCGeneratorOpenSSLConfigGeneration(t *testing.T) {
 		if !strings.Contains(contentStr, "extendedKeyUsage = serverAuth, clientAuth") {
 			t.Error("Config should contain extendedKeyUsage")
 		}
-		
+
 		// Reset for other tests
 		generator.ExtKeyUsage = nil
 	})
@@ -202,7 +202,7 @@ func TestPQCGeneratorOpenSSLConfigGeneration(t *testing.T) {
 	// Test with certificate policies
 	t.Run("Config with certificate policies", func(t *testing.T) {
 		generator.CertPolicy = []string{"1.2.3.4.5", "1.2.3.4.6"}
-		
+
 		configFile := filepath.Join(tempDir, "test-cert-policy.cnf")
 		err := generator.generateOpenSSLConfig(configFile, subject, []string{})
 		if err != nil {
@@ -219,7 +219,7 @@ func TestPQCGeneratorOpenSSLConfigGeneration(t *testing.T) {
 		if !strings.Contains(contentStr, "certificatePolicies = 1.2.3.4.5, 1.2.3.4.6") {
 			t.Error("Config should contain certificatePolicies")
 		}
-		
+
 		// Reset for other tests
 		generator.CertPolicy = nil
 	})
@@ -229,7 +229,7 @@ func TestPQCGeneratorOpenSSLConfigGeneration(t *testing.T) {
 func TestPQCGeneratorGenerateCSRConfigFlag(t *testing.T) {
 	// This test verifies that the -config flag is included in the OpenSSL command
 	// We can't actually run OpenSSL in the test environment, so we test the command construction
-	
+
 	tempDir, err := os.MkdirTemp("", "test-pqc-csr-*")
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
@@ -243,8 +243,8 @@ func TestPQCGeneratorGenerateCSRConfigFlag(t *testing.T) {
 		t.Fatalf("Failed to create dummy key file: %v", err)
 	}
 
-	generator := NewPQCGenerator("echo", tempDir, true, true, false, "") // Use echo to capture command
-	generator.SetOpenSSLCleanup(false) // Test cleanup behavior
+	generator := NewPQCGenerator("echo", tempDir, true, true, false, "", "") // Use echo to capture command
+	generator.SetOpenSSLCleanup(false)                                       // Test cleanup behavior
 
 	subject := Subject{
 		CommonName: "test.example.com",
@@ -254,7 +254,7 @@ func TestPQCGeneratorGenerateCSRConfigFlag(t *testing.T) {
 	// This will fail because we're using 'echo' instead of 'openssl', but we can capture the intended command
 	// The test verifies that the command construction includes -config flag
 	_, err = generator.GenerateCSR(keyFile, subject, []string{}, "")
-	
+
 	// We expect this to fail with echo, but the important thing is that the config file was created
 	// and would have been included in the command with the -config flag
 	configFile := filepath.Join(tempDir, "openssl.cnf")
@@ -348,7 +348,7 @@ func TestPQCAlgorithmValidation(t *testing.T) {
 
 	// Test with legacy algorithm names enabled
 	t.Run("Legacy algorithms enabled", func(t *testing.T) {
-		generator := NewPQCGenerator("openssl", tempDir, false, true, true, "")
+		generator := NewPQCGenerator("openssl", tempDir, false, true, true, "", "")
 
 		validAlgorithms := []string{"DILITHIUM2", "DILITHIUM3", "DILITHIUM5", "MLDSA44", "MLDSA65", "MLDSA87"}
 		for _, alg := range validAlgorithms {
@@ -367,7 +367,7 @@ func TestPQCAlgorithmValidation(t *testing.T) {
 
 	// Test with modern algorithm names only
 	t.Run("Modern algorithms only", func(t *testing.T) {
-		generator := NewPQCGenerator("openssl", tempDir, false, true, false, "")
+		generator := NewPQCGenerator("openssl", tempDir, false, true, false, "", "")
 
 		validAlgorithms := []string{"MLDSA44", "MLDSA65", "MLDSA87", "SLHDSA128F", "SLHDSA192F"}
 		for _, alg := range validAlgorithms {
@@ -424,7 +424,7 @@ func TestConvertToLegacyAlgorithm(t *testing.T) {
 
 	// Test with legacy algorithm names enabled
 	t.Run("Legacy conversion enabled", func(t *testing.T) {
-		generator := NewPQCGenerator("openssl", tempDir, false, true, true, "")
+		generator := NewPQCGenerator("openssl", tempDir, false, true, true, "", "")
 
 		testCases := []struct {
 			input    string
@@ -446,7 +446,7 @@ func TestConvertToLegacyAlgorithm(t *testing.T) {
 
 	// Test with legacy algorithm names disabled
 	t.Run("Legacy conversion disabled", func(t *testing.T) {
-		generator := NewPQCGenerator("openssl", tempDir, false, true, false, "")
+		generator := NewPQCGenerator("openssl", tempDir, false, true, false, "", "")
 
 		testCases := []struct {
 			input    string
@@ -467,7 +467,7 @@ func TestConvertToLegacyAlgorithm(t *testing.T) {
 
 	// Test with legacy override
 	t.Run("Legacy algorithm override", func(t *testing.T) {
-		generator := NewPQCGenerator("openssl", tempDir, false, true, true, "custom-dilithium")
+		generator := NewPQCGenerator("openssl", tempDir, false, true, true, "custom-dilithium", "")
 
 		actual := generator.convertToLegacyAlgorithm("MLDSA44")
 		expected := "custom-dilithium"
