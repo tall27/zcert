@@ -77,7 +77,8 @@ type Profile struct {
 	P12Pass            string
 	KeySize            int
 	KeyType            string
-	Validity           int
+	Validity           int    // Validity in days for backward compatibility
+	ValidityString     string // Original validity string (e.g., "90d", "3m")
 	OutDir             string
 	NoKeyOut           bool
 	Chain              bool
@@ -208,13 +209,12 @@ func LoadProfileConfig(filename string, preferPQC bool) (*ProfileConfig, error) 
 			case "key-type":
 				currentProfile.KeyType = value
 			case "validity":
+				currentProfile.ValidityString = value
 				if days, err := strconv.Atoi(value); err == nil {
 					currentProfile.Validity = days
-				} else {
-					if validityPeriod, err := parseValidityPeriodSimple(value); err == nil {
-						totalDays := validityPeriod.Years*365 + validityPeriod.Months*30 + validityPeriod.Days
-						currentProfile.Validity = totalDays
-					}
+				} else if validityPeriod, err := parseValidityPeriodSimple(value); err == nil {
+					totalDays := validityPeriod.Years*365 + validityPeriod.Months*30 + validityPeriod.Days
+					currentProfile.Validity = totalDays
 				}
 			case "output-dir":
 				currentProfile.OutDir = value
