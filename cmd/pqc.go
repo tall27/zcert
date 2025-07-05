@@ -452,7 +452,11 @@ func loadPQCConfig(cmd *cobra.Command) (*PQCConfig, error) {
 	cfg.HawkID = selectedProfile.KeyID
 	cfg.HawkKey = selectedProfile.Secret
 	cfg.Policy = selectedProfile.PolicyID
-	cfg.Validity = fmt.Sprintf("%d", selectedProfile.Validity)
+	if selectedProfile.ValidityString != "" {
+		cfg.Validity = selectedProfile.ValidityString
+	} else {
+		cfg.Validity = fmt.Sprintf("%d", selectedProfile.Validity)
+	}
 
 	// Override with command-line flags
 	if cmd.Flags().Changed("url") {

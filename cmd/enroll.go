@@ -203,6 +203,9 @@ func runEnroll(cmd *cobra.Command, args []string) error {
 		if profile.Validity > 0 {
 			finalProfile.Validity = profile.Validity
 		}
+		if profile.ValidityString != "" {
+			finalProfile.ValidityString = profile.ValidityString
+		}
 		finalProfile.Chain = profile.Chain
 	} else {
 		// Set defaults when no profile
@@ -228,6 +231,9 @@ func runEnroll(cmd *cobra.Command, args []string) error {
 	}
 	if enrollP12Pass != "" {
 		finalProfile.P12Pass = enrollP12Pass
+	}
+	if enrollValidity != "" {
+		finalProfile.ValidityString = enrollValidity
 	}
 	if cmd.Flags().Changed("key-size") {
 		finalProfile.KeySize = enrollKeySize
@@ -360,8 +366,12 @@ func runEnroll(cmd *cobra.Command, args []string) error {
 
 	// Use validity from profile if not provided via CLI flag
 	validity := enrollValidity
-	if validity == "" && finalProfile.Validity > 0 {
-		validity = fmt.Sprintf("%dd", finalProfile.Validity)
+	if validity == "" {
+		if finalProfile.ValidityString != "" {
+			validity = finalProfile.ValidityString
+		} else if finalProfile.Validity > 0 {
+			validity = fmt.Sprintf("%dd", finalProfile.Validity)
+		}
 	}
 
 	// Handle CSR generation mode first to determine if CN is needed
@@ -474,15 +484,15 @@ func runEnroll(cmd *cobra.Command, args []string) error {
 			FallbackMode: true,
 			VerboseLevel: verboseLevel,
 		}
-		
+
 		result, err := utils.RetrieveCertificateWithChainResult(client, certificate.ID, chainOpts)
 		if err != nil {
 			return err
 		}
-		
+
 		certificate = result.Certificate
 		certPEM := result.PEMResponse
-		
+
 		if verboseLevel > 0 {
 			if result.ChainRetrieved {
 				fmt.Fprintf(os.Stderr, "Certificate retrieved with chain\n")
@@ -503,25 +513,25 @@ func runEnroll(cmd *cobra.Command, args []string) error {
 			if enrollP12Pass == "" {
 				return fmt.Errorf("p12-password is required when using --format p12")
 			}
-			
+
 			// Generate filename based on CN
 			p12Filename := cn + ".p12"
-			
+
 			// Create PKCS#12 bundle
 			p12Data, err := utils.CreatePKCS12Bundle(keyPEM, []byte(certPEM.Certificate), enrollP12Pass)
 			if err != nil {
 				return fmt.Errorf("failed to create PKCS#12 bundle: %w", err)
 			}
-			
+
 			// Write PKCS#12 file
 			if err := os.WriteFile(p12Filename, p12Data, 0600); err != nil {
 				return fmt.Errorf("failed to write PKCS#12 file: %w", err)
 			}
-			
+
 			if verboseLevel > 0 {
 				fmt.Fprintf(os.Stderr, "PKCS#12 bundle written to: %s\n", p12Filename)
 			}
-			
+
 		} else {
 			// PEM format output - use shared output function
 			err = OutputCertificateWithFiles(certPEM, keyPEM, OutputCertificateOptions{
@@ -544,12 +554,12 @@ func runEnroll(cmd *cobra.Command, args []string) error {
 		if enrollCSRFile == "" {
 			return fmt.Errorf("--csr-file is required when using --csr file mode")
 		}
-		
+
 		csrPEM, err := os.ReadFile(enrollCSRFile)
 		if err != nil {
 			return fmt.Errorf("failed to read CSR file: %w", err)
 		}
-		
+
 		// Use the enrollment workflow function for file mode too
 		_, err = client.EnrollmentWorkflow(string(csrPEM), certTask)
 		if err != nil {
@@ -760,4 +770,4 @@ func generateCSR(keyFile string, certTask *config.CertificateTask, keyPass strin
 	}
 
 	return csrFile.Name(), nil
-} 
+}
