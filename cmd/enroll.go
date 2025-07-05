@@ -478,23 +478,23 @@ func runEnroll(cmd *cobra.Command, args []string) error {
 		}
 
 		// Generate private key
-		keyFile, err := generatePrivateKey(keyType, keySize, enrollKeyCurve, enrollKeyPass, verboseLevel)
+		keyFile, err := generatePrivateKey(keyType, keySize, enrollKeyCurve, enrollKeyPass, verboseLevel, cn, finalProfile.KeepTempFiles)
 		if err != nil {
 			return fmt.Errorf("failed to generate private key: %w", err)
 		}
-		// Only clean up if not in verbose mode (for debugging)
-		if verboseLevel == 0 {
-			defer os.Remove(keyFile) // Clean up temporary key file
+		// Clean up key file if keep-temp-files is false
+		if !finalProfile.KeepTempFiles {
+			defer os.Remove(keyFile)
 		}
 
 		// Generate CSR
-		csrFile, err := generateCSR(keyFile, certTask, enrollKeyPass, verboseLevel)
+		csrFile, err := generateCSR(keyFile, certTask, enrollKeyPass, verboseLevel, cn, finalProfile.KeepTempFiles)
 		if err != nil {
 			return fmt.Errorf("failed to generate CSR: %w", err)
 		}
-		// Only clean up if not in verbose mode (for debugging)
-		if verboseLevel == 0 {
-			defer os.Remove(csrFile) // Clean up temporary CSR file
+		// Clean up CSR file if keep-temp-files is false
+		if !finalProfile.KeepTempFiles {
+			defer os.Remove(csrFile)
 		}
 
 		// Read CSR content
@@ -696,8 +696,8 @@ func getEnrollUsageFunc() func(*cobra.Command) error {
 	}
 }
 
-// generatePrivateKey generates a private key and saves it to a temporary file
-func generatePrivateKey(keyType string, keySize int, keyCurve, keyPass string, verboseLevel int) (string, error) {
+// generatePrivateKey generates a private key and saves it to a file
+func generatePrivateKey(keyType string, keySize int, keyCurve, keyPass string, verboseLevel int, cn string, keepTempFiles bool) (string, error) {
 	var privKey *rsa.PrivateKey
 	var err error
 
@@ -711,8 +711,15 @@ func generatePrivateKey(keyType string, keySize int, keyCurve, keyPass string, v
 		return "", fmt.Errorf("ECDSA key generation not yet supported")
 	}
 
-	// Create key file directly in current directory
-	keyFileName := fmt.Sprintf("zcert-key-%d.pem", time.Now().UnixNano())
+	// Create key file with appropriate naming
+	var keyFileName string
+	if keepTempFiles {
+		// Use CN-based naming when keeping files
+		keyFileName = fmt.Sprintf("%s.key", cn)
+	} else {
+		// Use timestamp-based naming for temporary files
+		keyFileName = fmt.Sprintf("zcert-key-%d.pem", time.Now().UnixNano())
+	}
 	if verboseLevel > 0 {
 		fmt.Fprintf(os.Stderr, "DEBUG: Creating key file: %s\n", keyFileName)
 	}
@@ -742,10 +749,17 @@ func generatePrivateKey(keyType string, keySize int, keyCurve, keyPass string, v
 	return keyFile.Name(), nil
 }
 
-// generateCSR generates a CSR from a private key and saves it to a temporary file
-func generateCSR(keyFile string, certTask *config.CertificateTask, keyPass string, verboseLevel int) (string, error) {
-	// Create CSR file directly in current directory
-	csrFileName := fmt.Sprintf("zcert-csr-%d.pem", time.Now().UnixNano())
+// generateCSR generates a CSR from a private key and saves it to a file
+func generateCSR(keyFile string, certTask *config.CertificateTask, keyPass string, verboseLevel int, cn string, keepTempFiles bool) (string, error) {
+	// Create CSR file with appropriate naming
+	var csrFileName string
+	if keepTempFiles {
+		// Use CN-based naming when keeping files
+		csrFileName = fmt.Sprintf("%s.csr", cn)
+	} else {
+		// Use timestamp-based naming for temporary files
+		csrFileName = fmt.Sprintf("zcert-csr-%d.pem", time.Now().UnixNano())
+	}
 	if verboseLevel > 0 {
 		fmt.Fprintf(os.Stderr, "DEBUG: Creating CSR file: %s\n", csrFileName)
 	}

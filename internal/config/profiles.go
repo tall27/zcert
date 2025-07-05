@@ -35,7 +35,7 @@ type Profile struct {
 	OutDir             string
 	NoKeyOut           bool
 	Chain              bool
-	NoCleanup          bool
+	KeepTempFiles      bool
 	PQCAlgorithm       string
 	LegacyAlgNames     bool
 	LegacyPQCAlgorithm string
@@ -185,8 +185,8 @@ func LoadProfileConfig(filename string, preferPQC bool) (*ProfileConfig, error) 
 				currentProfile.NoKeyOut = strings.ToLower(value) == "true"
 			case "chain":
 				currentProfile.Chain = strings.ToLower(value) == "true"
-			case "no-cleanup":
-				currentProfile.NoCleanup = strings.ToLower(value) == "true"
+			case "keep-temp-files":
+				currentProfile.KeepTempFiles = strings.ToLower(value) == "true"
 			case "pqc-algorithm":
 				currentProfile.PQCAlgorithm = value
 			case "legacy-alg-names":
@@ -431,7 +431,7 @@ legacy-alg-names = true
 openssl-path = ./   # Directory containing OpenSSL executable (optional)
 provider-path = ./   # Directory containing oqsprovider library (optional)
 temp-dir = .
-cleanup = false
+keep-temp-files = false
 # Following are pqc specific settings
 subject = {
     common_name = PQC Certificate
@@ -505,7 +505,7 @@ func MergeProfileWithFlags(profile *Profile, flagURL, flagKeyID, flagSecret, fla
 		if profile.ValidityString != "" {
 			merged.ValidityString = profile.ValidityString
 		}
-		merged.NoCleanup = profile.NoCleanup
+		merged.KeepTempFiles = profile.KeepTempFiles
 	}
 
 	// Override with command-line flags (highest priority)

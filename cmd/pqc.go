@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"time"
 
 	"zcert/internal/api"
 	"zcert/internal/cert"
 	"zcert/internal/config"
+	validitypkg "zcert/internal/validity"
 
 	"github.com/spf13/cobra"
 )
@@ -64,133 +64,80 @@ func init() {
 }
 
 func runPQC(cmd *cobra.Command, args []string) error {
+	var (
+		cfg          *PQCConfig
+		keyFile      string
+		csrFile      string
+		csrContent   []byte
+		client       *api.Client
+		certTask     *config.CertificateTask
+		requestID    string
+		certificate  *api.Certificate
+		certPEM      *api.CertificatePEMResponse
+		keyPEM       []byte
+		verboseLevel int
+		finalKeyFile string
+		vp           *validitypkg.ValidityPeriod
+		vErr         error
+	)
+
 	cfg, err := loadPQCConfig(cmd)
 	if err != nil {
 		return fmt.Errorf("failed to load config: %w", err)
 	}
 
-	// Get global verbose level
-	verboseLevel := GetVerboseLevel()
+	verboseLevel = GetVerboseLevel()
 	cfg.Verbose = verboseLevel > 0
 
-	// Print variable hierarchy if verbose
 	if verboseLevel > 0 {
 		printVariableHierarchyPQC(cmd, cfg)
 	}
 
-	// Create PQC generator with correct signature
-	generator := cert.NewPQCGenerator(cfg.OpenSSLPath, cfg.TempDir, cfg.Verbose, cfg.NoCleanup, cfg.LegacyAlgNames, cfg.LegacyPQCAlgorithm, "")
+	generator := cert.NewPQCGenerator(cfg.OpenSSLPath, cfg.TempDir, cfg.Verbose, !cfg.KeepTempFiles, cfg.LegacyAlgNames, cfg.LegacyPQCAlgorithm, "")
 
-	// Debug: let's see what's happening with the configuration
 	if verboseLevel > 0 {
 		fmt.Fprintf(os.Stderr, "DEBUG: Algorithm: %s\n", cfg.Algorithm)
-		fmt.Fprintf(os.Stderr, "DEBUG: LegacyAlgNames: %t\n", cfg.LegacyAlgNames)
+		fmt.Fprintf(os.Stderr, "DEBUG: LegacyAlgNames: %v\n", cfg.LegacyAlgNames)
 		fmt.Fprintf(os.Stderr, "DEBUG: LegacyPQCAlgorithm: %s\n", cfg.LegacyPQCAlgorithm)
 	}
 
-	// Always generate PQC key unencrypted
-	keyFile, err := generator.GenerateKey(cfg.Algorithm)
+	keyFile, err = generator.GenerateKey(cfg.Algorithm)
 	if err != nil {
 		return fmt.Errorf("failed to generate PQC key: %w", err)
 	}
-	if !cfg.NoCleanup {
-		defer generator.Cleanup(keyFile)
+	finalKeyFile = keyFile
+
+	// Clean up key file if keep-temp-files is false
+	if !cfg.KeepTempFiles {
+		defer os.Remove(keyFile)
 	}
 
-	finalKeyFile := keyFile
-	// If key encryption is requested, encrypt the key using OpenSSL pkcs8
-	if cfg.KeyPassword != "" {
-		encryptedKeyFile := keyFile + ".enc"
-		err = generator.EncryptKey(keyFile, cfg.KeyPassword, encryptedKeyFile)
-		if err != nil {
-			return fmt.Errorf("failed to encrypt private key: %w", err)
-		}
-		finalKeyFile = encryptedKeyFile
-	}
-
-	// Handle private key output
-	if !cfg.NoKeyOutput && finalKeyFile != "" {
-		keyOutputFile := cfg.KeyFile
-		if keyOutputFile == "" {
-			keyOutputFile = cfg.CommonName + ".key"
-		}
-		err = copyFile(finalKeyFile, keyOutputFile)
-		if err != nil {
-			return fmt.Errorf("failed to copy private key to output location: %w", err)
-		}
-		if verboseLevel > 0 {
-			fmt.Fprintf(os.Stderr, "Private key written to: %s\n", keyOutputFile)
-		}
-	}
-
-	// Display private key on screen if requested
-	if cfg.Display && finalKeyFile != "" {
-		keyContent, err := os.ReadFile(finalKeyFile)
-		if err != nil {
-			return fmt.Errorf("failed to read private key for display: %w", err)
-		}
-		fmt.Printf("\n-----BEGIN PRIVATE KEY-----\n%s\n-----END PRIVATE KEY-----\n\n", string(keyContent))
-	}
-
-	// Create subject information
-	subject := cert.Subject{
-		CommonName:         cfg.CommonName,
-		Country:            cfg.Country,
-		Province:           cfg.Province,
-		Locality:           cfg.Locality,
-		Organization:       "",
-		OrganizationalUnit: "",
-	}
-	if len(cfg.Organizations) > 0 {
-		subject.Organization = cfg.Organizations[0]
-	}
-	if len(cfg.OrganizationalUnits) > 0 {
-		subject.OrganizationalUnit = cfg.OrganizationalUnits[0]
-	}
-
-	// Collect SANs - only DNS SANs
-	var sans []string
-	sans = append(sans, cfg.SANDNS...)
-
-	// Generate CSR
-	csrFile, err := generator.GenerateCSR(finalKeyFile, subject, sans, cfg.KeyPassword)
+	csrFile, err = generator.GenerateCSR(finalKeyFile, cfg.Subject, cfg.SANDNS, "")
 	if err != nil {
 		return fmt.Errorf("failed to generate CSR: %w", err)
 	}
-	if !cfg.NoCleanup {
-		defer generator.Cleanup(csrFile)
+
+	// Clean up CSR file if keep-temp-files is false
+	if !cfg.KeepTempFiles {
+		defer os.Remove(csrFile)
 	}
 
-	// Output CSR file path
-	if verboseLevel > 0 {
-		fmt.Printf("CSR file generated: %s\n", csrFile)
+	csrContent, err = os.ReadFile(csrFile)
+	if err != nil {
+		return fmt.Errorf("failed to read CSR file: %w", err)
 	}
 
-	// Step 5: Direct certificate enrollment (no subprocess)
-	if verboseLevel > 0 {
-		fmt.Println("[zcert] Submitting CSR for enrollment...")
-	}
-
-	// Create API client using the same approach as enroll command
 	apiConfig := &config.Config{
 		BaseURL: cfg.URL,
 		HawkID:  cfg.HawkID,
 		HawkKey: cfg.HawkKey,
 	}
-
-	client, err := api.NewClientWithVerbose(apiConfig, verboseLevel)
+	client, err = api.NewClientWithVerbose(apiConfig, verboseLevel)
 	if err != nil {
 		return fmt.Errorf("failed to create API client: %w", err)
 	}
 
-	// Read CSR content
-	csrPEM, err := os.ReadFile(csrFile)
-	if err != nil {
-		return fmt.Errorf("failed to read CSR file: %w", err)
-	}
-
-	// Create certificate task using the same structure as enroll command
-	certTask := &config.CertificateTask{
+	certTask = &config.CertificateTask{
 		Request: config.CertificateRequest{
 			Subject: config.CertificateSubject{
 				CommonName:   cfg.CommonName,
@@ -203,91 +150,63 @@ func runPQC(cmd *cobra.Command, args []string) error {
 			Policy: cfg.Policy,
 			SANs: &config.FlexibleSANs{
 				SubjectAltNames: &config.SubjectAltNames{
-					DNS: cfg.SANDNS,
+					DNS:   cfg.SANDNS,
+					IP:    cfg.SANIP,
+					Email: cfg.SANEmail,
 				},
 			},
 		},
 	}
 
-	// Submit CSR to ZTPKI
-	requestID, err := client.SubmitCSRWithFullPayload(string(csrPEM), certTask, verboseLevel)
+	if cfg.Validity != "" {
+		vp, vErr = validitypkg.ParseValidityPeriod(cfg.Validity)
+		if vErr != nil {
+			return fmt.Errorf("failed to parse validity '%s': %w", cfg.Validity, vErr)
+		}
+		certTask.Request.Validity = &config.ValidityConfig{
+			Years:  vp.Years,
+			Months: vp.Months,
+			Days:   vp.Days,
+		}
+	}
+
+	requestID, err = client.SubmitCSRWithFullPayload(string(csrContent), certTask, verboseLevel)
 	if err != nil {
 		return fmt.Errorf("failed to submit CSR: %w", err)
 	}
 
-	if verboseLevel > 0 {
-		fmt.Fprintf(os.Stderr, "CSR submitted successfully. Request ID: %s\n", requestID)
+	fmt.Fprintf(os.Stderr, "CSR submitted successfully. Request ID: %s\n", requestID)
+	fmt.Fprintf(os.Stderr, "Waiting for certificate issuance...\n")
+
+	certificate, err = client.PollForCertificateCompletion(requestID, 600)
+	if err != nil {
+		return fmt.Errorf("failed to wait for certificate: %w", err)
 	}
 
-	// Wait for certificate to be issued
-	if verboseLevel > 0 {
-		fmt.Fprintf(os.Stderr, "Waiting for certificate issuance...\n")
-	}
+	fmt.Fprintf(os.Stderr, "Certificate issued successfully!\n")
 
-	// Poll for certificate completion
-	var certificate *api.Certificate
-	attemptCount := 0
-	maxAttempts := 600 // 10 minutes with 1-second intervals
-	for attemptCount < maxAttempts {
-		attemptCount++
-		time.Sleep(1 * time.Second)
-
-		// Check certificate request status first
-		request, err := client.GetCertificateRequest(requestID)
-		if err != nil {
-			if verboseLevel > 0 && attemptCount%20 == 1 { // Log every 20 seconds
-				fmt.Fprintf(os.Stderr, "Attempt %d: Certificate not ready yet...\n", attemptCount)
-			}
-			continue
-		}
-
-		if request.IssuanceStatus == "COMPLETE" || request.IssuanceStatus == "VALID" || request.IssuanceStatus == "ISSUED" {
-			if verboseLevel > 0 {
-				fmt.Fprintf(os.Stderr, "Certificate issued successfully!\n")
-			}
-			// Now get the actual certificate using the certificate ID
-			certificate, err = client.GetCertificate(request.CertificateID)
-			if err != nil {
-				return fmt.Errorf("failed to retrieve certificate after issuance: %w", err)
-			}
-			break
-		} else if request.IssuanceStatus == "FAILED" {
-			errorMsg := fmt.Sprintf("certificate issuance failed: %s", request.IssuanceStatus)
-			if request.Status != "" {
-				errorMsg += fmt.Sprintf(" (Status: %s)", request.Status)
-			}
-			return fmt.Errorf(errorMsg)
-		} else if verboseLevel > 0 {
-			fmt.Fprintf(os.Stderr, "Certificate status: %s\n", request.IssuanceStatus)
-		}
-	}
-
-	if certificate == nil {
-		return fmt.Errorf("certificate issuance timed out after %d attempts", maxAttempts)
-	}
-
-	// Retrieve certificate
-	certPEM, err := client.GetCertificatePEM(certificate.ID, cfg.Chain)
+	certPEM, err = client.GetCertificatePEM(certificate.ID, cfg.Chain)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve certificate: %w", err)
 	}
 
-	// Output certificate
-	certOutputFile := cfg.CertFile
-	if certOutputFile == "" {
-		certOutputFile = cfg.CommonName + ".crt"
-	}
-	err = os.WriteFile(certOutputFile, []byte(certPEM.Certificate), 0644)
+	keyPEM, err = os.ReadFile(finalKeyFile)
 	if err != nil {
-		return fmt.Errorf("failed to write certificate file: %w", err)
-	}
-	if verboseLevel > 0 {
-		fmt.Fprintf(os.Stderr, "Certificate written to: %s\n", certOutputFile)
+		return fmt.Errorf("failed to read private key: %w", err)
 	}
 
-	// Display certificate on screen if requested
-	if cfg.Display {
-		fmt.Printf("\n-----BEGIN CERTIFICATE-----\n%s\n-----END CERTIFICATE-----\n\n", certPEM.Certificate)
+	err = OutputCertificateWithFiles(certPEM, keyPEM, OutputCertificateOptions{
+		CertFile:     cfg.CertFile,
+		KeyFile:      cfg.KeyFile,
+		ChainFile:    cfg.ChainFile,
+		BundleFile:   cfg.BundleFile,
+		KeyPassword:  cfg.KeyPassword,
+		NoKeyOutput:  cfg.NoKeyOutput,
+		IncludeChain: cfg.Chain,
+		VerboseLevel: verboseLevel,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to output certificate: %w", err)
 	}
 
 	return nil
@@ -299,7 +218,7 @@ type PQCConfig struct {
 	TempDir            string
 	Algorithm          string
 	Verbose            bool
-	NoCleanup          bool
+	KeepTempFiles      bool
 	LegacyAlgNames     bool
 	LegacyPQCAlgorithm string
 
@@ -313,6 +232,7 @@ type PQCConfig struct {
 	SANDNS              []string
 	SANIP               []string
 	SANEmail            []string
+	Subject             cert.Subject // Added Subject field
 
 	// Output configuration
 	CertFile    string
@@ -339,10 +259,10 @@ type PQCConfig struct {
 func loadPQCConfig(cmd *cobra.Command) (*PQCConfig, error) {
 	// Initialize config with defaults
 	cfg := &PQCConfig{
-		OpenSSLPath: "openssl",
-		TempDir:     os.TempDir(),
-		Verbose:     false, // Will be set by global verbose level
-		NoCleanup:   false,
+		OpenSSLPath:   "openssl",
+		TempDir:       os.TempDir(),
+		Verbose:       false, // Will be set by global verbose level
+		KeepTempFiles: false,
 	}
 
 	// Get verbose level
@@ -404,7 +324,7 @@ func loadPQCConfig(cmd *cobra.Command) (*PQCConfig, error) {
 		cfg.TempDir = selectedProfile.TempDir
 	}
 	cfg.Verbose = verboseLevel > 0 // Use global verbose level
-	cfg.NoCleanup = selectedProfile.NoCleanup
+	cfg.KeepTempFiles = selectedProfile.KeepTempFiles
 	cfg.LegacyAlgNames = selectedProfile.LegacyAlgNames
 	cfg.LegacyPQCAlgorithm = selectedProfile.LegacyPQCAlgorithm
 
@@ -426,6 +346,32 @@ func loadPQCConfig(cmd *cobra.Command) (*PQCConfig, error) {
 	cfg.SANDNS, _ = cmd.Flags().GetStringArray("san-dns")
 	cfg.SANIP, _ = cmd.Flags().GetStringArray("san-ip")
 	cfg.SANEmail, _ = cmd.Flags().GetStringArray("san-email")
+
+	// Use the local selectedProfile variable for subject merging
+	getSubjectValue := func(cliVal, profileVal string) string {
+		if cliVal != "" {
+			return cliVal
+		}
+		return profileVal
+	}
+	cfg.Subject = cert.Subject{
+		CommonName:         getSubjectValue(cfg.CommonName, selectedProfile.SubjectCommonName),
+		Country:            getSubjectValue(cfg.Country, selectedProfile.SubjectCountry),
+		Province:           getSubjectValue(cfg.Province, selectedProfile.SubjectProvince),
+		Locality:           getSubjectValue(cfg.Locality, selectedProfile.SubjectLocality),
+		Organization:       "",
+		OrganizationalUnit: "",
+	}
+	if len(cfg.Organizations) > 0 {
+		cfg.Subject.Organization = cfg.Organizations[0]
+	} else if selectedProfile.SubjectOrganization != "" {
+		cfg.Subject.Organization = selectedProfile.SubjectOrganization
+	}
+	if len(cfg.OrganizationalUnits) > 0 {
+		cfg.Subject.OrganizationalUnit = cfg.OrganizationalUnits[0]
+	} else if selectedProfile.SubjectOrganizationalUnit != "" {
+		cfg.Subject.OrganizationalUnit = selectedProfile.SubjectOrganizationalUnit
+	}
 
 	// Map output configuration
 	cfg.CertFile, _ = cmd.Flags().GetString("cert-file")

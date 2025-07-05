@@ -5,11 +5,12 @@ import (
 	"os"
 	"strings"
 
-	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 	"zcert/internal/api"
 	"zcert/internal/config"
 	"zcert/internal/utils"
+
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 // getStringValue gets a string value from Viper, falling back to a default if not set.
@@ -133,7 +134,7 @@ func OutputCertificateWithFiles(certPEM *api.CertificatePEMResponse, keyPEM []by
 			// Write key to file
 			var keyToWrite []byte
 			var err error
-			
+
 			if options.KeyPassword != "" {
 				// Encrypt the key if password is provided
 				keyToWrite, err = utils.EncryptPEMBlock(keyPEM, options.KeyPassword)
@@ -143,7 +144,7 @@ func OutputCertificateWithFiles(certPEM *api.CertificatePEMResponse, keyPEM []by
 			} else {
 				keyToWrite = keyPEM
 			}
-			
+
 			if err := os.WriteFile(options.KeyFile, keyToWrite, 0600); err != nil {
 				return fmt.Errorf("failed to write private key file: %w", err)
 			}
@@ -199,8 +200,8 @@ func OutputCertificateWithFiles(certPEM *api.CertificatePEMResponse, keyPEM []by
 		fmt.Println(certPEM.Certificate)
 	}
 
-	// Output chain certificates if available and requested
-	if options.IncludeChain && certPEM.Chain != "" {
+	// Output chain certificates if available and requested, but only if no chain file is specified
+	if options.IncludeChain && certPEM.Chain != "" && options.ChainFile == "" {
 		fmt.Println(certPEM.Chain)
 	}
 
