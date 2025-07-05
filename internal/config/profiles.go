@@ -176,6 +176,11 @@ func LoadProfileConfig(filename string, preferPQC bool) (*ProfileConfig, error) 
 			key := strings.TrimSpace(parts[0])
 			value := strings.TrimSpace(parts[1])
 
+			// Strip inline comments (anything after # or ;) if present
+			if commentIdx := strings.IndexAny(value, "#;"); commentIdx != -1 {
+				value = strings.TrimSpace(value[:commentIdx])
+			}
+
 			// Remove quotes if present
 			if (strings.HasPrefix(value, "\"") && strings.HasSuffix(value, "\"")) ||
 				(strings.HasPrefix(value, "'") && strings.HasSuffix(value, "'")) {
