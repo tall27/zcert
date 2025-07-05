@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"zcert/internal/validity"
 )
 
 // ValidityPeriod represents a parsed validity period
@@ -14,54 +15,6 @@ type ValidityPeriod struct {
 	Years  int
 	Months int
 	Days   int
-}
-
-// parseValidityPeriodSimple parses validity period strings like "5d", "30", "1y6m"
-func parseValidityPeriodSimple(input string) (*ValidityPeriod, error) {
-	if input == "" {
-		return nil, fmt.Errorf("empty validity period")
-	}
-
-	// If it's just a number, treat as days
-	if days, err := strconv.Atoi(input); err == nil {
-		return &ValidityPeriod{Days: days}, nil
-	}
-
-	// Parse with suffixes
-	result := &ValidityPeriod{}
-
-	// Regular expressions for different components
-	yearRegex := regexp.MustCompile(`(\d+)y`)
-	monthRegex := regexp.MustCompile(`(\d+)m`)
-	dayRegex := regexp.MustCompile(`(\d+)d`)
-
-	// Extract years
-	if yearMatch := yearRegex.FindStringSubmatch(input); yearMatch != nil {
-		if years, err := strconv.Atoi(yearMatch[1]); err == nil {
-			result.Years = years
-		}
-	}
-
-	// Extract months
-	if monthMatch := monthRegex.FindStringSubmatch(input); monthMatch != nil {
-		if months, err := strconv.Atoi(monthMatch[1]); err == nil {
-			result.Months = months
-		}
-	}
-
-	// Extract days
-	if dayMatch := dayRegex.FindStringSubmatch(input); dayMatch != nil {
-		if days, err := strconv.Atoi(dayMatch[1]); err == nil {
-			result.Days = days
-		}
-	}
-
-	// Validate that we found at least one component
-	if result.Years == 0 && result.Months == 0 && result.Days == 0 {
-		return nil, fmt.Errorf("invalid validity format: %s (expected formats: 30d, 6m, 1y, 30d6m, 1y6m, or plain number for days)", input)
-	}
-
-	return result, nil
 }
 
 // Profile represents a configuration profile
@@ -78,6 +31,7 @@ type Profile struct {
 	KeySize            int
 	KeyType            string
 	Validity           int
+	ValidityString     string // Store original validity string from config
 	OutDir             string
 	NoKeyOut           bool
 	Chain              bool
@@ -176,6 +130,11 @@ func LoadProfileConfig(filename string, preferPQC bool) (*ProfileConfig, error) 
 			key := strings.TrimSpace(parts[0])
 			value := strings.TrimSpace(parts[1])
 
+			// Remove comments (everything after #)
+			if commentIndex := strings.Index(value, "#"); commentIndex != -1 {
+				value = strings.TrimSpace(value[:commentIndex])
+			}
+
 			// Remove quotes if present
 			if (strings.HasPrefix(value, "\"") && strings.HasSuffix(value, "\"")) ||
 				(strings.HasPrefix(value, "'") && strings.HasSuffix(value, "'")) {
@@ -208,12 +167,16 @@ func LoadProfileConfig(filename string, preferPQC bool) (*ProfileConfig, error) 
 			case "key-type":
 				currentProfile.KeyType = value
 			case "validity":
+				// Store the original validity string for consistent parsing later
+				currentProfile.ValidityString = value
 				if days, err := strconv.Atoi(value); err == nil {
 					currentProfile.Validity = days
 				} else {
-					if validityPeriod, err := parseValidityPeriodSimple(value); err == nil {
-						totalDays := validityPeriod.Years*365 + validityPeriod.Months*30 + validityPeriod.Days
+					if vp, err := validity.ParseValidityPeriod(value); err == nil {
+						totalDays := vp.ToTotalDays()
 						currentProfile.Validity = totalDays
+					} else {
+						// Silently ignore invalid validity in config - will be handled later
 					}
 				}
 			case "output-dir":
@@ -538,6 +501,9 @@ func MergeProfileWithFlags(profile *Profile, flagURL, flagKeyID, flagSecret, fla
 		merged.Chain = profile.Chain
 		if profile.Validity > 0 {
 			merged.Validity = profile.Validity
+		}
+		if profile.ValidityString != "" {
+			merged.ValidityString = profile.ValidityString
 		}
 		merged.NoCleanup = profile.NoCleanup
 	}

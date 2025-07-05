@@ -9,13 +9,17 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strconv"
 	"strings"
+	"time"
 
-	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 	"zcert/internal/api"
 	"zcert/internal/config"
 	"zcert/internal/utils"
+	validitypkg "zcert/internal/validity"
+
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 var (
@@ -146,9 +150,15 @@ func init() {
 func runEnroll(cmd *cobra.Command, args []string) error {
 	// Get global verbose level
 	verboseLevel := GetVerboseLevel()
+	if verboseLevel > 0 {
+		fmt.Fprintf(os.Stderr, "DEBUG: TOP OF runEnroll\n")
+	}
 
 	// Use profile configuration if available
 	profile := GetCurrentProfile()
+	if profile != nil && verboseLevel > 0 {
+		fmt.Fprintf(os.Stderr, "DEBUG: profile.Validity after loading = %d\n", profile.Validity)
+	}
 
 	// Create final configuration following hierarchy: CLI > Config > Environment
 	finalProfile := &config.Profile{
@@ -202,6 +212,12 @@ func runEnroll(cmd *cobra.Command, args []string) error {
 		}
 		if profile.Validity > 0 {
 			finalProfile.Validity = profile.Validity
+		}
+		if profile.ValidityString != "" {
+			finalProfile.ValidityString = profile.ValidityString
+		}
+		if verboseLevel > 0 {
+			fmt.Fprintf(os.Stderr, "DEBUG: finalProfile.Validity after merging = %d\n", finalProfile.Validity)
 		}
 		finalProfile.Chain = profile.Chain
 	} else {
@@ -360,8 +376,24 @@ func runEnroll(cmd *cobra.Command, args []string) error {
 
 	// Use validity from profile if not provided via CLI flag
 	validity := enrollValidity
-	if validity == "" && finalProfile.Validity > 0 {
-		validity = fmt.Sprintf("%dd", finalProfile.Validity)
+	if verboseLevel > 0 {
+		fmt.Fprintf(os.Stderr, "DEBUG: validity string before any logic = '%s'\n", validity)
+	}
+	if validity == "" && finalProfile.ValidityString != "" {
+		// Use the original validity string from config for consistent parsing
+		validity = finalProfile.ValidityString
+		if verboseLevel > 0 {
+			fmt.Fprintf(os.Stderr, "DEBUG: Using validity string from config: '%s'\n", validity)
+		}
+	} else if validity == "" && finalProfile.Validity > 0 {
+		// Fallback to total days if no string available
+		if verboseLevel > 0 {
+			fmt.Fprintf(os.Stderr, "DEBUG: finalProfile.Validity = %d\n", finalProfile.Validity)
+		}
+		validity = strconv.Itoa(finalProfile.Validity)
+	}
+	if verboseLevel > 0 {
+		fmt.Fprintf(os.Stderr, "DEBUG: validity string before parsing = '%s'\n", validity)
 	}
 
 	// Handle CSR generation mode first to determine if CN is needed
@@ -394,10 +426,17 @@ func runEnroll(cmd *cobra.Command, args []string) error {
 	// Parse validity period if provided, otherwise use template maximum
 	var validityPeriod *api.ValidityPeriod
 	if validity != "" {
-		validityPeriod, err = utils.ParseValidityPeriod(validity)
+		if verboseLevel > 0 {
+			fmt.Fprintf(os.Stderr, "DEBUG: About to parse validity string: '%s'\n", validity)
+		}
+		vp, err := validitypkg.ParseValidityPeriod(validity)
 		if err != nil {
 			return fmt.Errorf("invalid validity format: %w", err)
 		}
+		if verboseLevel > 0 {
+			fmt.Fprintf(os.Stderr, "DEBUG: Parsed validity: %+v\n", vp)
+		}
+		validityPeriod = validityToAPI(vp)
 	}
 
 	// Create certificate task for API submission
@@ -439,18 +478,24 @@ func runEnroll(cmd *cobra.Command, args []string) error {
 		}
 
 		// Generate private key
-		keyFile, err := generatePrivateKey(keyType, keySize, enrollKeyCurve, enrollKeyPass)
+		keyFile, err := generatePrivateKey(keyType, keySize, enrollKeyCurve, enrollKeyPass, verboseLevel)
 		if err != nil {
 			return fmt.Errorf("failed to generate private key: %w", err)
 		}
-		defer os.Remove(keyFile) // Clean up temporary key file
+		// Only clean up if not in verbose mode (for debugging)
+		if verboseLevel == 0 {
+			defer os.Remove(keyFile) // Clean up temporary key file
+		}
 
 		// Generate CSR
-		csrFile, err := generateCSR(keyFile, certTask, enrollKeyPass)
+		csrFile, err := generateCSR(keyFile, certTask, enrollKeyPass, verboseLevel)
 		if err != nil {
 			return fmt.Errorf("failed to generate CSR: %w", err)
 		}
-		defer os.Remove(csrFile) // Clean up temporary CSR file
+		// Only clean up if not in verbose mode (for debugging)
+		if verboseLevel == 0 {
+			defer os.Remove(csrFile) // Clean up temporary CSR file
+		}
 
 		// Read CSR content
 		csrPEM, err := os.ReadFile(csrFile)
@@ -460,6 +505,7 @@ func runEnroll(cmd *cobra.Command, args []string) error {
 
 		if verboseLevel > 0 {
 			fmt.Fprintf(os.Stderr, "CSR generated successfully: %s\n", csrFile)
+			fmt.Fprintf(os.Stderr, "Verbose level: %d, cleanup disabled: %t\n", verboseLevel, verboseLevel > 0)
 		}
 
 		// Use the enrollment workflow function
@@ -474,15 +520,15 @@ func runEnroll(cmd *cobra.Command, args []string) error {
 			FallbackMode: true,
 			VerboseLevel: verboseLevel,
 		}
-		
+
 		result, err := utils.RetrieveCertificateWithChainResult(client, certificate.ID, chainOpts)
 		if err != nil {
 			return err
 		}
-		
+
 		certificate = result.Certificate
 		certPEM := result.PEMResponse
-		
+
 		if verboseLevel > 0 {
 			if result.ChainRetrieved {
 				fmt.Fprintf(os.Stderr, "Certificate retrieved with chain\n")
@@ -503,25 +549,25 @@ func runEnroll(cmd *cobra.Command, args []string) error {
 			if enrollP12Pass == "" {
 				return fmt.Errorf("p12-password is required when using --format p12")
 			}
-			
+
 			// Generate filename based on CN
 			p12Filename := cn + ".p12"
-			
+
 			// Create PKCS#12 bundle
 			p12Data, err := utils.CreatePKCS12Bundle(keyPEM, []byte(certPEM.Certificate), enrollP12Pass)
 			if err != nil {
 				return fmt.Errorf("failed to create PKCS#12 bundle: %w", err)
 			}
-			
+
 			// Write PKCS#12 file
 			if err := os.WriteFile(p12Filename, p12Data, 0600); err != nil {
 				return fmt.Errorf("failed to write PKCS#12 file: %w", err)
 			}
-			
+
 			if verboseLevel > 0 {
 				fmt.Fprintf(os.Stderr, "PKCS#12 bundle written to: %s\n", p12Filename)
 			}
-			
+
 		} else {
 			// PEM format output - use shared output function
 			err = OutputCertificateWithFiles(certPEM, keyPEM, OutputCertificateOptions{
@@ -544,12 +590,12 @@ func runEnroll(cmd *cobra.Command, args []string) error {
 		if enrollCSRFile == "" {
 			return fmt.Errorf("--csr-file is required when using --csr file mode")
 		}
-		
+
 		csrPEM, err := os.ReadFile(enrollCSRFile)
 		if err != nil {
 			return fmt.Errorf("failed to read CSR file: %w", err)
 		}
-		
+
 		// Use the enrollment workflow function for file mode too
 		_, err = client.EnrollmentWorkflow(string(csrPEM), certTask)
 		if err != nil {
@@ -651,7 +697,7 @@ func getEnrollUsageFunc() func(*cobra.Command) error {
 }
 
 // generatePrivateKey generates a private key and saves it to a temporary file
-func generatePrivateKey(keyType string, keySize int, keyCurve, keyPass string) (string, error) {
+func generatePrivateKey(keyType string, keySize int, keyCurve, keyPass string, verboseLevel int) (string, error) {
 	var privKey *rsa.PrivateKey
 	var err error
 
@@ -665,7 +711,12 @@ func generatePrivateKey(keyType string, keySize int, keyCurve, keyPass string) (
 		return "", fmt.Errorf("ECDSA key generation not yet supported")
 	}
 
-	keyFile, err := os.CreateTemp("", "zcert-key-*.pem")
+	// Create key file directly in current directory
+	keyFileName := fmt.Sprintf("zcert-key-%d.pem", time.Now().UnixNano())
+	if verboseLevel > 0 {
+		fmt.Fprintf(os.Stderr, "DEBUG: Creating key file: %s\n", keyFileName)
+	}
+	keyFile, err := os.Create(keyFileName)
 	if err != nil {
 		return "", err
 	}
@@ -692,7 +743,18 @@ func generatePrivateKey(keyType string, keySize int, keyCurve, keyPass string) (
 }
 
 // generateCSR generates a CSR from a private key and saves it to a temporary file
-func generateCSR(keyFile string, certTask *config.CertificateTask, keyPass string) (string, error) {
+func generateCSR(keyFile string, certTask *config.CertificateTask, keyPass string, verboseLevel int) (string, error) {
+	// Create CSR file directly in current directory
+	csrFileName := fmt.Sprintf("zcert-csr-%d.pem", time.Now().UnixNano())
+	if verboseLevel > 0 {
+		fmt.Fprintf(os.Stderr, "DEBUG: Creating CSR file: %s\n", csrFileName)
+	}
+	csrFile, err := os.Create(csrFileName)
+	if err != nil {
+		return "", err
+	}
+	defer csrFile.Close()
+
 	keyPEM, err := os.ReadFile(keyFile)
 	if err != nil {
 		return "", err
@@ -749,15 +811,21 @@ func generateCSR(keyFile string, certTask *config.CertificateTask, keyPass strin
 		return "", err
 	}
 
-	csrFile, err := os.CreateTemp("", "zcert-csr-*.pem")
-	if err != nil {
-		return "", err
-	}
-	defer csrFile.Close()
-
 	if err := pem.Encode(csrFile, &pem.Block{Type: "CERTIFICATE REQUEST", Bytes: csrBytes}); err != nil {
 		return "", err
 	}
 
 	return csrFile.Name(), nil
-} 
+}
+
+// Add this helper function near the top or above main logic
+func validityToAPI(vp *validitypkg.ValidityPeriod) *api.ValidityPeriod {
+	if vp == nil {
+		return nil
+	}
+	return &api.ValidityPeriod{
+		Days:   vp.Days,
+		Months: vp.Months,
+		Years:  vp.Years,
+	}
+}
