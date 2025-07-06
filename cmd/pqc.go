@@ -278,7 +278,7 @@ func loadPQCConfig(cmd *cobra.Command) (*PQCConfig, error) {
 	// Initialize config with defaults
 	cfg := &PQCConfig{
 		OpenSSLPath:   "openssl",
-		TempDir:       os.TempDir(),
+		TempDir:       "C:\\dev\\tmp",
 		Verbose:       false, // Will be set by global verbose level
 		KeepTempFiles: false,
 	}

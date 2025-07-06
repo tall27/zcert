@@ -12,7 +12,8 @@ import (
 
 func TestOutputter_OutputCertificateToFiles(t *testing.T) {
 	// Create a temporary directory for test files
-	tempDir, err := os.MkdirTemp("", "cert_output_test")
+	tempDir := "C:\\dev\\tmp"
+	err := os.MkdirAll(tempDir, 0755)
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
@@ -177,18 +178,18 @@ func TestOutputter_EncryptedPrivateKey(t *testing.T) {
 	outputter := NewOutputter("pem", "", "")
 
 	tests := []struct {
-		name     string
-		password string
+		name          string
+		password      string
 		wantEncrypted bool
 	}{
 		{
-			name:     "unencrypted key",
-			password: "",
+			name:          "unencrypted key",
+			password:      "",
 			wantEncrypted: false,
 		},
 		{
-			name:     "encrypted key with password",
-			password: "testpassword123",
+			name:          "encrypted key with password",
+			password:      "testpassword123",
 			wantEncrypted: true,
 		},
 	}
@@ -233,7 +234,8 @@ func TestOutputter_EncryptedPrivateKey(t *testing.T) {
 }
 
 func TestOutputOptions_Validation(t *testing.T) {
-	tempDir, err := os.MkdirTemp("", "cert_options_test")
+	tempDir := "C:\\dev\\tmp"
+	err := os.MkdirAll(tempDir, 0755)
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
@@ -256,10 +258,10 @@ LmNvbTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAM5G...
 	outputter := NewOutputter("pem", "", "")
 
 	tests := []struct {
-		name     string
-		options  OutputOptions
-		wantErr  bool
-		errMsg   string
+		name    string
+		options OutputOptions
+		wantErr bool
+		errMsg  string
 	}{
 		{
 			name: "valid cert file option",
@@ -274,7 +276,7 @@ LmNvbTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAM5G...
 				CertFile: "/nonexistent/directory/test.crt",
 			},
 			wantErr: true,
-			errMsg: "failed to write certificate file",
+			errMsg:  "failed to write certificate file",
 		},
 		{
 			name: "invalid directory for key file",
@@ -283,14 +285,14 @@ LmNvbTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAM5G...
 				KeyFile:  "/nonexistent/directory/test.key",
 			},
 			wantErr: true,
-			errMsg: "failed to write private key file",
+			errMsg:  "failed to write private key file",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := outputter.OutputCertificateToFiles(mockCert, privateKey, true, tt.options)
-			
+
 			if tt.wantErr {
 				if err == nil {
 					t.Errorf("Expected error but got none")
@@ -317,7 +319,8 @@ LmNvbTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAM5G...
 }
 
 func TestOutputFormat_UnsupportedFormats(t *testing.T) {
-	tempDir, err := os.MkdirTemp("", "cert_format_test")
+	tempDir := "C:\\dev\\tmp"
+	err := os.MkdirAll(tempDir, 0755)
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
@@ -333,9 +336,9 @@ LmNvbTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAM5G...
 	}
 
 	tests := []struct {
-		name       string
-		format     string
-		wantErr    bool
+		name        string
+		format      string
+		wantErr     bool
 		errContains string
 	}{
 		{
@@ -355,13 +358,13 @@ LmNvbTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBAM5G...
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			outputter := NewOutputter(tt.format, "", "")
-			
+
 			options := OutputOptions{
 				CertFile: filepath.Join(tempDir, "test.crt"),
 			}
 
 			err := outputter.OutputCertificateToFiles(mockCert, nil, false, options)
-			
+
 			if tt.wantErr {
 				if err == nil {
 					t.Errorf("Expected error but got none")

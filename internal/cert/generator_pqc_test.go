@@ -9,7 +9,8 @@ import (
 
 // TestPQCGeneratorOpenSSLCleanup tests the OpenSSL cleanup functionality
 func TestPQCGeneratorOpenSSLCleanup(t *testing.T) {
-	tempDir, err := os.MkdirTemp("", "test-pqc-cleanup-*")
+	tempDir := "C:\\dev\\tmp"
+	err := os.MkdirAll(tempDir, 0755)
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
@@ -48,7 +49,8 @@ func TestPQCGeneratorOpenSSLCleanup(t *testing.T) {
 
 // TestPQCGeneratorOpenSSLConfigGeneration tests OpenSSL config file generation
 func TestPQCGeneratorOpenSSLConfigGeneration(t *testing.T) {
-	tempDir, err := os.MkdirTemp("", "test-pqc-config-*")
+	tempDir := "C:\\dev\\tmp"
+	err := os.MkdirAll(tempDir, 0755)
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
@@ -230,7 +232,8 @@ func TestPQCGeneratorGenerateCSRConfigFlag(t *testing.T) {
 	// This test verifies that the -config flag is included in the OpenSSL command
 	// We can't actually run OpenSSL in the test environment, so we test the command construction
 
-	tempDir, err := os.MkdirTemp("", "test-pqc-csr-*")
+	tempDir := "C:\\dev\\tmp"
+	err := os.MkdirAll(tempDir, 0755)
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
@@ -340,7 +343,8 @@ func TestSubjectString(t *testing.T) {
 
 // TestPQCAlgorithmValidation tests algorithm validation
 func TestPQCAlgorithmValidation(t *testing.T) {
-	tempDir, err := os.MkdirTemp("", "test-pqc-validation-*")
+	tempDir := "C:\\dev\\tmp"
+	err := os.MkdirAll(tempDir, 0755)
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
@@ -416,7 +420,8 @@ func TestIsMLDSA(t *testing.T) {
 
 // TestConvertToLegacyAlgorithm tests algorithm name conversion
 func TestConvertToLegacyAlgorithm(t *testing.T) {
-	tempDir, err := os.MkdirTemp("", "test-pqc-convert-*")
+	tempDir := "C:\\dev\\tmp"
+	err := os.MkdirAll(tempDir, 0755)
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
