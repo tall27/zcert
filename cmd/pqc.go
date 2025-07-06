@@ -17,7 +17,24 @@ var pqcCmd = &cobra.Command{
 	Use:   "pqc",
 	Short: "Generate and enroll Post-Quantum Cryptography certificates",
 	Long: `Generate and enroll Post-Quantum Cryptography certificates using OpenSSL 3.5+.
-Supports FIPS 204 (ML-DSA) and FIPS 205 (SLH-DSA) algorithms.`,
+Supports FIPS 204 (ML-DSA) and FIPS 205 (SLH-DSA) algorithms.
+
+The pqc command generates Post-Quantum Cryptography keys and CSRs using OpenSSL with OQS provider,
+then enrolls them with the Zero Touch PKI service. It handles the complete workflow from key 
+generation to certificate retrieval and output formatting.
+
+Examples:
+  # Using profile configuration (recommended)
+  zcert pqc --cn "example.com" --pqc-algorithm "dilithium2"
+  
+  # Command-line authentication with PQC algorithm
+  zcert pqc --cn "pqc.example.com" --pqc-algorithm "dilithium3" --url "https://your-ztpki-instance.com/api/v2" --hawk-id "your-id" --hawk-key "your-key"
+  
+  # With multiple SANs and custom validity
+  zcert pqc --cn "api.example.com" --pqc-algorithm "mldsa44" --san-dns "example.com" --san-dns "www.example.com" --validity "90d"
+  
+  # With custom file outputs and encryption
+  zcert pqc --cn "secure.example.com" --pqc-algorithm "dilithium5" --cert-file "./secure.crt" --key-file "./secure.key" --key-password "secret123"`,
 	RunE: runPQC,
 }
 
@@ -53,7 +70,6 @@ func init() {
 	pqcCmd.Flags().String("chain-file", "", "Certificate chain output file path")
 	pqcCmd.Flags().String("bundle-file", "", "Combined certificate bundle file path")
 	pqcCmd.Flags().String("format", "pem", "Output format (pem, p12)")
-	pqcCmd.Flags().String("key-password", "", "Password for private key encryption")
 	pqcCmd.Flags().String("p12-password", "", "Password for PKCS#12 bundle")
 	pqcCmd.Flags().Bool("no-key-output", false, "Don't output private key to file")
 	pqcCmd.Flags().Bool("chain", false, "Include certificate chain")
@@ -61,6 +77,10 @@ func init() {
 
 	// Operational Flags
 	pqcCmd.Flags().String("validity", "", "Certificate validity period (30d, 6m, 1y, etc.)")
+
+	// Set custom help and usage functions to group flags consistently
+	pqcCmd.SetHelpFunc(getPQCCustomHelpFunc())
+	pqcCmd.SetUsageFunc(getPQCUsageFunc())
 }
 
 func runPQC(cmd *cobra.Command, args []string) error {
@@ -200,7 +220,6 @@ func runPQC(cmd *cobra.Command, args []string) error {
 		KeyFile:      cfg.KeyFile,
 		ChainFile:    cfg.ChainFile,
 		BundleFile:   cfg.BundleFile,
-		KeyPassword:  cfg.KeyPassword,
 		NoKeyOutput:  cfg.NoKeyOutput,
 		IncludeChain: cfg.Chain,
 		VerboseLevel: verboseLevel,
@@ -240,7 +259,6 @@ type PQCConfig struct {
 	ChainFile   string
 	BundleFile  string
 	Format      string
-	KeyPassword string
 	P12Password string
 	NoKeyOutput bool
 	Chain       bool
@@ -379,7 +397,6 @@ func loadPQCConfig(cmd *cobra.Command) (*PQCConfig, error) {
 	cfg.ChainFile, _ = cmd.Flags().GetString("chain-file")
 	cfg.BundleFile, _ = cmd.Flags().GetString("bundle-file")
 	cfg.Format, _ = cmd.Flags().GetString("format")
-	cfg.KeyPassword, _ = cmd.Flags().GetString("key-password")
 	cfg.P12Password, _ = cmd.Flags().GetString("p12-password")
 	cfg.NoKeyOutput, _ = cmd.Flags().GetBool("no-key-output")
 	cfg.Display, _ = cmd.Flags().GetBool("display")
@@ -455,4 +472,82 @@ func printVariableHierarchyPQC(cmd *cobra.Command, cfg *PQCConfig) {
 	fmt.Printf("ZTPKI_POLICY_ID - %s - %s\n", policySource, policyValue)
 
 	fmt.Printf("===============================================\n\n")
+}
+
+// Help and Usage Functions
+
+func getPQCCustomHelpFunc() func(*cobra.Command, []string) {
+	return func(cmd *cobra.Command, args []string) {
+		fmt.Print(`Generate and enroll Post-Quantum Cryptography certificates using OpenSSL 3.5+.
+Supports FIPS 204 (ML-DSA) and FIPS 205 (SLH-DSA) algorithms.
+
+The pqc command generates Post-Quantum Cryptography keys and CSRs using OpenSSL with OQS provider,
+then enrolls them with the Zero Touch PKI service. It handles the complete workflow from key 
+generation to certificate retrieval and output formatting.
+
+Examples:
+  # Using profile configuration (recommended)
+  zcert pqc --cn "example.com" --pqc-algorithm "dilithium2"
+  
+  # Command-line authentication with PQC algorithm
+  zcert pqc --cn "pqc.example.com" --pqc-algorithm "dilithium3" --url "https://your-ztpki-instance.com/api/v2" --hawk-id "your-id" --hawk-key "your-key"
+  
+  # With multiple SANs and custom validity
+  zcert pqc --cn "api.example.com" --pqc-algorithm "mldsa44" --san-dns "example.com" --san-dns "www.example.com" --validity "90d"
+  
+  # With custom file outputs
+  zcert pqc --cn "secure.example.com" --pqc-algorithm "dilithium5" --cert-file "./secure.crt" --key-file "./secure.key"
+
+Usage:
+  zcert pqc [flags]
+
+Server & Authentication:
+      --hawk-id string    HAWK authentication ID
+      --hawk-key string   HAWK authentication key
+      --url string        ZTPKI API base URL (e.g., https://ztpki.venafi.com/api/v2)
+
+Certificate Request:
+      --cn string                Common Name for the certificate (required)
+      --policy string            Policy ID or name for certificate issuance (optional - will show selection if not specified)
+      --pqc-algorithm string     PQC algorithm (MLDSA44, MLDSA65, MLDSA87, Dilithium2, Dilithium3, Dilithium5)
+      --san-dns strings          DNS Subject Alternative Name (repeatable: --san-dns example.com --san-dns *.example.com)
+      --san-email strings        Email Subject Alternative Name (repeatable)
+      --san-ip strings           IP Subject Alternative Name (repeatable: --san-ip 10.0.1.1 --san-ip 10.0.0.1)
+      --validity string          Certificate validity period (formats: 30d, 6m, 1y or plain number for days)
+
+Certificate Subject (Distinguished Name):
+      --country string           Country (C)
+      --locality string          Locality/City (L)
+      --org strings              Organization (O) (repeatable)
+      --ou strings               Organizational Unit (OU) (repeatable: --ou "IT Dep" --ou "Security Team")
+      --province string          State/Province (ST)
+
+Output Files:
+      --bundle-file string       Combined certificate bundle file path (cert + chain)
+      --cert-file string         Certificate output file path
+      --chain-file string        Certificate chain output file path
+      --key-file string          Private key output file path
+
+Output Format & Security:
+      --format string            Output format (pem, p12) (default "pem")
+      --no-key-output            Don't output private key to file
+      --p12-password string      Password for PKCS#12 bundle format
+      --display                  Display private key and certificate on screen
+      --chain                    Include certificate chain
+
+Global Flags:
+      --config string    profile config file (e.g., zcert.cnf)
+  -h, --help             help for pqc
+      --profile string   profile name from config file (default: Default)
+  -v, --verbose          verbose output (-v for requests and variables, -vv for responses too)
+`)
+	}
+}
+
+func getPQCUsageFunc() func(*cobra.Command) error {
+	return func(cmd *cobra.Command) error {
+		fmt.Printf("Usage: %s\n", cmd.UseLine())
+		fmt.Printf("Run '%s --help' for more information.\n", cmd.CommandPath())
+		return nil
+	}
 }

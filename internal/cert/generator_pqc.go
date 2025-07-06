@@ -69,9 +69,9 @@ var supportedLegacyAlgorithms = map[string]string{
 	"DILITHIUM2": "dilithium2",
 	"DILITHIUM3": "dilithium3",
 	"DILITHIUM5": "dilithium5",
-	"MLDSA44":    "mldsa44", // ML-DSA-44 (NIST OID 2.16.840.1.101.3.4.3.17)
-	"MLDSA65":    "mldsa65", // ML-DSA-65 (NIST OID 2.16.840.1.101.3.4.3.18)
-	"MLDSA87":    "mldsa87", // ML-DSA-87 (NIST OID 2.16.840.1.101.3.4.3.19)
+	"MLDSA44":    "dilithium2", // ML-DSA-44 maps to Dilithium2 (legacy name)
+	"MLDSA65":    "dilithium3", // ML-DSA-65 maps to Dilithium3 (legacy name)
+	"MLDSA87":    "dilithium5", // ML-DSA-87 maps to Dilithium5 (legacy name)
 	"FALCON512":  "falcon512",
 	"FALCON1024": "falcon1024",
 	"SLHDSA128F": "sphincssha2128fsimple",
@@ -239,7 +239,7 @@ func (g *PQCGenerator) convertToLegacyAlgorithm(algorithm string) string {
 	return lowerAlg
 }
 
-// Helper to determine if an algorithm is MLDSA (NIST standardized)
+// Helper to determine if an algorithm is MLDSA (NIST standardized) - only the original names, not legacy dilithium names
 func isMLDSA(algorithm string) bool {
 	switch strings.ToLower(algorithm) {
 	case "mldsa44", "mldsa65", "mldsa87":
@@ -327,8 +327,16 @@ func (g *PQCGenerator) GenerateCSR(keyFile string, subject Subject, sans []strin
 
 	var cmd *exec.Cmd
 
-	// Determine algorithm from key file name
+	// Determine algorithm from key file name (for backward compatibility)
 	algo := strings.TrimSuffix(filepath.Base(keyFile), ".key")
+
+	// If we have a legacy algorithm mapping, use the mapped algorithm for provider selection
+	if g.LegacyAlgNames {
+		if mappedAlgo := g.convertToLegacyAlgorithm(algo); mappedAlgo != algo {
+			algo = mappedAlgo
+		}
+	}
+
 	if isMLDSA(algo) {
 		// Use only default provider for MLDSA
 		args := []string{"req",
