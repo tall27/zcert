@@ -14,10 +14,19 @@ import (
 // CARDINAL RULE 2: REAL DATA ONLY - Uses actual ZTPKI backend with provided credentials
 func TestRunCommandIntegration(t *testing.T) {
 	// Test environment setup
-	testDir := t.TempDir()
+	testDir := "C:\\dev\\tmp"
+
+	// Ensure the directory exists
+	err := os.MkdirAll(testDir, 0755)
+	if err != nil {
+		t.Fatalf("Failed to create test dir: %v", err)
+	}
+
 	certDir := filepath.Join(testDir, "certs")
-	err := os.MkdirAll(certDir, 0755)
-	require.NoError(t, err, "Failed to create test cert directory")
+	err = os.MkdirAll(certDir, 0755)
+	if err != nil {
+		t.Fatalf("Failed to create test cert directory: %v", err)
+	}
 
 	// Real backend credentials for CARDINAL RULE 2 compliance
 	playbookContent := `# Integration Test Playbook - Real Backend Verification
@@ -58,65 +67,65 @@ certificateTasks:
 	t.Run("Real Backend Certificate Issuance", func(t *testing.T) {
 		// CARDINAL RULE 2: Real backend request with actual certificate issuance
 		output, err := executeRunCommand([]string{"run", "--file", playbookPath, "--verbose"})
-		
+
 		// Verify command executed successfully
 		assert.NoError(t, err, "Run command should execute successfully with real backend")
-		
+
 		// Verify expected output patterns
 		assert.Contains(t, output, "Executing playbook:", "Should show playbook execution")
 		assert.Contains(t, output, "Variable Hierarchy", "Should display variable hierarchy")
 		assert.Contains(t, output, "CSR submitted", "Should show CSR submission")
 		assert.Contains(t, output, "Certificate saved", "Should show certificate saved")
-		
+
 		// CARDINAL RULE 2: Verify actual certificate files were created
 		certFile := filepath.Join(certDir, "integration-test.crt")
 		keyFile := filepath.Join(certDir, "integration-test.key")
 		chainFile := filepath.Join(certDir, "integration-test.chain.crt")
-		
+
 		// Check certificate file exists and has content
 		assert.FileExists(t, certFile, "Certificate file should be created")
 		certContent, err := os.ReadFile(certFile)
 		require.NoError(t, err, "Should read certificate file")
 		assert.Contains(t, string(certContent), "BEGIN CERTIFICATE", "Certificate should contain PEM header")
 		assert.Greater(t, len(certContent), 100, "Certificate should have substantial content")
-		
+
 		// Check private key file exists and has content
 		assert.FileExists(t, keyFile, "Private key file should be created")
 		keyContent, err := os.ReadFile(keyFile)
 		require.NoError(t, err, "Should read private key file")
 		assert.Contains(t, string(keyContent), "BEGIN RSA PRIVATE KEY", "Private key should contain PEM header")
-		
+
 		// Check chain file exists (may be empty for some CAs)
 		assert.FileExists(t, chainFile, "Chain file should be created")
-		
+
 		// CARDINAL RULE 2: Verify certificate properties using OpenSSL
 		t.Run("Certificate Content Verification", func(t *testing.T) {
 			// This would require openssl to be available in test environment
 			// For now, verify basic PEM structure
 			lines := strings.Split(string(certContent), "\n")
 			assert.True(t, len(lines) > 10, "Certificate should have multiple lines")
-			
+
 			// Verify subject contains expected values
-			assert.Contains(t, string(certContent), "integration-test.example.com", 
+			assert.Contains(t, string(certContent), "integration-test.example.com",
 				"Certificate should contain common name")
 		})
 	})
 
 	t.Run("Force Renewal with Backup", func(t *testing.T) {
 		// First run creates certificate, second run should detect no renewal needed
-		output1, err := executeRunCommand([]string{"run", "--file", playbookPath, "--verbose"})
+		_, err := executeRunCommand([]string{"run", "--file", playbookPath, "--verbose"})
 		assert.NoError(t, err, "First run should succeed")
-		
+
 		// Second run should detect certificate doesn't need renewal
 		output2, err := executeRunCommand([]string{"run", "--file", playbookPath, "--verbose"})
 		assert.NoError(t, err, "Second run should succeed")
 		assert.Contains(t, output2, "does not need renewal", "Should detect certificate doesn't need renewal")
-		
+
 		// Force renewal should create backups and new certificate
 		output3, err := executeRunCommand([]string{"run", "--file", playbookPath, "--force-renew", "--verbose"})
 		assert.NoError(t, err, "Force renewal should succeed")
 		assert.Contains(t, output3, "Backed up existing file", "Should show backup creation")
-		
+
 		// Verify backup files exist
 		backupCert := filepath.Join(certDir, "integration-test.crt.backup")
 		backupKey := filepath.Join(certDir, "integration-test.key.backup")
@@ -129,7 +138,7 @@ certificateTasks:
 		output, err := executeRunCommand([]string{"run", "--file", "nonexistent.yaml"})
 		assert.Error(t, err, "Should fail with nonexistent file")
 		assert.Contains(t, output, "does not exist", "Should show file not found error")
-		
+
 		// Test with invalid YAML
 		invalidYaml := filepath.Join(testDir, "invalid.yaml")
 		invalidContent := `config:
@@ -139,7 +148,7 @@ certificateTasks:
       # Missing closing quote`
 		err = os.WriteFile(invalidYaml, []byte(invalidContent), 0644)
 		require.NoError(t, err, "Should create invalid YAML file")
-		
+
 		output, err = executeRunCommand([]string{"run", "--file", invalidYaml, "--verbose"})
 		assert.Error(t, err, "Should fail with invalid YAML")
 	})
@@ -151,30 +160,30 @@ func TestSharedCodeArchitecture(t *testing.T) {
 	t.Run("Shared Function Usage", func(t *testing.T) {
 		// This test would verify that run command uses shared functions from utils.go
 		// For example: CreateAPIClientFromProfile, OutputCertificateWithFiles, copyFile, etc.
-		
+
 		// Read run.go source to verify it imports and uses shared functions
 		runGoContent, err := os.ReadFile("run.go")
 		if err != nil {
 			t.Skip("Skipping shared code test - run.go not accessible")
 			return
 		}
-		
+
 		runGoStr := string(runGoContent)
-		
+
 		// Verify imports utils and uses shared functions
-		assert.Contains(t, runGoStr, "CreateAPIClientFromProfile", 
+		assert.Contains(t, runGoStr, "CreateAPIClientFromProfile",
 			"Run command should use shared API client creation")
-		assert.Contains(t, runGoStr, "copyFile", 
+		assert.Contains(t, runGoStr, "copyFile",
 			"Run command should use shared file copy function")
-		
+
 		// Check for potential code duplication violations
 		// These are functions that should be shared but might be duplicated
 		suspiciousFunctions := []string{
-			"func generateCSR", // Should use shared CSR generation
+			"func generateCSR",   // Should use shared CSR generation
 			"Variable Hierarchy", // Should use shared hierarchy display
-			"func pollFor", // Should use shared polling logic
+			"func pollFor",       // Should use shared polling logic
 		}
-		
+
 		for _, suspicious := range suspiciousFunctions {
 			if strings.Contains(runGoStr, suspicious) {
 				t.Logf("WARNING: Potential code duplication detected: %s", suspicious)
@@ -190,13 +199,22 @@ func TestEndToEndWorkflow(t *testing.T) {
 	if testing.Short() {
 		t.Skip("Skipping end-to-end test in short mode")
 	}
-	
+
 	// Complete workflow: playbook → CSR → backend request → certificate → file output
-	testDir := t.TempDir()
+	testDir := "C:\\dev\\tmp"
+
+	// Ensure the directory exists
+	err := os.MkdirAll(testDir, 0755)
+	if err != nil {
+		t.Fatalf("Failed to create test dir: %v", err)
+	}
+
 	certDir := filepath.Join(testDir, "certs")
-	err := os.MkdirAll(certDir, 0755)
-	require.NoError(t, err)
-	
+	err = os.MkdirAll(certDir, 0755)
+	if err != nil {
+		t.Fatalf("Failed to create cert dir: %v", err)
+	}
+
 	// Create test playbook for complete workflow
 	playbookContent := `config:
   connection:
@@ -219,15 +237,15 @@ certificateTasks:
       - format: PEM
         file: "` + filepath.Join(certDir, "e2e-test.crt") + `"
         keyFile: "` + filepath.Join(certDir, "e2e-test.key") + `"`
-	
+
 	playbookPath := filepath.Join(testDir, "e2e-playbook.yaml")
 	err = os.WriteFile(playbookPath, []byte(playbookContent), 0644)
 	require.NoError(t, err)
-	
+
 	// Execute complete workflow
 	output, err := executeRunCommand([]string{"run", "--file", playbookPath, "--verbose"})
 	require.NoError(t, err, "End-to-end workflow should complete successfully")
-	
+
 	// Verify complete workflow steps were executed
 	workflowSteps := []string{
 		"Executing playbook",
@@ -237,23 +255,23 @@ certificateTasks:
 		"Certificate saved",
 		"execution completed",
 	}
-	
+
 	for _, step := range workflowSteps {
 		assert.Contains(t, output, step, "Workflow should include step: %s", step)
 	}
-	
+
 	// CARDINAL RULE 2: Verify actual certificate was issued and has correct properties
 	certFile := filepath.Join(certDir, "e2e-test.crt")
 	assert.FileExists(t, certFile, "Certificate file should exist after workflow")
-	
+
 	certContent, err := os.ReadFile(certFile)
 	require.NoError(t, err, "Should read certificate file")
-	
+
 	// Verify certificate content
 	certStr := string(certContent)
 	assert.Contains(t, certStr, "BEGIN CERTIFICATE", "Should be valid PEM certificate")
 	assert.Contains(t, certStr, "END CERTIFICATE", "Should have valid PEM footer")
-	
+
 	// Certificate should be substantial (not empty or truncated)
 	assert.Greater(t, len(certContent), 500, "Certificate should have substantial content")
 }
@@ -263,12 +281,12 @@ func executeRunCommand(args []string) (string, error) {
 	// This would execute the actual zcert binary with given arguments
 	// For testing purposes, this is a placeholder that would need to be implemented
 	// to capture command output and return code
-	
+
 	// In a real implementation, this might use:
 	// cmd := exec.Command("./zcert", args...)
 	// output, err := cmd.CombinedOutput()
 	// return string(output), err
-	
+
 	// For now, return placeholder indicating successful execution
 	return "Placeholder: Run command executed with args: " + strings.Join(args, " "), nil
 }

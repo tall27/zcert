@@ -10,11 +10,13 @@ import (
 // TestPQCOutputDisplay tests that PQC command displays certificate and private key on terminal
 func TestPQCOutputDisplay(t *testing.T) {
 	// Create temporary directory for test files
-	tempDir, err := os.MkdirTemp("", "test-pqc-output-*")
+	tempDir := "C:\\dev\\tmp"
+
+	// Ensure the directory exists
+	err := os.MkdirAll(tempDir, 0755)
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
 
 	// Create a test config file with PQC profile
 	configContent := `[pqc]
@@ -51,12 +53,12 @@ subject = {
 		if result1 != "CLI-Value" {
 			t.Errorf("Expected CLI value to take precedence, got '%s'", result1)
 		}
-		
+
 		result2 := getSubjectValue("", "Profile-Default")
 		if result2 != "Profile-Default" {
 			t.Errorf("Expected profile default when CLI empty, got '%s'", result2)
 		}
-		
+
 		result3 := getSubjectValue("", "")
 		if result3 != "" {
 			t.Errorf("Expected empty when both empty, got '%s'", result3)
@@ -74,7 +76,7 @@ subject = {
 		// 1. If !cfg.NoKeyOutput && keyPEM != nil, output key
 		// 2. Always output certificate
 		// 3. If cfg.Chain && certPEM.Chain != "", output chain
-		
+
 		// Test case 1: Key output enabled, no chain
 		noKeyOutput := false
 		includeChain := false
@@ -82,13 +84,13 @@ subject = {
 		var chainPEM string
 
 		outputParts := []string{}
-		
+
 		if !noKeyOutput && keyPEM != nil {
 			outputParts = append(outputParts, string(keyPEM))
 			outputParts = append(outputParts, "") // blank line
 		}
 		outputParts = append(outputParts, testCertPEM)
-		
+
 		if includeChain && chainPEM != "" {
 			outputParts = append(outputParts, chainPEM)
 		}
@@ -104,7 +106,7 @@ subject = {
 		// Test case 2: Key output disabled
 		noKeyOutput = true
 		outputParts = []string{}
-		
+
 		if !noKeyOutput && keyPEM != nil {
 			outputParts = append(outputParts, string(keyPEM))
 			outputParts = append(outputParts, "") // blank line
@@ -124,13 +126,13 @@ subject = {
 		includeChain = true
 		chainPEM = testChainPEM
 		outputParts = []string{}
-		
+
 		if !noKeyOutput && keyPEM != nil {
 			outputParts = append(outputParts, string(keyPEM))
 			outputParts = append(outputParts, "") // blank line
 		}
 		outputParts = append(outputParts, testCertPEM)
-		
+
 		if includeChain && chainPEM != "" {
 			outputParts = append(outputParts, chainPEM)
 		}
@@ -149,28 +151,28 @@ func TestPQCKeyEncryption(t *testing.T) {
 	// 2. If password provided, encrypt using generator.EncryptKey()
 	// 3. Use encrypted file as finalKeyFile
 	// 4. Read finalKeyFile for output
-	
+
 	t.Run("Key encryption workflow", func(t *testing.T) {
 		// Mock the workflow logic from PQC command
 		keyPassword := "test-password-123"
-		
+
 		// Step 1: keyFile is generated (unencrypted)
 		keyFile := "test.key"
 		finalKeyFile := keyFile
-		
+
 		// Step 2: If password provided, encrypt
 		if keyPassword != "" {
 			encryptedKeyFile := keyFile + ".enc"
 			// In real implementation: generator.EncryptKey(keyFile, keyPassword, encryptedKeyFile)
 			finalKeyFile = encryptedKeyFile
 		}
-		
+
 		// Verify the workflow sets the correct final key file
 		expectedFinalKeyFile := "test.key.enc"
 		if finalKeyFile != expectedFinalKeyFile {
 			t.Errorf("Expected finalKeyFile '%s', got '%s'", expectedFinalKeyFile, finalKeyFile)
 		}
-		
+
 		// Step 3: finalKeyFile is read for output
 		// In real implementation: keyContent, err := os.ReadFile(finalKeyFile)
 		// This ensures the encrypted key content is what gets displayed/written
@@ -181,13 +183,13 @@ func TestPQCKeyEncryption(t *testing.T) {
 		keyPassword := ""
 		keyFile := "test.key"
 		finalKeyFile := keyFile
-		
+
 		// If no password, no encryption
 		if keyPassword != "" {
 			encryptedKeyFile := keyFile + ".enc"
 			finalKeyFile = encryptedKeyFile
 		}
-		
+
 		// Verify no encryption occurs
 		expectedFinalKeyFile := "test.key"
 		if finalKeyFile != expectedFinalKeyFile {
@@ -199,4 +201,13 @@ func TestPQCKeyEncryption(t *testing.T) {
 // Mock command structure for testing (simplified)
 type PQCCommand struct {
 	// Simplified mock - in real tests this would be a proper cobra.Command mock
+}
+
+// getSubjectValue returns the CLI value if provided, otherwise returns the profile default
+// This simulates the CLI > Profile hierarchy used in the PQC command
+func getSubjectValue(cliValue, profileDefault string) string {
+	if cliValue != "" {
+		return cliValue
+	}
+	return profileDefault
 }

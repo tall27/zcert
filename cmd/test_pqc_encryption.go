@@ -10,11 +10,13 @@ import (
 // TestPQCEncryptionIntegration tests the complete encryption workflow used by PQC command
 func TestPQCEncryptionIntegration(t *testing.T) {
 	// Create temporary directory
-	tempDir, err := os.MkdirTemp("", "test-pqc-encryption-*")
+	tempDir := "C:\\dev\\tmp"
+
+	// Ensure the directory exists
+	err := os.MkdirAll(tempDir, 0755)
 	if err != nil {
 		t.Fatalf("Failed to create temp dir: %v", err)
 	}
-	defer os.RemoveAll(tempDir)
 
 	// Create a mock unencrypted private key file
 	unencryptedKeyContent := `-----BEGIN PRIVATE KEY-----
@@ -36,7 +38,7 @@ TEST_UNENCRYPTED_KEY_DATA_FOR_TESTING_PURPOSES_ONLY
 
 		if keyPassword != "" {
 			encryptedKeyFile := keyFile + ".enc"
-			
+
 			// In real implementation, this would call:
 			// err = generator.EncryptKey(keyFile, keyPassword, encryptedKeyFile)
 			// For testing, we'll simulate the encrypted output
@@ -46,12 +48,12 @@ DEK-Info: AES-256-CBC,1234567890ABCDEF
 
 TEST_ENCRYPTED_KEY_DATA_DIFFERENT_FROM_ORIGINAL
 -----END ENCRYPTED PRIVATE KEY-----`
-			
+
 			err = os.WriteFile(encryptedKeyFile, []byte(encryptedContent), 0600)
 			if err != nil {
 				t.Fatalf("Failed to write simulated encrypted key: %v", err)
 			}
-			
+
 			finalKeyFile = encryptedKeyFile
 		}
 
@@ -112,7 +114,7 @@ func TestPQCTerminalOutputBehavior(t *testing.T) {
 	t.Run("Always display on terminal even with file output", func(t *testing.T) {
 		// This tests the logic we added to always display certificate and key on terminal
 		// regardless of whether files are also being written
-		
+
 		// Mock the configuration that PQC command uses
 		cfg := struct {
 			CertFile    string
@@ -120,21 +122,21 @@ func TestPQCTerminalOutputBehavior(t *testing.T) {
 			NoKeyOutput bool
 			Chain       bool
 		}{
-			CertFile:    "test.crt",     // File specified - but should still show on terminal
-			KeyFile:     "test.key",     // File specified - but should still show on terminal
-			NoKeyOutput: false,          // Key output enabled
-			Chain:       true,           // Chain requested
+			CertFile:    "test.crt", // File specified - but should still show on terminal
+			KeyFile:     "test.key", // File specified - but should still show on terminal
+			NoKeyOutput: false,      // Key output enabled
+			Chain:       true,       // Chain requested
 		}
 
 		// Mock certificate data
 		testCertPEM := `-----BEGIN CERTIFICATE-----
 TEST_CERTIFICATE_DATA
 -----END CERTIFICATE-----`
-		
+
 		testKeyPEM := `-----BEGIN PRIVATE KEY-----
 TEST_PRIVATE_KEY_DATA
 -----END PRIVATE KEY-----`
-		
+
 		testChainPEM := `-----BEGIN CERTIFICATE-----
 TEST_CHAIN_CERTIFICATE_DATA
 -----END CERTIFICATE-----`
@@ -148,7 +150,7 @@ TEST_CHAIN_CERTIFICATE_DATA
 			terminalOutput = append(terminalOutput, "") // Add blank line between key and certificate
 		}
 		terminalOutput = append(terminalOutput, testCertPEM)
-		
+
 		// Output chain certificates if available and requested
 		if cfg.Chain {
 			terminalOutput = append(terminalOutput, testChainPEM)
@@ -171,7 +173,7 @@ TEST_CHAIN_CERTIFICATE_DATA
 		lines := strings.Split(finalOutput, "\n")
 		keyLineIndex := -1
 		certLineIndex := -1
-		
+
 		for i, line := range lines {
 			if strings.Contains(line, "TEST_PRIVATE_KEY_DATA") {
 				keyLineIndex = i
@@ -180,7 +182,7 @@ TEST_CHAIN_CERTIFICATE_DATA
 				certLineIndex = i
 			}
 		}
-		
+
 		if keyLineIndex >= 0 && certLineIndex >= 0 {
 			// Check that there's a blank line between key and cert
 			if certLineIndex <= keyLineIndex+1 {
@@ -199,7 +201,7 @@ TEST_CHAIN_CERTIFICATE_DATA
 		testCertPEM := `-----BEGIN CERTIFICATE-----
 TEST_CERTIFICATE_DATA
 -----END CERTIFICATE-----`
-		
+
 		testKeyPEM := `-----BEGIN PRIVATE KEY-----
 TEST_PRIVATE_KEY_DATA
 -----END PRIVATE KEY-----`

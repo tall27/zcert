@@ -7,40 +7,59 @@ import (
 	"testing"
 	"time"
 
-	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 // TestRunCommandFlags tests all flags for the run command
 func TestRunCommandFlags(t *testing.T) {
-	cmd := &cobra.Command{}
-	addRunFlags(cmd)
+	cmd := runCmd
 
 	// Test that all expected flags are present
 	expectedFlags := []string{"file", "config"}
-	
+
 	for _, flagName := range expectedFlags {
 		flag := cmd.Flags().Lookup(flagName)
-		assert.NotNil(t, flag, "Expected flag %s to be present", flagName)
+		if flag == nil {
+			t.Errorf("Expected flag %s to be present", flagName)
+		}
 	}
 
 	// Test flag shorthand
 	fileFlag := cmd.Flags().Lookup("file")
-	assert.Equal(t, "f", fileFlag.Shorthand, "Expected 'f' shorthand for file flag")
-	
+	if fileFlag == nil {
+		t.Fatal("file flag not found")
+	}
+	if fileFlag.Shorthand != "f" {
+		t.Errorf("Expected 'f' shorthand for file flag, got %s", fileFlag.Shorthand)
+	}
+
 	configFlag := cmd.Flags().Lookup("config")
-	assert.Equal(t, "c", configFlag.Shorthand, "Expected 'c' shorthand for config flag")
+	if configFlag == nil {
+		t.Fatal("config flag not found")
+	}
+	if configFlag.Shorthand != "c" {
+		t.Errorf("Expected 'c' shorthand for config flag, got %s", configFlag.Shorthand)
+	}
 }
 
 // TestCreateTestPlaybook creates a test YAML playbook file
 func createTestPlaybook(t *testing.T, filename string, content string) string {
-	tmpDir := t.TempDir()
-	filePath := filepath.Join(tmpDir, filename)
-	
-	err := os.WriteFile(filePath, []byte(content), 0644)
-	require.NoError(t, err, "Failed to create test playbook file")
-	
+	tempDir := "C:\\dev\\tmp"
+
+	// Ensure the directory exists
+	err := os.MkdirAll(tempDir, 0755)
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+
+	filePath := filepath.Join(tempDir, filename)
+
+	err = os.WriteFile(filePath, []byte(content), 0644)
+	if err != nil {
+		t.Fatalf("Failed to create test playbook file: %v", err)
+	}
+
 	return filePath
 }
 
@@ -123,11 +142,11 @@ certificateTasks:
 		t.Run(tt.name, func(t *testing.T) {
 			// Create temporary file with test content
 			tmpFile := createTestPlaybook(t, "test.yaml", tt.content)
-			
+
 			// Try to load the playbook using the actual load function
 			// This tests the real YAML parsing logic
 			_, err := loadPlaybookFile(tmpFile)
-			
+
 			if tt.wantErr {
 				assert.Error(t, err, "Expected error for invalid playbook")
 			} else {
@@ -140,13 +159,13 @@ certificateTasks:
 // TestPlaybookTaskValidation tests validation of individual tasks
 func TestPlaybookTaskValidation(t *testing.T) {
 	tests := []struct {
-		name         string
-		taskName     string
-		commonName   string
-		policyID     string
-		outputFile   string
-		action       string
-		expectValid  bool
+		name        string
+		taskName    string
+		commonName  string
+		policyID    string
+		outputFile  string
+		action      string
+		expectValid bool
 	}{
 		{
 			name:        "Valid enrollment task",
@@ -199,9 +218,9 @@ tasks:
     output_file: "` + tt.outputFile + `"`
 
 			tmpFile := createTestPlaybook(t, "validation_test.yaml", content)
-			
+
 			_, err := loadPlaybookFile(tmpFile)
-			
+
 			if tt.expectValid {
 				assert.NoError(t, err, "Expected valid task to pass validation")
 			} else {
@@ -252,7 +271,7 @@ func TestRenewBeforeParsing(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			duration, err := parseRenewBefore(tt.input)
-			
+
 			if tt.wantErr {
 				assert.Error(t, err, "Expected error for invalid duration format")
 			} else {
@@ -316,8 +335,10 @@ func TestTemplateVariableExpansion(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := expandTemplateVariables(tt.input)
-			assert.Equal(t, tt.expected, result, "Expected template expansion to match")
+			result := expandTemplateVariablesTest(tt.input, "test-policy-id")
+			if result != tt.expected {
+				t.Errorf("Expected template expansion to match, got %s, expected %s", result, tt.expected)
+			}
 		})
 	}
 }
@@ -347,12 +368,12 @@ certificateTasks:
         keyFile: "./test.key"`
 
 	tmpFile := createTestPlaybook(t, "credentials_test.yaml", content)
-	
+
 	// Test credential extraction
 	credentials, err := extractPlaybookCredentials(tmpFile)
 	require.NoError(t, err, "Expected no error extracting credentials")
 	require.NotNil(t, credentials, "Expected credentials to be extracted")
-	
+
 	assert.Equal(t, "playbook-hawk-id", credentials.HawkID, "Expected HAWK ID from playbook")
 	assert.Equal(t, "playbook-hawk-secret", credentials.HawkAPI, "Expected HAWK API from playbook")
 	assert.Equal(t, "https://playbook.ztpki.com", credentials.Platform, "Expected platform from playbook")
@@ -360,8 +381,14 @@ certificateTasks:
 
 // TestFileOutputHandling tests certificate file output handling
 func TestFileOutputHandling(t *testing.T) {
-	tmpDir := t.TempDir()
-	
+	tempDir := "C:\\dev\\tmp"
+
+	// Ensure the directory exists
+	err := os.MkdirAll(tempDir, 0755)
+	if err != nil {
+		t.Fatalf("Failed to create temp dir: %v", err)
+	}
+
 	tests := []struct {
 		name           string
 		certFile       string
@@ -372,16 +399,16 @@ func TestFileOutputHandling(t *testing.T) {
 	}{
 		{
 			name:           "Valid file paths",
-			certFile:       filepath.Join(tmpDir, "test.crt"),
-			keyFile:        filepath.Join(tmpDir, "test.key"),
-			chainFile:      filepath.Join(tmpDir, "test.chain.crt"),
+			certFile:       filepath.Join(tempDir, "test-output.crt"),
+			keyFile:        filepath.Join(tempDir, "test-output.key"),
+			chainFile:      filepath.Join(tempDir, "test-output.chain.crt"),
 			backupExisting: false,
 			expectError:    false,
 		},
 		{
 			name:           "With backup existing",
-			certFile:       filepath.Join(tmpDir, "backup_test.crt"),
-			keyFile:        filepath.Join(tmpDir, "backup_test.key"),
+			certFile:       filepath.Join(tempDir, "backup-test-output.crt"),
+			keyFile:        filepath.Join(tempDir, "backup-test-output.key"),
 			chainFile:      "",
 			backupExisting: true,
 			expectError:    false,
@@ -402,16 +429,22 @@ func TestFileOutputHandling(t *testing.T) {
 			if tt.certFile != "" && !tt.expectError {
 				dir := filepath.Dir(tt.certFile)
 				err := os.MkdirAll(dir, 0755)
-				require.NoError(t, err, "Failed to create test directory")
+				if err != nil {
+					t.Fatalf("Failed to create test directory: %v", err)
+				}
 			}
-			
+
 			// Test file path validation
 			valid := validateFilePaths(tt.certFile, tt.keyFile, tt.chainFile)
-			
+
 			if tt.expectError {
-				assert.False(t, valid, "Expected file path validation to fail")
+				if valid {
+					t.Error("Expected file path validation to fail")
+				}
 			} else {
-				assert.True(t, valid, "Expected file path validation to succeed")
+				if !valid {
+					t.Error("Expected file path validation to succeed")
+				}
 			}
 		})
 	}
@@ -424,29 +457,29 @@ func parseRenewBefore(s string) (time.Duration, error) {
 	if s == "" {
 		return 0, assert.AnError
 	}
-	
+
 	return time.ParseDuration(s)
 }
 
 // expandTemplateVariables expands template variables like {{ZTPKI_HAWK_ID}}
-func expandTemplateVariables(s string) string {
-	// This is a simplified implementation for testing
-	// The actual implementation would be more robust
+// This is a simplified implementation for testing
+// The actual implementation would be more robust
+func expandTemplateVariablesTest(s string, policyID string) string {
 	result := s
-	
+
 	envVars := map[string]string{
 		"{{ZTPKI_HAWK_ID}}":     os.Getenv("ZTPKI_HAWK_ID"),
 		"{{ZTPKI_HAWK_SECRET}}": os.Getenv("ZTPKI_HAWK_SECRET"),
 		"{{ZTPKI_URL}}":         os.Getenv("ZTPKI_URL"),
-		"{{ZTPKI_POLICY_ID}}":   os.Getenv("ZTPKI_POLICY_ID"),
+		"{{ZTPKI_POLICY_ID}}":   policyID, // Use the provided policyID
 	}
-	
+
 	for template, value := range envVars {
 		if value != "" {
 			result = strings.Replace(result, template, value, -1)
 		}
 	}
-	
+
 	return result
 }
 
@@ -457,18 +490,18 @@ func validateFilePaths(certFile, keyFile, chainFile string) bool {
 	if chainFile != "" {
 		paths = append(paths, chainFile)
 	}
-	
+
 	for _, path := range paths {
 		if path == "" {
 			continue
 		}
-		
+
 		dir := filepath.Dir(path)
 		if _, err := os.Stat(dir); os.IsNotExist(err) {
 			return false
 		}
 	}
-	
+
 	return true
 }
 

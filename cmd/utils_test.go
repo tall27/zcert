@@ -8,11 +8,11 @@ import (
 
 func TestCreateAPIClientFromProfile(t *testing.T) {
 	tests := []struct {
-		name        string
-		profile     *config.Profile
+		name         string
+		profile      *config.Profile
 		verboseLevel int
-		expectError bool
-		errorMsg    string
+		expectError  bool
+		errorMsg     string
 	}{
 		{
 			name: "Valid profile",
@@ -25,11 +25,11 @@ func TestCreateAPIClientFromProfile(t *testing.T) {
 			expectError:  false,
 		},
 		{
-			name:        "Nil profile should fail",
-			profile:     nil,
+			name:         "Nil profile should fail",
+			profile:      nil,
 			verboseLevel: 0,
-			expectError: true,
-			errorMsg:    "profile cannot be nil",
+			expectError:  true,
+			errorMsg:     "profile cannot be nil",
 		},
 		{
 			name: "Missing URL should fail",
@@ -39,8 +39,8 @@ func TestCreateAPIClientFromProfile(t *testing.T) {
 				Secret: "test-hawk-key",
 			},
 			verboseLevel: 0,
-			expectError: true,
-			errorMsg:    "ZTPKI URL is required",
+			expectError:  true,
+			errorMsg:     "ZTPKI URL is required",
 		},
 		{
 			name: "Missing KeyID should fail",
@@ -50,8 +50,8 @@ func TestCreateAPIClientFromProfile(t *testing.T) {
 				Secret: "test-hawk-key",
 			},
 			verboseLevel: 0,
-			expectError: true,
-			errorMsg:    "HAWK ID is required",
+			expectError:  true,
+			errorMsg:     "HAWK ID is required",
 		},
 		{
 			name: "Missing Secret should fail",
@@ -61,8 +61,8 @@ func TestCreateAPIClientFromProfile(t *testing.T) {
 				Secret: "",
 			},
 			verboseLevel: 0,
-			expectError: true,
-			errorMsg:    "HAWK key is required",
+			expectError:  true,
+			errorMsg:     "HAWK key is required",
 		},
 		{
 			name: "Valid profile with verbose level 1",
@@ -156,13 +156,19 @@ func TestCopyFile(t *testing.T) {
 	// This test would require creating temporary files
 	// For now, we'll just test that the function exists and has the right signature
 	t.Run("Function exists", func(t *testing.T) {
+		// Test file copy functionality
+		srcFile := "C:\\dev\\tmp\\source.txt"
+		dstFile := "C:\\dev\\tmp\\dest.txt"
+
+		// Ensure the directory exists
+		err := os.MkdirAll("C:\\dev\\tmp", 0755)
+		if err != nil {
+			t.Fatalf("Failed to create temp dir: %v", err)
+		}
+
 		// Create temporary source file
 		content := "test content"
-		srcFile := t.TempDir() + "/source.txt"
-		dstFile := t.TempDir() + "/dest.txt"
-
-		// Write source file
-		err := writeFile(srcFile, content, 0644)
+		err = writeFile(srcFile, content, 0644)
 		if err != nil {
 			t.Fatalf("Failed to create source file: %v", err)
 		}
