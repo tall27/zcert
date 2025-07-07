@@ -193,35 +193,7 @@ jobs:
           echo "OQS Provider artifact contents:"
           ls -R oqs-artifact
           
-          # Verify that we didn't download already-packaged (zip) files
-          if find openssl-artifact -name "*.zip" | grep -q .; then
-            echo "WARNING: OpenSSL artifact contains zip files - extracting"
-            # Extract zip files if found
-            for zipfile in $(find openssl-artifact -name "*.zip"); do
-              mkdir -p openssl-extracted
-              unzip "$zipfile" -d openssl-extracted
-              rm -rf openssl-artifact
-              mv openssl-extracted openssl-artifact
-            done
-          fi
-          
-          if find oqs-artifact -name "*.zip" | grep -q .; then
-            echo "WARNING: OQS artifact contains zip files - extracting"
-            # Extract zip files if found
-            for zipfile in $(find oqs-artifact -name "*.zip"); do
-              mkdir -p oqs-extracted
-              unzip "$zipfile" -d oqs-extracted
-              rm -rf oqs-artifact
-              mv oqs-extracted oqs-artifact
-            done
-          fi
-          
-          # Show contents after potential extraction
-          echo "--- After extraction: OpenSSL artifact contents ---"
-          ls -R openssl-artifact
-          echo "--- After extraction: OQS Provider artifact contents ---"
-          ls -R oqs-artifact
-          
+          # Create a clean package directory
           mkdir -p package
 
           # Define expected executables and libraries
@@ -229,14 +201,53 @@ jobs:
           OPENSSL_EXE="openssl${{ matrix.platform == 'windows' && '.exe' || '' }}"
           OQS_LIB="oqsprovider${{ matrix.oqs-ext }}"
 
-          # Copy main binary
+          # Copy main binary - our own compiled binary should be in the root
           cp $ZCERT_EXE package/
           if [[ "${{ matrix.platform }}" != "windows" ]]; then chmod +x package/$ZCERT_EXE; fi
 
-          # Use find to locate and copy dependencies, making the script robust
-          # Add quotes around file names to handle potential spaces
-          find openssl-artifact -type f -name "$OPENSSL_EXE" -exec cp {} package/ \;
-          find oqs-artifact -type f -name "$OQS_LIB" -exec cp {} package/ \;
+          # Handle OpenSSL artifacts (recursively if needed)
+          if find openssl-artifact -type f -name "*.zip" | grep -q .; then
+            echo "WARNING: OpenSSL artifact contains zip files"
+            mkdir -p openssl-extracted
+            # Extract all zip files found recursively
+            for zipfile in $(find openssl-artifact -name "*.zip"); do
+              echo "Extracting: $zipfile"
+              unzip -o "$zipfile" -d openssl-extracted
+            done
+            # Look for the OpenSSL executable in the extracted files
+            if find openssl-extracted -type f -name "$OPENSSL_EXE" | grep -q .; then
+              find openssl-extracted -type f -name "$OPENSSL_EXE" -exec cp {} package/ \;
+              echo "✅ Found and copied OpenSSL executable from extracted files"
+            else
+              # Fallback to the original artifacts
+              find openssl-artifact -type f -name "$OPENSSL_EXE" -exec cp {} package/ \;
+            fi
+          else
+            # No zip files found, use normal find
+            find openssl-artifact -type f -name "$OPENSSL_EXE" -exec cp {} package/ \;
+          fi
+
+          # Handle OQS Provider artifacts (recursively if needed)
+          if find oqs-artifact -type f -name "*.zip" | grep -q .; then
+            echo "WARNING: OQS Provider artifact contains zip files"
+            mkdir -p oqs-extracted
+            # Extract all zip files found recursively
+            for zipfile in $(find oqs-artifact -name "*.zip"); do
+              echo "Extracting: $zipfile"
+              unzip -o "$zipfile" -d oqs-extracted
+            done
+            # Look for the OQS library in the extracted files
+            if find oqs-extracted -type f -name "$OQS_LIB" | grep -q .; then
+              find oqs-extracted -type f -name "$OQS_LIB" -exec cp {} package/ \;
+              echo "✅ Found and copied OQS library from extracted files"
+            else
+              # Fallback to the original artifacts
+              find oqs-artifact -type f -name "$OQS_LIB" -exec cp {} package/ \;
+            fi
+          else
+            # No zip files found, use normal find
+            find oqs-artifact -type f -name "$OQS_LIB" -exec cp {} package/ \;
+          fi
 
           # Make OpenSSL executable on non-Windows platforms
           if [[ "${{ matrix.platform }}" != "windows" && -f "package/$OPENSSL_EXE" ]]; then
@@ -266,7 +277,8 @@ jobs:
           cd ..
 
           if [[ "${{ matrix.platform }}" == "windows" ]]; then
-            certutil -hashfile $PKG_NAME SHA1 | findstr /v ":" | findstr /v "CertUtil" > ${PKG_NAME}.sha1
+            # On Windows, use PowerShell to generate the SHA1 hash consistently
+            pwsh -Command "Get-FileHash -Algorithm SHA1 $PKG_NAME | ForEach-Object { `$_.Hash.ToLower() } | Out-File -FilePath ${PKG_NAME}.sha1 -NoNewline -Encoding utf8"
           else
             shasum -a 1 $PKG_NAME | cut -d' ' -f1 > ${PKG_NAME}.sha1
           fi
@@ -296,43 +308,154 @@ jobs:
       - name: Prepare release assets and checksums file
         run: |
           mkdir -p release-assets
+          echo "Initial release artifacts:"
+          find release-artifacts -type f | sort
           
-          # Extract and copy the zip files directly (not the zips inside other zips)
+          # Directly copy the zip and sha1 files to release-assets (avoid nested directories)
           for artifact_dir in release-artifacts/*; do
             if [ -d "$artifact_dir" ]; then
               echo "Processing artifact directory: $artifact_dir"
-              # Find and copy zip files directly (not nested)
-              find "$artifact_dir" -maxdepth 1 -type f -name "*.zip" -exec cp {} release-assets/ \;
-              find "$artifact_dir" -maxdepth 1 -type f -name "*.sha1" -exec cp {} release-assets/ \;
+              
+              # Find zip files that are directly in the artifact directory (not nested)
+              for zip_file in $(find "$artifact_dir" -maxdepth 1 -type f -name "*.zip"); do
+                # Verify this is a real zip file, not a directory
+                if [ -f "$zip_file" ]; then
+                  echo "Copying zip file: $zip_file"
+                  
+                  # Get the basename without directory path
+                  base_name=$(basename "$zip_file")
+                  
+                  # Ensure the file has a .zip extension
+                  if [[ "$base_name" != *.zip ]]; then
+                    new_name="${base_name}.zip"
+                    cp "$zip_file" "release-assets/$new_name"
+                    echo "Renamed $base_name to $new_name"
+                  else
+                    cp "$zip_file" release-assets/
+                  fi
+                  
+                  # Copy corresponding sha1 file if it exists
+                  sha_file="${zip_file}.sha1"
+                  if [ -f "$sha_file" ]; then
+                    echo "Copying sha1 file: $sha_file"
+                    cp "$sha_file" "release-assets/${base_name}.sha1"
+                  fi
+                fi
+              done
             fi
           done
           
           cd release-assets
-          echo "### SHA1 Checksums" > checksums.txt
-          for file in *.zip; do
-            if [ -f "${file}.sha1" ]; then
-              sha1sum=$(cat "${file}.sha1")
-              # Use two spaces for a line break in Markdown
-              echo "\`${sha1sum}\`  \`${file}\`  " >> checksums.txt
+          echo "Release assets contents:"
+          ls -la
+          
+          # Create the release notes markdown file - need to escape special chars for YAML
+          version="${{ github.event.inputs.version }}"
+          openssl_version="${{ env.OPENSSL_VERSION }}"
+          oqs_version="${{ env.OQS_PROVIDER_VERSION }}"
+          repo="${{ github.repository }}"
+          
+          {
+            echo "# ZCERT v${version}"
+            echo ""
+            echo "A security-hardened command-line certificate management tool for CyberArk's Zero Touch PKI (ZTPKI) service with post-quantum cryptography support."
+            echo ""
+            echo "## Package Components"
+            echo ""
+            echo "| Component | Version |"
+            echo "|-----------|---------|"
+            echo "| OpenSSL | ${openssl_version} |"
+            echo "| OQS Provider | ${oqs_version} |"
+            echo ""
+            echo "## Downloads"
+            echo ""
+            
+            # Linux amd64
+            if [ -f "zcert_v${version}_linux.zip" ] && [ -f "zcert_v${version}_linux.zip.sha1" ]; then
+              sha1sum=$(cat "zcert_v${version}_linux.zip.sha1")
+              echo "* **Linux (amd64)**: [zcert_v${version}_linux.zip](https://github.com/${repo}/releases/download/v${version}/zcert_v${version}_linux.zip)"
+              echo "  * SHA1: \`${sha1sum}\`"
             fi
-          done
-          echo "Final release assets:"
-          ls -l
+            
+            # Windows amd64
+            if [ -f "zcert_v${version}_windows.zip" ] && [ -f "zcert_v${version}_windows.zip.sha1" ]; then
+              sha1sum=$(cat "zcert_v${version}_windows.zip.sha1")
+              echo "* **Windows (amd64)**: [zcert_v${version}_windows.zip](https://github.com/${repo}/releases/download/v${version}/zcert_v${version}_windows.zip)"
+              echo "  * SHA1: \`${sha1sum}\`"
+            fi
+            
+            # macOS amd64
+            if [ -f "zcert_v${version}_darwin.zip" ] && [ -f "zcert_v${version}_darwin.zip.sha1" ]; then
+              sha1sum=$(cat "zcert_v${version}_darwin.zip.sha1")
+              echo "* **macOS (amd64)**: [zcert_v${version}_darwin.zip](https://github.com/${repo}/releases/download/v${version}/zcert_v${version}_darwin.zip)"
+              echo "  * SHA1: \`${sha1sum}\`"
+            fi
+            
+            # macOS arm64
+            if [ -f "zcert_v${version}_darwin_arm.zip" ] && [ -f "zcert_v${version}_darwin_arm.zip.sha1" ]; then
+              sha1sum=$(cat "zcert_v${version}_darwin_arm.zip.sha1")
+              echo "* **macOS (arm64)**: [zcert_v${version}_darwin_arm.zip](https://github.com/${repo}/releases/download/v${version}/zcert_v${version}_darwin_arm.zip)"
+              echo "  * SHA1: \`${sha1sum}\`"
+            fi
+            
+            echo ""
+            echo "## Installation"
+            echo ""
+            echo "### Binary Installation"
+            echo ""
+            echo "1. Download the appropriate zip file for your platform"
+            echo "2. Extract the contents to a directory of your choice"
+            echo "3. Add the directory to your PATH environment variable"
+            echo "4. Run \`zcert --version\` to verify the installation"
+            echo ""
+            echo "### Verifying Package Integrity"
+            echo ""
+            echo "To verify the integrity of your downloaded package:"
+            echo ""
+            echo "**Linux/macOS:**"
+            echo '```bash'
+            echo "# Download both the zip and sha1 file"
+            echo "# Verify the checksum"
+            echo "shasum -a 1 -c zcert_v*.zip.sha1"
+            echo '```'
+            echo ""
+            echo "**Windows:**"
+            echo '```powershell'
+            echo "# Download both the zip and sha1 file"
+            echo "# Get the expected hash from the .sha1 file"
+            echo "\$expected = Get-Content .\\zcert_v*.zip.sha1"
+            echo "# Calculate the actual hash"
+            echo "\$actual = (Get-FileHash -Algorithm SHA1 .\\zcert_v*.zip).Hash.ToLower()"
+            echo "# Compare"
+            echo "if (\$expected -eq \$actual) { Write-Host \"Verification successful!\" } else { Write-Host \"Verification failed!\" }"
+            echo '```'
+            echo ""
+            echo "## What's New in v${version}"
+            echo ""
+            echo "### 🛠️ Fixes"
+            echo ""
+            echo "- [Add fixes here]"
+            echo ""
+            echo "### ✨ New Features"
+            echo ""
+            echo "- [Add new features here]"
+            echo ""
+            echo "### 📋 Other Changes"
+            echo ""
+            echo "- [Add other changes here]"
+            
+          } > release_notes.md
+          
+          echo "Final release notes contents:"
+          cat release_notes.md
 
       - name: Create Draft Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ github.event.inputs.version }}
           name: zcert v${{ github.event.inputs.version }}
-          body: |
-            ## zcert v${{ github.event.inputs.version }}
-            
-            **Changes**
-            - TODO: Add your release notes here.
-            
-            **Components**
-            - OpenSSL `${{ env.OPENSSL_VERSION }}`
-            - OQS Provider `${{ env.OQS_PROVIDER_VERSION }}`
-          body_path: release-assets/checksums.txt
+          body_path: release-assets/release_notes.md
           draft: true
-          files: release-assets/*.zip
+          files: |
+            release-assets/*.zip
+            release-assets/*.sha1
