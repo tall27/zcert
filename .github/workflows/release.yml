@@ -119,13 +119,13 @@ jobs:
           path: oqs-artifact # Directory to download the artifact into
         # This step will fail if the artifact is not found in a successful run.
         
-      - name: Debug: List downloaded OpenSSL artifact content
+      - name: Debug List downloaded OpenSSL artifact content
         run: |
           echo "Contents of openssl-artifact:"
           # Use 'ls -R' to recursively list contents, '|| true' to prevent step failure if dir is empty/missing
           ls -R openssl-artifact/ || echo "openssl-artifact directory not found or empty."
 
-      - name: Debug: List downloaded OQS Provider artifact content
+      - name: Debug List downloaded OQS Provider artifact content
         run: |
           echo "Contents of oqs-artifact:"
           ls -R oqs-artifact/ || echo "oqs-artifact directory not found or empty."
