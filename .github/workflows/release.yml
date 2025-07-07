@@ -278,7 +278,7 @@ jobs:
 
           if [[ "${{ matrix.platform }}" == "windows" ]]; then
             # On Windows, use PowerShell to generate the SHA1 hash consistently
-            pwsh -Command "Get-FileHash -Algorithm SHA1 $PKG_NAME | ForEach-Object { `$_.Hash.ToLower() } | Out-File -FilePath ${PKG_NAME}.sha1 -NoNewline -Encoding utf8"
+            pwsh -Command "Get-FileHash -Algorithm SHA1 $PKG_NAME | ForEach-Object { \$_.Hash.ToLower() } | Out-File -FilePath ${PKG_NAME}.sha1 -NoNewline -Encoding utf8"
           else
             shasum -a 1 $PKG_NAME | cut -d' ' -f1 > ${PKG_NAME}.sha1
           fi
