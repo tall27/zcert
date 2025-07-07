@@ -291,6 +291,7 @@ jobs:
         shell: bash
         run: |
           PKG_NAME="zcert_v${{ github.event.inputs.version }}_${{ matrix.zcert-name }}.zip"
+          DEPS_PKG_NAME="zcert_deps_v${{ github.event.inputs.version }}_${{ matrix.zcert-name }}.zip"
           
           if [[ "${{ matrix.platform }}" == "windows" ]]; then
             # For Windows, create separate packages to reduce virus scanner issues
@@ -314,11 +315,10 @@ jobs:
               '@ | Out-File -FilePath './package-main/verification.txt' -Encoding utf8
               
               # Create the main zip file with just zcert
-              Compress-Archive -Path './package-main/*' -DestinationPath './$PKG_NAME' -Force
+              Compress-Archive -Path './package-main/*' -DestinationPath '$PKG_NAME' -Force
             "
             
             # Create a dependencies package separately
-            DEPS_PKG_NAME="zcert_deps_v${{ github.event.inputs.version }}_${{ matrix.zcert-name }}.zip"
             pwsh -Command "
               New-Item -Path './package-deps' -ItemType Directory -Force
               Copy-Item './package/openssl.exe' -Destination './package-deps/'
@@ -336,12 +336,12 @@ jobs:
               '@ | Out-File -FilePath './package-deps/dependencies.txt' -Encoding utf8
               
               # Create the dependencies zip file
-              Compress-Archive -Path './package-deps/*' -DestinationPath './$DEPS_PKG_NAME' -Force
+              Compress-Archive -Path './package-deps/*' -DestinationPath '$DEPS_PKG_NAME' -Force
             "
             
             # Generate SHA1 hashes for both packages
-            pwsh -Command "Get-FileHash -Algorithm SHA1 $PKG_NAME | ForEach-Object { \$_.Hash.ToLower() } | Out-File -FilePath ${PKG_NAME}.sha1 -NoNewline -Encoding utf8"
-            pwsh -Command "Get-FileHash -Algorithm SHA1 $DEPS_PKG_NAME | ForEach-Object { \$_.Hash.ToLower() } | Out-File -FilePath ${DEPS_PKG_NAME}.sha1 -NoNewline -Encoding utf8"
+            pwsh -Command "Get-FileHash -Algorithm SHA1 '$PKG_NAME' | ForEach-Object { `$_.Hash.ToLower() } | Out-File -FilePath '${PKG_NAME}.sha1' -NoNewline -Encoding utf8"
+            pwsh -Command "Get-FileHash -Algorithm SHA1 '$DEPS_PKG_NAME' | ForEach-Object { `$_.Hash.ToLower() } | Out-File -FilePath '${DEPS_PKG_NAME}.sha1' -NoNewline -Encoding utf8"
             
             # Output the dependencies package name for the artifact upload step
             echo "DEPS_PKG_NAME=$DEPS_PKG_NAME" >> $GITHUB_ENV
@@ -468,8 +468,7 @@ jobs:
             echo ""
             echo "## Package Components"
             echo ""
-            echo "| | |"
-            echo "|-|-|"
+            echo "| Component | Version |"
             echo "| zcert | ${version} |"
             echo "| OpenSSL | ${openssl_version} |"
             echo "| OQS Provider | ${oqs_version} |"
