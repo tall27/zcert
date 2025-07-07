@@ -43,7 +43,6 @@ jobs:
           echo "  Artifact Name: ${{ env.OPENSSL_EXPECTED_ARTIFACT }}"
           echo "  From Repository: ${{ env.TARGET_REPO }}"
           echo "  OpenSSL Version Input: ${{ github.event.inputs.openssl_version }}"
-
       - name: Download OpenSSL artifact
         id: download-openssl
         uses: dawidd6/action-download-artifact@v3
@@ -74,7 +73,6 @@ jobs:
             echo "  3. The artifact has expired (default retention is 90 days)."
             echo "  4. Permissions issue (though 'contents: read' should be sufficient)."
           fi
-
       - name: Report Final Outcome
         run: |
           echo "Final check result: OpenSSL artifact found: ${{ steps.download-openssl.outcome == 'success' }}"
