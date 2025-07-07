@@ -257,6 +257,29 @@ jobs:
           echo "--- Verifying final package contents ---"
           ls -la package/
 
+          # Create a README.txt file to explain the package contents
+          if [[ "${{ matrix.platform }}" == "windows" ]]; then
+            echo "zcert - CyberArk Zero Touch PKI CLI Tool v${{ github.event.inputs.version }}" > package/README.txt
+            echo "" >> package/README.txt
+            echo "This package contains:" >> package/README.txt
+            echo "- zcert.exe - The main application" >> package/README.txt
+            echo "- openssl.exe - OpenSSL v${{ env.OPENSSL_VERSION }}" >> package/README.txt
+            echo "- oqsprovider.dll - OpenQuantumSafe Provider v${{ env.OQS_PROVIDER_VERSION }}" >> package/README.txt
+            echo "" >> package/README.txt
+            echo "These files are required for zcert to function properly." >> package/README.txt
+            echo "For more information, visit: https://github.com/${{ github.repository }}" >> package/README.txt
+          else
+            echo "zcert - CyberArk Zero Touch PKI CLI Tool v${{ github.event.inputs.version }}" > package/README.txt
+            echo "" >> package/README.txt
+            echo "This package contains:" >> package/README.txt
+            echo "- zcert - The main application" >> package/README.txt
+            echo "- openssl - OpenSSL v${{ env.OPENSSL_VERSION }}" >> package/README.txt
+            echo "- oqsprovider${{ matrix.oqs-ext }} - OpenQuantumSafe Provider v${{ env.OQS_PROVIDER_VERSION }}" >> package/README.txt
+            echo "" >> package/README.txt
+            echo "These files are required for zcert to function properly." >> package/README.txt
+            echo "For more information, visit: https://github.com/${{ github.repository }}" >> package/README.txt
+          fi
+
           # CRITICAL: Verify that all necessary files exist in the package folder before zipping
           if ! [ -f "package/$ZCERT_EXE" ] || ! [ -f "package/$OPENSSL_EXE" ] || ! [ -f "package/$OQS_LIB" ]; then
             echo "::error::A required file was not found in the final package directory. Aborting."
@@ -270,7 +293,8 @@ jobs:
           PKG_NAME="zcert_v${{ github.event.inputs.version }}_${{ matrix.zcert-name }}.zip"
           cd package
           if [[ "${{ matrix.platform }}" == "windows" ]]; then
-            7z a ../$PKG_NAME *
+            # For Windows, use the zip command instead of 7z to reduce malware false positives
+            zip -r ../$PKG_NAME *
           else
             zip -r ../$PKG_NAME *
           fi
@@ -364,38 +388,61 @@ jobs:
             echo ""
             echo "| Component | Version |"
             echo "|-----------|---------|"
+            echo "| zcert | ${version} |"
             echo "| OpenSSL | ${openssl_version} |"
             echo "| OQS Provider | ${oqs_version} |"
             echo ""
-            echo "## Downloads"
+            echo "## SHA1 Checksums"
             echo ""
+            echo "| Filename | SHA1 Checksum |"
+            echo "|----------|---------------|"
             
             # Linux amd64
             if [ -f "zcert_v${version}_linux.zip" ] && [ -f "zcert_v${version}_linux.zip.sha1" ]; then
               sha1sum=$(cat "zcert_v${version}_linux.zip.sha1")
-              echo "* **Linux (amd64)**: [zcert_v${version}_linux.zip](https://github.com/${repo}/releases/download/v${version}/zcert_v${version}_linux.zip)"
-              echo "  * SHA1: \`${sha1sum}\`"
+              echo "| zcert_v${version}_linux.zip | \`${sha1sum}\` |"
             fi
             
             # Windows amd64
             if [ -f "zcert_v${version}_windows.zip" ] && [ -f "zcert_v${version}_windows.zip.sha1" ]; then
               sha1sum=$(cat "zcert_v${version}_windows.zip.sha1")
-              echo "* **Windows (amd64)**: [zcert_v${version}_windows.zip](https://github.com/${repo}/releases/download/v${version}/zcert_v${version}_windows.zip)"
-              echo "  * SHA1: \`${sha1sum}\`"
+              echo "| zcert_v${version}_windows.zip | \`${sha1sum}\` |"
             fi
             
             # macOS amd64
             if [ -f "zcert_v${version}_darwin.zip" ] && [ -f "zcert_v${version}_darwin.zip.sha1" ]; then
               sha1sum=$(cat "zcert_v${version}_darwin.zip.sha1")
-              echo "* **macOS (amd64)**: [zcert_v${version}_darwin.zip](https://github.com/${repo}/releases/download/v${version}/zcert_v${version}_darwin.zip)"
-              echo "  * SHA1: \`${sha1sum}\`"
+              echo "| zcert_v${version}_darwin.zip | \`${sha1sum}\` |"
             fi
             
             # macOS arm64
             if [ -f "zcert_v${version}_darwin_arm.zip" ] && [ -f "zcert_v${version}_darwin_arm.zip.sha1" ]; then
               sha1sum=$(cat "zcert_v${version}_darwin_arm.zip.sha1")
+              echo "| zcert_v${version}_darwin_arm.zip | \`${sha1sum}\` |"
+            fi
+            
+            echo ""
+            echo "## Downloads"
+            echo ""
+            
+            # Linux amd64
+            if [ -f "zcert_v${version}_linux.zip" ]; then
+              echo "* **Linux (amd64)**: [zcert_v${version}_linux.zip](https://github.com/${repo}/releases/download/v${version}/zcert_v${version}_linux.zip)"
+            fi
+            
+            # Windows amd64
+            if [ -f "zcert_v${version}_windows.zip" ]; then
+              echo "* **Windows (amd64)**: [zcert_v${version}_windows.zip](https://github.com/${repo}/releases/download/v${version}/zcert_v${version}_windows.zip)"
+            fi
+            
+            # macOS amd64
+            if [ -f "zcert_v${version}_darwin.zip" ]; then
+              echo "* **macOS (amd64)**: [zcert_v${version}_darwin.zip](https://github.com/${repo}/releases/download/v${version}/zcert_v${version}_darwin.zip)"
+            fi
+            
+            # macOS arm64
+            if [ -f "zcert_v${version}_darwin_arm.zip" ]; then
               echo "* **macOS (arm64)**: [zcert_v${version}_darwin_arm.zip](https://github.com/${repo}/releases/download/v${version}/zcert_v${version}_darwin_arm.zip)"
-              echo "  * SHA1: \`${sha1sum}\`"
             fi
             
             echo ""
@@ -458,4 +505,3 @@ jobs:
           draft: true
           files: |
             release-assets/*.zip
-            release-assets/*.sha1
