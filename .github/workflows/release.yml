@@ -1,4 +1,3 @@
-```yaml
 name: Release zcert
 
 on:
@@ -273,4 +272,3 @@ jobs:
             release-files/checksums.txt # Upload the combined checksum file
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Automatically provided token with write access
-```
