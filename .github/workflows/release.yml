@@ -20,138 +20,67 @@ env:
   COMPILE_REPO: "tall27/compile"
 
 jobs:
-  ## ------------------------------------------------------------------
-  ## 1. CHECK DEPENDENCIES
-  ##    This job verifies that all required OpenSSL and OQS Provider
-  ##    artifacts exist in the COMPILE_REPO before proceeding.
-  ## ------------------------------------------------------------------
+  # ------------------------------------------------------------------
+  # 1. CHECK DEPENDENCIES
+  #    This job verifies that all required artifacts exist before proceeding.
+  # ------------------------------------------------------------------
   check-dependencies:
     runs-on: ubuntu-latest
     outputs:
       openssl-exists: ${{ steps.report-status.outputs.openssl-found }}
       oqs-exists: ${{ steps.report-status.outputs.oqs-found }}
     steps:
-      - name: Check for OpenSSL Linux (x64) artifact
+      - name: Check for OpenSSL Linux (x64)
         id: check-openssl-linux-x64
         uses: dawidd6/action-download-artifact@v3
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          repo: ${{ env.COMPILE_REPO }}
-          workflow: openssl-3.5-linux.yaml
-          name: openssl-${{ env.OPENSSL_VERSION }}-x64-linux-portable
-          if_no_artifact_found: fail
-        continue-on-error: true
-
-      - name: Check for OpenSSL Windows (x64) artifact
+        with: { github_token: "${{ secrets.GITHUB_TOKEN }}", repo: "${{ env.COMPILE_REPO }}", workflow: "openssl-3.5-linux.yaml", name: "openssl-${{ env.OPENSSL_VERSION }}-x64-linux-portable", if_no_artifact_found: fail, continue-on-error: true }
+      - name: Check for OpenSSL Windows (x64)
         id: check-openssl-win-x64
         uses: dawidd6/action-download-artifact@v3
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          repo: ${{ env.COMPILE_REPO }}
-          workflow: openssl-3.5-windows.yaml
-          name: openssl-${{ env.OPENSSL_VERSION }}-win64-portable
-          if_no_artifact_found: fail
-        continue-on-error: true
-
-      - name: Check for OpenSSL macOS (x64) artifact
+        with: { github_token: "${{ secrets.GITHUB_TOKEN }}", repo: "${{ env.COMPILE_REPO }}", workflow: "openssl-3.5-windows.yaml", name: "openssl-${{ env.OPENSSL_VERSION }}-win64-portable", if_no_artifact_found: fail, continue-on-error: true }
+      - name: Check for OpenSSL macOS (x64)
         id: check-openssl-macos-x64
         uses: dawidd6/action-download-artifact@v3
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          repo: ${{ env.COMPILE_REPO }}
-          workflow: openssl-3.5-macos.yaml
-          name: openssl-${{ env.OPENSSL_VERSION }}-x64-macos-portable
-          if_no_artifact_found: fail
-        continue-on-error: true
-      
-      - name: Check for OpenSSL macOS (arm64) artifact
+        with: { github_token: "${{ secrets.GITHUB_TOKEN }}", repo: "${{ env.COMPILE_REPO }}", workflow: "openssl-3.5-macos.yaml", name: "openssl-${{ env.OPENSSL_VERSION }}-x64-macos-portable", if_no_artifact_found: fail, continue-on-error: true }
+      - name: Check for OpenSSL macOS (arm64)
         id: check-openssl-macos-arm64
         uses: dawidd6/action-download-artifact@v3
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          repo: ${{ env.COMPILE_REPO }}
-          workflow: openssl-3.5-macos.yaml
-          name: openssl-${{ env.OPENSSL_VERSION }}-arm64-macos-portable
-          if_no_artifact_found: fail
-        continue-on-error: true
-
-      - name: Check for OQS Provider Linux (x64) artifact
+        with: { github_token: "${{ secrets.GITHUB_TOKEN }}", repo: "${{ env.COMPILE_REPO }}", workflow: "openssl-3.5-macos.yaml", name: "openssl-${{ env.OPENSSL_VERSION }}-arm64-macos-portable", if_no_artifact_found: fail, continue-on-error: true }
+      - name: Check for OQS Provider Linux (x64)
         id: check-oqs-linux-x64
         uses: dawidd6/action-download-artifact@v3
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          repo: ${{ env.COMPILE_REPO }}
-          workflow: Build-oqs-provider-v0.7.yml
-          name: oqsprovider-linux-x64
-          if_no_artifact_found: fail
-        continue-on-error: true
-
-      - name: Check for OQS Provider Windows (x64) artifact
+        with: { github_token: "${{ secrets.GITHUB_TOKEN }}", repo: "${{ env.COMPILE_REPO }}", workflow: "Build-oqs-provider-v0.7.yml", name: "oqsprovider-linux-x64", if_no_artifact_found: fail, continue-on-error: true }
+      - name: Check for OQS Provider Windows (x64)
         id: check-oqs-win-x64
         uses: dawidd6/action-download-artifact@v3
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          repo: ${{ env.COMPILE_REPO }}
-          workflow: Build-oqs-provider-v0.7.yml
-          name: oqsprovider-windows-x64
-          if_no_artifact_found: fail
-        continue-on-error: true
-
-      - name: Check for OQS Provider macOS (x64) artifact
+        with: { github_token: "${{ secrets.GITHUB_TOKEN }}", repo: "${{ env.COMPILE_REPO }}", workflow: "Build-oqs-provider-v0.7.yml", name: "oqsprovider-windows-x64", if_no_artifact_found: fail, continue-on-error: true }
+      - name: Check for OQS Provider macOS (x64)
         id: check-oqs-macos-x64
         uses: dawidd6/action-download-artifact@v3
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          repo: ${{ env.COMPILE_REPO }}
-          workflow: Build-oqs-provider-v0.7.yml
-          name: oqsprovider-macos-x64
-          if_no_artifact_found: fail
-        continue-on-error: true
-      
-      - name: Check for OQS Provider macOS (arm64) artifact
+        with: { github_token: "${{ secrets.GITHUB_TOKEN }}", repo: "${{ env.COMPILE_REPO }}", workflow: "Build-oqs-provider-v0.7.yml", name: "oqsprovider-macos-x64", if_no_artifact_found: fail, continue-on-error: true }
+      - name: Check for OQS Provider macOS (arm64)
         id: check-oqs-macos-arm64
         uses: dawidd6/action-download-artifact@v3
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          repo: ${{ env.COMPILE_REPO }}
-          workflow: Build-oqs-provider-v0.7.yml
-          name: oqsprovider-macos-arm64
-          if_no_artifact_found: fail
-        continue-on-error: true
+        with: { github_token: "${{ secrets.GITHUB_TOKEN }}", repo: "${{ env.COMPILE_REPO }}", workflow: "Build-oqs-provider-v0.7.yml", name: "oqsprovider-macos-arm64", if_no_artifact_found: fail, continue-on-error: true }
 
       - name: Report final dependency status
         id: report-status
         shell: bash
         run: |
-          # Check OpenSSL artifact outcomes
-          if [[ "${{ steps.check-openssl-linux-x64.outcome }}" == "success" && \
-                "${{ steps.check-openssl-win-x64.outcome }}" == "success" && \
-                "${{ steps.check-openssl-macos-x64.outcome }}" == "success" && \
-                "${{ steps.check-openssl-macos-arm64.outcome }}" == "success" ]]; then
-            echo "openssl-found=true" >> $GITHUB_OUTPUT
-            echo "✅ All required OpenSSL artifacts were found."
+          if [[ "${{ steps.check-openssl-linux-x64.outcome }}" == "success" && "${{ steps.check-openssl-win-x64.outcome }}" == "success" && "${{ steps.check-openssl-macos-x64.outcome }}" == "success" && "${{ steps.check-openssl-macos-arm64.outcome }}" == "success" ]]; then
+            echo "openssl-found=true" >> $GITHUB_OUTPUT; echo "✅ All OpenSSL artifacts found."
           else
-            echo "openssl-found=false" >> $GITHUB_OUTPUT
-            echo "❌ Missing one or more OpenSSL artifacts. Please check the COMPILE_REPO."
+            echo "openssl-found=false" >> $GITHUB_OUTPUT; echo "❌ Missing one or more OpenSSL artifacts."
+          fi
+          if [[ "${{ steps.check-oqs-linux-x64.outcome }}" == "success" && "${{ steps.check-oqs-win-x64.outcome }}" == "success" && "${{ steps.check-oqs-macos-x64.outcome }}" == "success" && "${{ steps.check-oqs-macos-arm64.outcome }}" == "success" ]]; then
+            echo "oqs-found=true" >> $GITHUB_OUTPUT; echo "✅ All OQS Provider artifacts found."
+          else
+            echo "oqs-found=false" >> $GITHUB_OUTPUT; echo "❌ Missing one or more OQS Provider artifacts."
           fi
 
-          # Check OQS Provider artifact outcomes
-          if [[ "${{ steps.check-oqs-linux-x64.outcome }}" == "success" && \
-                "${{ steps.check-oqs-win-x64.outcome }}" == "success" && \
-                "${{ steps.check-oqs-macos-x64.outcome }}" == "success" && \
-                "${{ steps.check-oqs-macos-arm64.outcome }}" == "success" ]]; then
-            echo "oqs-found=true" >> $GITHUB_OUTPUT
-            echo "✅ All required OQS Provider artifacts were found."
-          else
-            echo "oqs-found=false" >> $GITHUB_OUTPUT
-            echo "❌ Missing one or more OQS Provider artifacts. Please check the COMPILE_REPO."
-          fi
-
-  ## ------------------------------------------------------------------
-  ## 2a. NOTIFY MISSING DEPENDENCIES (Conditional)
-  ##     This job runs ONLY IF the check-dependencies job fails.
-  ##     It logs an error and causes the workflow to fail.
-  ## ------------------------------------------------------------------
+  # ------------------------------------------------------------------
+  # 2a. NOTIFY MISSING DEPENDENCIES (Conditional)
+  # ------------------------------------------------------------------
   notify-missing-dependencies:
     needs: check-dependencies
     runs-on: ubuntu-latest
@@ -168,12 +97,9 @@ jobs:
           fi
           exit 1
 
-  ## ------------------------------------------------------------------
-  ## 2b. BUILD AND PACKAGE (Conditional)
-  ##     This job runs ONLY IF all dependencies are found. It builds
-  ##     zcert for multiple platforms, packages them with dependencies,
-  ##     and uploads them as artifacts.
-  ## ------------------------------------------------------------------
+  # ------------------------------------------------------------------
+  # 2b. BUILD AND PACKAGE (Conditional)
+  # ------------------------------------------------------------------
   build-and-package:
     needs: check-dependencies
     if: needs.check-dependencies.outputs.openssl-exists == 'true' && needs.check-dependencies.outputs.oqs-exists == 'true'
@@ -181,104 +107,71 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
-            platform: linux
-            arch: x64
-            openssl-workflow: "openssl-3.5-linux.yaml"
-            openssl-artifact: "openssl-${{ env.OPENSSL_VERSION }}-x64-linux-portable"
-            oqs-artifact: "oqsprovider-linux-x64"
-            zcert-name: linux
-            oqs-ext: .so
-            go-os: linux
-            go-arch: amd64
-          - os: windows-latest
-            platform: windows
-            arch: x64
-            openssl-workflow: "openssl-3.5-windows.yaml"
-            openssl-artifact: "openssl-${{ env.OPENSSL_VERSION }}-win64-portable"
-            oqs-artifact: "oqsprovider-windows-x64"
-            zcert-name: windows
-            oqs-ext: .dll
-            go-os: windows
-            go-arch: amd64
-          - os: macos-latest
-            platform: macos
-            arch: x64
-            openssl-workflow: "openssl-3.5-macos.yaml"
-            openssl-artifact: "openssl-${{ env.OPENSSL_VERSION }}-x64-macos-portable"
-            oqs-artifact: "oqsprovider-macos-x64"
-            zcert-name: darwin
-            oqs-ext: .dylib
-            go-os: darwin
-            go-arch: amd64
-          - os: macos-latest # Using macos-latest for arm64 as well
-            platform: macos
-            arch: arm64
-            openssl-workflow: "openssl-3.5-macos.yaml"
-            openssl-artifact: "openssl-${{ env.OPENSSL_VERSION }}-arm64-macos-portable"
-            oqs-artifact: "oqsprovider-macos-arm64"
-            zcert-name: darwin_arm
-            oqs-ext: .dylib
-            go-os: darwin
-            go-arch: arm64
+          - { os: ubuntu-latest, platform: linux, arch: x64, openssl-workflow: "openssl-3.5-linux.yaml", openssl-artifact: "openssl-${{ env.OPENSSL_VERSION }}-x64-linux-portable", oqs-artifact: "oqsprovider-linux-x64", zcert-name: linux, oqs-ext: .so, go-os: linux, go-arch: amd64 }
+          - { os: windows-latest, platform: windows, arch: x64, openssl-workflow: "openssl-3.5-windows.yaml", openssl-artifact: "openssl-${{ env.OPENSSL_VERSION }}-win64-portable", oqs-artifact: "oqsprovider-windows-x64", zcert-name: windows, oqs-ext: .dll, go-os: windows, go-arch: amd64 }
+          - { os: macos-latest, platform: macos, arch: x64, openssl-workflow: "openssl-3.5-macos.yaml", openssl-artifact: "openssl-${{ env.OPENSSL_VERSION }}-x64-macos-portable", oqs-artifact: "oqsprovider-macos-x64", zcert-name: darwin, oqs-ext: .dylib, go-os: darwin, go-arch: amd64 }
+          - { os: macos-latest, platform: macos, arch: arm64, openssl-workflow: "openssl-3.5-macos.yaml", openssl-artifact: "openssl-${{ env.OPENSSL_VERSION }}-arm64-macos-portable", oqs-artifact: "oqsprovider-macos-arm64", zcert-name: darwin_arm, oqs-ext: .dylib, go-os: darwin, go-arch: arm64 }
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-
-      - name: Setup Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: 'stable'
+      - uses: actions/setup-go@v5
+        with: { go-version: 'stable' }
 
       - name: Build zcert
-        env:
-          GOOS: ${{ matrix.go-os }}
-          GOARCH: ${{ matrix.go-arch }}
+        env: { GOOS: "${{ matrix.go-os }}", GOARCH: "${{ matrix.go-arch }}" }
         run: go build -o zcert${{ matrix.platform == 'windows' && '.exe' || '' }} ./cmd/zcert
 
       - name: Download OpenSSL artifact
         uses: dawidd6/action-download-artifact@v3
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          repo: ${{ env.COMPILE_REPO }}
-          workflow: ${{ matrix.openssl-workflow }}
-          workflow_conclusion: success
-          name: ${{ matrix.openssl-artifact }}
-          path: openssl-artifact
+        with: { github_token: "${{ secrets.GITHUB_TOKEN }}", repo: "${{ env.COMPILE_REPO }}", workflow: "${{ matrix.openssl-workflow }}", name: "${{ matrix.openssl-artifact }}", path: "openssl-artifact" }
 
       - name: Download oqs-provider artifact
         uses: dawidd6/action-download-artifact@v3
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          repo: ${{ env.COMPILE_REPO }}
-          workflow: Build-oqs-provider-v0.7.yml
-          workflow_conclusion: success
-          name: ${{ matrix.oqs-artifact }}
-          path: oqs-artifact
+        with: { github_token: "${{ secrets.GITHUB_TOKEN }}", repo: "${{ env.COMPILE_REPO }}", workflow: "Build-oqs-provider-v0.7.yml", name: "${{ matrix.oqs-artifact }}", path: "oqs-artifact" }
 
-      - name: Extract and package
+      - name: Prepare and verify package contents
+        id: package
         shell: bash
         run: |
-          mkdir -p package
+          echo "--- Verifying downloaded artifacts ---"
+          echo "OpenSSL artifact contents:"
+          ls -R openssl-artifact
+          echo "OQS Provider artifact contents:"
+          ls -R oqs-artifact
           
-          # Copy zcert binary
+          mkdir -p package
+
+          # Define expected executables and libraries
           ZCERT_EXE="zcert${{ matrix.platform == 'windows' && '.exe' || '' }}"
+          OPENSSL_EXE="openssl${{ matrix.platform == 'windows' && '.exe' || '' }}"
+          OQS_LIB="oqsprovider${{ matrix.oqs-ext }}"
+
+          # Copy main binary
           cp $ZCERT_EXE package/
           if [[ "${{ matrix.platform }}" != "windows" ]]; then chmod +x package/$ZCERT_EXE; fi
-          
-          # Copy OpenSSL binary
-          OPENSSL_EXE="openssl${{ matrix.platform == 'windows' && '.exe' || '' }}"
-          cp openssl-artifact/$OPENSSL_EXE package/
-          if [[ "${{ matrix.platform }}" != "windows" ]]; then chmod +x package/$OPENSSL_EXE; fi
-          if [ -f openssl-artifact/README.txt ]; then cp openssl-artifact/README.txt package/openssl-README.txt; fi
 
-          # Copy oqs-provider
-          find oqs-artifact -name "oqsprovider${{ matrix.oqs-ext }}" -exec cp {} package/ \;
-          
-          echo "Package contents:"
+          # Use find to locate and copy dependencies, making the script robust
+          find openssl-artifact -type f -name $OPENSSL_EXE -exec cp {} package/ \;
+          find oqs-artifact -type f -name $OQS_LIB -exec cp {} package/ \;
+
+          # Make OpenSSL executable on non-Windows platforms
+          if [[ "${{ matrix.platform }}" != "windows" && -f "package/$OPENSSL_EXE" ]]; then
+            chmod +x package/$OPENSSL_EXE
+          fi
+
+          echo "--- Verifying final package contents ---"
           ls -la package/
-          
-          # Create release archive
+
+          # CRITICAL: Verify that all necessary files exist in the package folder before zipping
+          if ! [ -f "package/$ZCERT_EXE" ] || ! [ -f "package/$OPENSSL_EXE" ] || ! [ -f "package/$OQS_LIB" ]; then
+            echo "::error::A required file was not found in the final package directory. Aborting."
+            exit 1
+          fi
+          echo "✅ All required files are present in the package directory."
+
+      - name: Create release archive and checksum
+        shell: bash
+        run: |
           PKG_NAME="zcert_v${{ github.event.inputs.version }}_${{ matrix.zcert-name }}.zip"
           cd package
           if [[ "${{ matrix.platform }}" == "windows" ]]; then
@@ -288,13 +181,11 @@ jobs:
           fi
           cd ..
 
-          # Generate SHA1 checksum
           if [[ "${{ matrix.platform }}" == "windows" ]]; then
             certutil -hashfile $PKG_NAME SHA1 | findstr /v ":" | findstr /v "CertUtil" > ${PKG_NAME}.sha1
           else
             shasum -a 1 $PKG_NAME | cut -d' ' -f1 > ${PKG_NAME}.sha1
           fi
-          
           echo "SHA1 checksum:"
           cat ${PKG_NAME}.sha1
 
@@ -306,11 +197,9 @@ jobs:
             zcert_v${{ github.event.inputs.version }}_${{ matrix.zcert-name }}.zip
             zcert_v${{ github.event.inputs.version }}_${{ matrix.zcert-name }}.zip.sha1
 
-  ## ------------------------------------------------------------------
-  ## 3. CREATE RELEASE
-  ##    After all packages are successfully built, this job collects them
-  ##    and creates a single draft GitHub release with all assets.
-  ## ------------------------------------------------------------------
+  # ------------------------------------------------------------------
+  # 3. CREATE RELEASE
+  # ------------------------------------------------------------------
   create-release:
     needs: build-and-package
     runs-on: ubuntu-latest
@@ -321,18 +210,16 @@ jobs:
           path: release-artifacts
 
       - name: Prepare release assets and checksums file
-        id: prep-release
         run: |
           mkdir -p release-assets
           find release-artifacts -type f \( -name "*.zip" -o -name "*.sha1" \) -exec cp {} release-assets/ \;
-          
           cd release-assets
           echo "### SHA1 Checksums" > checksums.txt
           for file in *.zip; do
             sha1sum=$(cat "${file}.sha1")
-            echo "\`${sha1sum}\`  \`${file}\`" >> checksums.txt
+            # Use two spaces for a line break in Markdown
+            echo "\`${sha1sum}\`  \`${file}\`  " >> checksums.txt
           done
-          
           echo "Final release assets:"
           ls -l
 
@@ -341,7 +228,6 @@ jobs:
         with:
           tag_name: v${{ github.event.inputs.version }}
           name: zcert v${{ github.event.inputs.version }}
-          body_path: release-assets/checksums.txt
           body: |
             ## zcert v${{ github.event.inputs.version }}
             
@@ -351,6 +237,6 @@ jobs:
             **Components**
             - OpenSSL `${{ env.OPENSSL_VERSION }}`
             - OQS Provider `${{ env.OQS_PROVIDER_VERSION }}`
-
+          body_path: release-assets/checksums.txt
           draft: true
           files: release-assets/*.zip
