@@ -49,19 +49,19 @@ jobs:
       - name: Check for OQS Provider Linux (x64)
         id: check-oqs-linux-x64
         uses: dawidd6/action-download-artifact@v3
-        with: { github_token: "${{ secrets.GITHUB_TOKEN }}", repo: "${{ env.COMPILE_REPO }}", workflow: "Build-oqs-provider-v0.7.yml", name: "oqsprovider-linux-x64", if_no_artifact_found: fail, continue-on-error: true }
+        with: { github_token: "${{ secrets.GITHUB_TOKEN }}", repo: "${{ env.COMPILE_REPO }}", workflow: "Build-oqs-provider-v0.7.yml", name: "oqs-provider-linux-amd64", if_no_artifact_found: fail, continue-on-error: true }
       - name: Check for OQS Provider Windows (x64)
         id: check-oqs-win-x64
         uses: dawidd6/action-download-artifact@v3
-        with: { github_token: "${{ secrets.GITHUB_TOKEN }}", repo: "${{ env.COMPILE_REPO }}", workflow: "Build-oqs-provider-v0.7.yml", name: "oqsprovider-windows-x64", if_no_artifact_found: fail, continue-on-error: true }
+        with: { github_token: "${{ secrets.GITHUB_TOKEN }}", repo: "${{ env.COMPILE_REPO }}", workflow: "Build-oqs-provider-v0.7.yml", name: "oqs-provider-windows-amd64", if_no_artifact_found: fail, continue-on-error: true }
       - name: Check for OQS Provider macOS (x64)
         id: check-oqs-macos-x64
         uses: dawidd6/action-download-artifact@v3
-        with: { github_token: "${{ secrets.GITHUB_TOKEN }}", repo: "${{ env.COMPILE_REPO }}", workflow: "Build-oqs-provider-v0.7.yml", name: "oqsprovider-macos-x64", if_no_artifact_found: fail, continue-on-error: true }
+        with: { github_token: "${{ secrets.GITHUB_TOKEN }}", repo: "${{ env.COMPILE_REPO }}", workflow: "Build-oqs-provider-v0.7.yml", name: "oqs-provider-macos-amd64", if_no_artifact_found: fail, continue-on-error: true }
       - name: Check for OQS Provider macOS (arm64)
         id: check-oqs-macos-arm64
         uses: dawidd6/action-download-artifact@v3
-        with: { github_token: "${{ secrets.GITHUB_TOKEN }}", repo: "${{ env.COMPILE_REPO }}", workflow: "Build-oqs-provider-v0.7.yml", name: "oqsprovider-macos-arm64", if_no_artifact_found: fail, continue-on-error: true }
+        with: { github_token: "${{ secrets.GITHUB_TOKEN }}", repo: "${{ env.COMPILE_REPO }}", workflow: "Build-oqs-provider-v0.7.yml", name: "oqs-provider-macos-arm64", if_no_artifact_found: fail, continue-on-error: true }
 
       - name: Report final dependency status
         id: report-status
