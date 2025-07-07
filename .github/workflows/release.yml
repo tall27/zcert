@@ -331,7 +331,7 @@ jobs:
 
       - name: Prepare release assets and checksums file
         run: |
-          mkdir -p release-assets
+          mkdir -p release-assets temp-extract
           echo "Initial release artifacts:"
           find release-artifacts -type f | sort
           
@@ -349,13 +349,37 @@ jobs:
                   # Get the basename without directory path
                   base_name=$(basename "$zip_file")
                   
-                  # Ensure the file has a .zip extension
-                  if [[ "$base_name" != *.zip ]]; then
-                    new_name="${base_name}.zip"
-                    cp "$zip_file" "release-assets/$new_name"
-                    echo "Renamed $base_name to $new_name"
+                  # Check if this is a proper zip file (not a renamed directory)
+                  file_type=$(file -b "$zip_file" | grep -i "zip" || echo "")
+                  if [[ -z "$file_type" ]]; then
+                    echo "WARNING: $zip_file appears not to be a proper zip file. Skipping."
+                    continue
+                  fi
+                  
+                  # Verify it's not a nested zip by extracting and checking contents
+                  rm -rf temp-extract/*
+                  unzip -l "$zip_file" | grep -i "\.zip$" > /dev/null
+                  if [ $? -eq 0 ]; then
+                    echo "WARNING: $zip_file contains nested zip files. Extracting to avoid zip-in-zip..."
+                    mkdir -p "temp-extract/$base_name"
+                    unzip -q "$zip_file" -d "temp-extract/$base_name"
+                    
+                    # Create a new clean zip without nested zips
+                    cd "temp-extract/$base_name"
+                    zip -r "../fixed_$base_name" *
+                    cd ../../
+                    mv "temp-extract/fixed_$base_name" "release-assets/$base_name"
+                    echo "Created clean version of $base_name without nested zips"
                   else
-                    cp "$zip_file" release-assets/
+                    # No nested zips, copy as is
+                    # Ensure the file has a .zip extension
+                    if [[ "$base_name" != *.zip ]]; then
+                      new_name="${base_name}.zip"
+                      cp "$zip_file" "release-assets/$new_name"
+                      echo "Renamed $base_name to $new_name"
+                    else
+                      cp "$zip_file" release-assets/
+                    fi
                   fi
                   
                   # Copy corresponding sha1 file if it exists
