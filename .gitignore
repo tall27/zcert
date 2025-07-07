@@ -5,6 +5,10 @@
 *.so
 *.dylib
 
+# Binary directories
+bin/
+lib/
+
 # Test binary, built with `go test -c`
 *.test
 
@@ -90,5 +94,5 @@ zi*
 # Attached assets and documentation
 attached_assets/
 
-# md files
-*.md
+# Generated test playbooks
+test-run-playbook.yaml
