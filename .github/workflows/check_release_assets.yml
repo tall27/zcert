@@ -16,7 +16,6 @@ permissions:
   contents: read # Only read access is needed to list releases and assets
 
 env:
-  # IMPORTANT: Adjust these repository paths to where your *releases* are published
   OPENSSL_RELEASE_REPO: "tall27/compile" # Assuming OpenSSL releases are here
   OQS_PROVIDER_RELEASE_REPO: "tall27/oqs-provider" # Assuming OQS Provider releases are here
 
@@ -38,10 +37,10 @@ jobs:
           script: |
             const owner = process.env.OPENSSL_RELEASE_REPO.split('/')[0];
             const repo = process.env.OPENSSL_RELEASE_REPO.split('/')[1];
-            const opensslVersion = github.event.inputs.openssl_version;
+            // CORRECTED: Access inputs via context.payload.inputs
+            const opensslVersion = context.payload.inputs.openssl_version;
 
             // IMPORTANT: Adjust this tagName pattern to match how your OpenSSL releases are tagged.
-            // Examples: `openssl-${opensslVersion}`, `v${opensslVersion}`, `OpenSSL_${opensslVersion}`
             const tagName = `openssl-${opensslVersion}`;
 
             console.log(`Attempting to find OpenSSL release with tag: "${tagName}" in ${owner}/${repo}`);
@@ -60,7 +59,6 @@ jobs:
               }
 
               // IMPORTANT: Adjust these asset names to exactly match the files attached to your OpenSSL releases.
-              // Include file extensions (e.g., .zip, .tar.gz)
               const requiredAssetNames = [
                 `openssl-${opensslVersion}-x64-linux-portable.zip`,
                 `openssl-${opensslVersion}-win64-portable.zip`,
@@ -91,7 +89,7 @@ jobs:
               core.setOutput('exists', 'false');
             }
         env:
-          OPENSSL_RELEASE_REPO: ${{ env.OPENSSL_RELEASE_REPO }} # Pass env var to script
+          OPENSSL_RELEASE_REPO: ${{ env.OPENSSL_RELEASE_REPO }}
 
       - name: Check for OQS Provider release assets
         id: check-oqs
@@ -100,10 +98,10 @@ jobs:
           script: |
             const owner = process.env.OQS_PROVIDER_RELEASE_REPO.split('/')[0];
             const repo = process.env.OQS_PROVIDER_RELEASE_REPO.split('/')[1];
-            const oqsProviderVersion = github.event.inputs.oqs_provider_version;
+            // CORRECTED: Access inputs via context.payload.inputs
+            const oqsProviderVersion = context.payload.inputs.oqs_provider_version;
 
             // IMPORTANT: Adjust this tagName pattern to match how your OQS Provider releases are tagged.
-            // Examples: `v${oqsProviderVersion}`, `oqs-provider-${oqsProviderVersion}`
             const tagName = `v${oqsProviderVersion}`;
 
             console.log(`Attempting to find OQS Provider release with tag: "${tagName}" in ${owner}/${repo}`);
@@ -122,7 +120,6 @@ jobs:
               }
 
               // IMPORTANT: Adjust these asset names to exactly match the files attached to your OQS Provider releases.
-              // Include file extensions (e.g., .zip, .tar.gz)
               const requiredAssetNames = [
                 'oqsprovider-linux-x64.zip',
                 'oqsprovider-windows-x64.zip',
@@ -153,7 +150,7 @@ jobs:
               core.setOutput('exists', 'false');
             }
         env:
-          OQS_PROVIDER_RELEASE_REPO: ${{ env.OQS_PROVIDER_RELEASE_REPO }} # Pass env var to script
+          OQS_PROVIDER_RELEASE_REPO: ${{ env.OQS_PROVIDER_RELEASE_REPO }}
 
       - name: Report Results
         run: |
