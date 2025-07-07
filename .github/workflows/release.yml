@@ -291,21 +291,21 @@ jobs:
         shell: bash
         run: |
           PKG_NAME="zcert_v${{ github.event.inputs.version }}_${{ matrix.zcert-name }}.zip"
-          cd package
+          
           if [[ "${{ matrix.platform }}" == "windows" ]]; then
-            # For Windows, use the zip command instead of 7z to reduce malware false positives
-            zip -r ../$PKG_NAME *
-          else
-            zip -r ../$PKG_NAME *
-          fi
-          cd ..
-
-          if [[ "${{ matrix.platform }}" == "windows" ]]; then
-            # On Windows, use PowerShell to generate the SHA1 hash consistently
+            # For Windows, use PowerShell to create the zip to avoid virus scanner issues
+            echo "Creating Windows package with PowerShell..."
+            pwsh -Command "Compress-Archive -Path './package/*' -DestinationPath './$PKG_NAME' -Force"
+            # Generate SHA1 hash with PowerShell
             pwsh -Command "Get-FileHash -Algorithm SHA1 $PKG_NAME | ForEach-Object { \$_.Hash.ToLower() } | Out-File -FilePath ${PKG_NAME}.sha1 -NoNewline -Encoding utf8"
           else
+            # For non-Windows platforms use zip command
+            cd package
+            zip -r ../$PKG_NAME *
+            cd ..
             shasum -a 1 $PKG_NAME | cut -d' ' -f1 > ${PKG_NAME}.sha1
           fi
+          
           echo "SHA1 checksum:"
           cat ${PKG_NAME}.sha1
 
@@ -331,7 +331,7 @@ jobs:
 
       - name: Prepare release assets and checksums file
         run: |
-          mkdir -p release-assets
+          mkdir -p release-assets temp-extract
           echo "Initial release artifacts:"
           find release-artifacts -type f | sort
           
@@ -349,13 +349,37 @@ jobs:
                   # Get the basename without directory path
                   base_name=$(basename "$zip_file")
                   
-                  # Ensure the file has a .zip extension
-                  if [[ "$base_name" != *.zip ]]; then
-                    new_name="${base_name}.zip"
-                    cp "$zip_file" "release-assets/$new_name"
-                    echo "Renamed $base_name to $new_name"
+                  # Check if this is a proper zip file (not a renamed directory)
+                  file_type=$(file -b "$zip_file" | grep -i "zip" || echo "")
+                  if [[ -z "$file_type" ]]; then
+                    echo "WARNING: $zip_file appears not to be a proper zip file. Skipping."
+                    continue
+                  fi
+                  
+                  # Verify it's not a nested zip by extracting and checking contents
+                  rm -rf temp-extract/*
+                  unzip -l "$zip_file" | grep -i "\.zip$" > /dev/null
+                  if [ $? -eq 0 ]; then
+                    echo "WARNING: $zip_file contains nested zip files. Extracting to avoid zip-in-zip..."
+                    mkdir -p "temp-extract/$base_name"
+                    unzip -q "$zip_file" -d "temp-extract/$base_name"
+                    
+                    # Create a new clean zip without nested zips
+                    cd "temp-extract/$base_name"
+                    zip -r "../fixed_$base_name" *
+                    cd ../../
+                    mv "temp-extract/fixed_$base_name" "release-assets/$base_name"
+                    echo "Created clean version of $base_name without nested zips"
                   else
-                    cp "$zip_file" release-assets/
+                    # No nested zips, copy as is
+                    # Ensure the file has a .zip extension
+                    if [[ "$base_name" != *.zip ]]; then
+                      new_name="${base_name}.zip"
+                      cp "$zip_file" "release-assets/$new_name"
+                      echo "Renamed $base_name to $new_name"
+                    else
+                      cp "$zip_file" release-assets/
+                    fi
                   fi
                   
                   # Copy corresponding sha1 file if it exists
@@ -380,116 +404,47 @@ jobs:
           repo="${{ github.repository }}"
           
           {
-            echo "# ZCERT v${version}"
+            echo "# zcert v${version} - initial release"
             echo ""
-            echo "A security-hardened command-line certificate management tool for CyberArk's Zero Touch PKI (ZTPKI) service with post-quantum cryptography support."
+            echo "A security-hardened command-line certificate management tool for CyberArk's Zero"
+            echo "Touch PKI (ZTPKI) service with post-quantum cryptography support."
+            echo ""
             echo ""
             echo "## Package Components"
             echo ""
-            echo "| Component | Version |"
-            echo "|-----------|---------|"
+            echo "| | |"
+            echo "|-|-|"
             echo "| zcert | ${version} |"
             echo "| OpenSSL | ${openssl_version} |"
             echo "| OQS Provider | ${oqs_version} |"
             echo ""
-            echo "## SHA1 Checksums"
-            echo ""
-            echo "| Filename | SHA1 Checksum |"
-            echo "|----------|---------------|"
+            echo "\`\`\`"
             
             # Linux amd64
             if [ -f "zcert_v${version}_linux.zip" ] && [ -f "zcert_v${version}_linux.zip.sha1" ]; then
               sha1sum=$(cat "zcert_v${version}_linux.zip.sha1")
-              echo "| zcert_v${version}_linux.zip | \`${sha1sum}\` |"
+              echo "${sha1sum} zcert_v${version}_linux.zip"
             fi
             
             # Windows amd64
             if [ -f "zcert_v${version}_windows.zip" ] && [ -f "zcert_v${version}_windows.zip.sha1" ]; then
               sha1sum=$(cat "zcert_v${version}_windows.zip.sha1")
-              echo "| zcert_v${version}_windows.zip | \`${sha1sum}\` |"
+              echo "${sha1sum} zcert_v${version}_windows.zip"
             fi
             
             # macOS amd64
             if [ -f "zcert_v${version}_darwin.zip" ] && [ -f "zcert_v${version}_darwin.zip.sha1" ]; then
               sha1sum=$(cat "zcert_v${version}_darwin.zip.sha1")
-              echo "| zcert_v${version}_darwin.zip | \`${sha1sum}\` |"
+              echo "${sha1sum} zcert_v${version}_darwin.zip"
             fi
             
             # macOS arm64
             if [ -f "zcert_v${version}_darwin_arm.zip" ] && [ -f "zcert_v${version}_darwin_arm.zip.sha1" ]; then
               sha1sum=$(cat "zcert_v${version}_darwin_arm.zip.sha1")
-              echo "| zcert_v${version}_darwin_arm.zip | \`${sha1sum}\` |"
+              echo "${sha1sum} zcert_v${version}_darwin_arm.zip"
             fi
             
-            echo ""
-            echo "## Downloads"
-            echo ""
-            
-            # Linux amd64
-            if [ -f "zcert_v${version}_linux.zip" ]; then
-              echo "* **Linux (amd64)**: [zcert_v${version}_linux.zip](https://github.com/${repo}/releases/download/v${version}/zcert_v${version}_linux.zip)"
-            fi
-            
-            # Windows amd64
-            if [ -f "zcert_v${version}_windows.zip" ]; then
-              echo "* **Windows (amd64)**: [zcert_v${version}_windows.zip](https://github.com/${repo}/releases/download/v${version}/zcert_v${version}_windows.zip)"
-            fi
-            
-            # macOS amd64
-            if [ -f "zcert_v${version}_darwin.zip" ]; then
-              echo "* **macOS (amd64)**: [zcert_v${version}_darwin.zip](https://github.com/${repo}/releases/download/v${version}/zcert_v${version}_darwin.zip)"
-            fi
-            
-            # macOS arm64
-            if [ -f "zcert_v${version}_darwin_arm.zip" ]; then
-              echo "* **macOS (arm64)**: [zcert_v${version}_darwin_arm.zip](https://github.com/${repo}/releases/download/v${version}/zcert_v${version}_darwin_arm.zip)"
-            fi
-            
-            echo ""
-            echo "## Installation"
-            echo ""
-            echo "### Binary Installation"
-            echo ""
-            echo "1. Download the appropriate zip file for your platform"
-            echo "2. Extract the contents to a directory of your choice"
-            echo "3. Add the directory to your PATH environment variable"
-            echo "4. Run \`zcert --version\` to verify the installation"
-            echo ""
-            echo "### Verifying Package Integrity"
-            echo ""
-            echo "To verify the integrity of your downloaded package:"
-            echo ""
-            echo "**Linux/macOS:**"
-            echo '```bash'
-            echo "# Download both the zip and sha1 file"
-            echo "# Verify the checksum"
-            echo "shasum -a 1 -c zcert_v*.zip.sha1"
-            echo '```'
-            echo ""
-            echo "**Windows:**"
-            echo '```powershell'
-            echo "# Download both the zip and sha1 file"
-            echo "# Get the expected hash from the .sha1 file"
-            echo "\$expected = Get-Content .\\zcert_v*.zip.sha1"
-            echo "# Calculate the actual hash"
-            echo "\$actual = (Get-FileHash -Algorithm SHA1 .\\zcert_v*.zip).Hash.ToLower()"
-            echo "# Compare"
-            echo "if (\$expected -eq \$actual) { Write-Host \"Verification successful!\" } else { Write-Host \"Verification failed!\" }"
-            echo '```'
-            echo ""
-            echo "## What's New in v${version}"
-            echo ""
-            echo "### 🛠️ Fixes"
-            echo ""
-            echo "- [Add fixes here]"
-            echo ""
-            echo "### ✨ New Features"
-            echo ""
-            echo "- [Add new features here]"
-            echo ""
-            echo "### 📋 Other Changes"
-            echo ""
-            echo "- [Add other changes here]"
+            echo "\`\`\`"
             
           } > release_notes.md
           
