@@ -28,7 +28,7 @@ jobs:
             arch: x64
             openssl-expected-artifact: "openssl-3.5.0-x64-linux-portable" # Confirmed from your images
             openssl-build-workflow: "openssl-3.5-linux.yaml" # Confirmed from your images
-            [cite_start]oqs-expected-artifact: "oqsprovider-linux-x64" # From your original YAML [cite: 42]
+            oqs-expected-artifact: "oqsprovider-linux-x64" # From your original YAML 
             oqs-build-workflow: "Build-oqs-provider-v0.7.yml" # Confirmed from your input
             zcert-name: linux
             oqs-ext: .so
@@ -40,7 +40,7 @@ jobs:
             arch: x64
             openssl-expected-artifact: "openssl-3.5.0-win64-portable" # Confirmed from your images
             openssl-build-workflow: "openssl-3.5-windows.yaml" # Confirmed from your images
-            [cite_start]oqs-expected-artifact: "oqsprovider-windows-x64" # From your original YAML [cite: 42]
+            oqs-expected-artifact: "oqsprovider-windows-x64" # From your original YAML [cite: 42]
             oqs-build-workflow: "Build-oqs-provider-v0.7.yml" # Confirmed from your input
             zcert-name: windows
             oqs-ext: .dll
@@ -52,7 +52,7 @@ jobs:
             arch: x64
             openssl-expected-artifact: "openssl-3.5.0-x64-macos-portable" # Confirmed from your images
             openssl-build-workflow: "openssl-3.5-macos.yaml" # Confirmed from your images
-            [cite_start]oqs-expected-artifact: "oqsprovider-macos-x64" # From your original YAML [cite: 42]
+            oqs-expected-artifact: "oqsprovider-macos-x64" # From your original YAML [cite: 42]
             oqs-build-workflow: "Build-oqs-provider-v0.7.yml" # Confirmed from your input
             zcert-name: darwin
             oqs-ext: .dylib
@@ -64,7 +64,7 @@ jobs:
             arch: arm64
             openssl-expected-artifact: "openssl-3.5.0-arm64-macos-portable" # Confirmed from your images
             openssl-build-workflow: "openssl-3.5-macos.yaml" # Confirmed from your images
-            [cite_start]oqs-expected-artifact: "oqsprovider-macos-arm64" # From your original YAML [cite: 42]
+            oqs-expected-artifact: "oqsprovider-macos-arm64" # From your original YAML [cite: 42]
             oqs-build-workflow: "Build-oqs-provider-v0.7.yml" # Confirmed from your input
             zcert-name: darwin_arm
             oqs-ext: .dylib
