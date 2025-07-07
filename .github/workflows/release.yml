@@ -1,4 +1,4 @@
-name: Release zcert
+name: Release zcert with Dependency Management
 
 on:
   workflow_dispatch:
@@ -7,18 +7,273 @@ on:
         description: 'Release version (e.g., 1.2.0)'
         required: true
         default: '1.2.0'
+      # Optional input to force build dependencies if needed for testing
+      force_build_dependencies:
+        description: 'Set to true to always trigger dependency builds if missing'
+        required: false
+        default: 'false'
+        type: boolean
 
 permissions:
   contents: write # Needed for creating releases and uploading assets
-  actions: read   # Needed for dawidd6/action-download-artifact to list workflow runs/artifacts in other repos
+  actions: write  # Needed for softprops/action-gh-release, and to trigger other workflows (workflow_dispatch)
+  # For workflow_dispatch, 'actions: write' is needed to trigger other workflows.
+  # If you only need to check status, 'actions: read' is enough.
+  # For this advanced flow (triggering new workflows), 'actions: write' is necessary.
 
 env:
   OPENSSL_VERSION: "3.5.0"
   OQS_PROVIDER_VERSION: "0.7.0"
-  COMPILE_REPO: "tall27/compile" # The repository where OpenSSL and OQS Provider build workflows run and upload artifacts
+  COMPILE_REPO_OWNER: "tall27"
+  COMPILE_REPO_NAME: "compile"
+  # This is the full repo path for convenience in scripts
+  COMPILE_REPO_FULL: "tall27/compile"
 
 jobs:
+  # STEP ONE: Check for artifacts. If not available, start appropriate workflow and send appropriate note.
+  check-and-trigger-dependencies:
+    runs-on: ubuntu-latest
+    # Grant sufficient permissions to read workflow information and dispatch new workflows
+    permissions:
+      contents: read
+      actions: write # Needed to dispatch new workflows
+
+    outputs:
+      openssl-exists: ${{ steps.check-openssl.outputs.exists }}
+      oqs-exists: ${{ steps.check-oqs.outputs.exists }}
+
+    steps:
+      - name: Checkout zcert repository (for context)
+        uses: actions/checkout@v4
+
+      - name: Check for OpenSSL artifacts (without downloading)
+        id: check-openssl
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = process.env.COMPILE_REPO_OWNER;
+            const repo = process.env.COMPILE_REPO_NAME;
+            const opensslVersion = process.env.OPENSSL_VERSION;
+
+            // Define the specific OpenSSL build workflow YAML files and their corresponding artifacts
+            const opensslBuilds = [
+              { workflow: "openssl-3.5-linux.yaml", artifact: `openssl-${opensslVersion}-x64-linux-portable` },
+              { workflow: "openssl-3.5-windows.yaml", artifact: `openssl-${opensslVersion}-win64-portable` },
+              { workflow: "openssl-3.5-macos.yaml", artifact: `openssl-${opensslVersion}-x64-macos-portable` },
+              { workflow: "openssl-3.5-macos.yaml", artifact: `openssl-${opensslVersion}-arm64-macos-portable` }
+            ];
+
+            let allOpenSSLArtifactsFound = true;
+            let missingOpenSSLPlatforms = [];
+
+            console.log(`--- Checking for OpenSSL Artifacts in ${owner}/${repo} ---`);
+
+            for (const build of opensslBuilds) {
+              let artifactFound = false;
+              console.log(`Checking for artifact '${build.artifact}' from workflow '${build.workflow}'...`);
+              try {
+                // List workflow runs for the specific build workflow
+                const { data: runs } = await github.rest.actions.listWorkflowRunsForRepo({
+                  owner,
+                  repo,
+                  workflow_id: build.workflow,
+                  status: 'success',
+                  per_page: 10 // Check recent runs
+                });
+
+                for (const run of runs.workflow_runs) {
+                  // List artifacts for this specific successful run
+                  const { data: artifacts } = await github.rest.actions.listWorkflowRunArtifacts({
+                    owner,
+                    repo,
+                    run_id: run.id,
+                    per_page: 100
+                  });
+
+                  const foundArtifact = artifacts.artifacts.find(a => a.name === build.artifact);
+                  if (foundArtifact) {
+                    console.log(`✅ Found artifact '${build.artifact}' in run ${run.id}.`);
+                    artifactFound = true;
+                    break; // Found it in this run, move to next required artifact
+                  }
+                }
+              } catch (error) {
+                console.error(`Error checking for ${build.artifact}: ${error.message}`);
+              }
+
+              if (!artifactFound) {
+                console.log(`❌ Artifact '${build.artifact}' NOT found.`);
+                allOpenSSLArtifactsFound = false;
+                missingOpenSSLPlatforms.push(build.workflow);
+              }
+            }
+
+            core.setOutput('exists', allOpenSSLArtifactsFound ? 'true' : 'false');
+            core.setOutput('missing_platforms', JSON.stringify(missingOpenSSLPlatforms));
+            console.log(`OpenSSL All Artifacts Found: ${allOpenSSLArtifactsFound}`);
+            console.log(`Missing OpenSSL Platforms: ${missingOpenSSLPlatforms.join(', ')}`);
+
+        env:
+          OPENSSL_VERSION: ${{ env.OPENSSL_VERSION }}
+          COMPILE_REPO_OWNER: ${{ env.COMPILE_REPO_OWNER }}
+          COMPILE_REPO_NAME: ${{ env.COMPILE_REPO_NAME }}
+
+      - name: Trigger missing OpenSSL builds & send note
+        if: ${{ steps.check-openssl.outputs.exists != 'true' || github.event.inputs.force_build_dependencies }}
+        run: |
+          echo "::warning::One or more OpenSSL artifacts are missing or forced build enabled. Triggering build workflows."
+          # Get missing platforms from the previous step's output
+          MISSING_OPENSSL_PLATFORMS=$(echo '${{ steps.check-openssl.outputs.missing_platforms }}' | jq -r '.[]')
+          FORCE_BUILD="${{ github.event.inputs.force_build_dependencies }}"
+
+          # Loop through expected builds and dispatch them
+          # This assumes your OpenSSL build workflows in 'tall27/compile' are `workflow_dispatch` enabled
+          # and accept a 'version' input. Adjust 'inputs' if your workflows are different.
+          declare -A openssl_workflow_map
+          openssl_workflow_map["openssl-3.5-linux.yaml"]="Linux"
+          openssl_workflow_map["openssl-3.5-windows.yaml"]="Windows"
+          openssl_workflow_map["openssl-3.5-macos.yaml"]="macOS" # macOS workflow handles both x64 and arm64
+
+          # Collect triggered workflows for the note
+          TRIGGERED_WORKFLOWS=""
+
+          for workflow_file in "${!openssl_workflow_map[@]}"; do
+              platform_name="${openssl_workflow_map[${workflow_file}]}"
+              # Check if this platform was missing OR if force_build is true
+              if [[ "$MISSING_OPENSSL_PLATFORMS" == *"$workflow_file"* || "$FORCE_BUILD" == "true" ]]; then
+                  echo "::notice file=.github/workflows/${{ github.workflow }}::Dispatching workflow '${workflow_file}' for OpenSSL ${platform_name} build."
+                  gh workflow run "${workflow_file}" -R ${{ env.COMPILE_REPO_FULL }} \
+                      -f version="${{ env.OPENSSL_VERSION }}" \
+                      --ref main # Or your default branch for compile repo
+                  TRIGGERED_WORKFLOWS+="- OpenSSL ${platform_name} build (${workflow_file})\n"
+              fi
+          done
+
+          if [[ -n "$TRIGGERED_WORKFLOWS" ]]; then
+              echo "::error::Required OpenSSL artifacts are being built. Please re-run this workflow after they complete."
+              # This will cause the workflow to fail and prevent further steps in the 'build-and-package' job
+              exit 1
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Use GITHUB_TOKEN for 'gh' CLI.
+        shell: bash
+        # Install gh CLI if not already present
+      - name: Install GitHub CLI
+        if: ${{ steps.check-openssl.outputs.exists != 'true' || github.event.inputs.force_build_dependencies }}
+        uses: cli/cli-action@v1
+        with:
+          version: 2.x
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check for OQS Provider artifacts (without downloading)
+        id: check-oqs
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = process.env.COMPILE_REPO_OWNER;
+            const repo = process.env.COMPILE_REPO_NAME;
+            const oqsProviderVersion = process.env.OQS_PROVIDER_VERSION;
+            const oqsBuildWorkflow = process.env.OQS_BUILD_WORKFLOW; # From env set below
+
+            // Define the specific OQS Provider artifacts (assuming one workflow builds all)
+            const requiredOQSArtifacts = [
+              'oqsprovider-linux-x64',
+              'oqsprovider-windows-x64',
+              'oqsprovider-macos-x64',
+              'oqsprovider-macos-arm64'
+            ];
+
+            let allOQSArtifactsFound = true;
+            let foundOQSArtifactsCount = 0;
+
+            console.log(`--- Checking for OQS Provider Artifacts in ${owner}/${repo} ---`);
+            console.log(`Looking for artifacts from workflow '${oqsBuildWorkflow}'`);
+
+            try {
+              // List workflow runs for the OQS Provider build workflow
+              const { data: runs } = await github.rest.actions.listWorkflowRunsForRepo({
+                owner,
+                repo,
+                workflow_id: oqsBuildWorkflow,
+                status: 'success',
+                per_page: 10
+              });
+
+              for (const run of runs.workflow_runs) {
+                const { data: artifacts } = await github.rest.actions.listWorkflowRunArtifacts({
+                  owner,
+                  repo,
+                  run_id: run.id,
+                  per_page: 100
+                });
+
+                const artifactNames = artifacts.artifacts.map(a => a.name);
+                const currentRunFoundArtifacts = requiredOQSArtifacts.filter(name =>
+                  artifactNames.includes(name)
+                );
+
+                if (currentRunFoundArtifacts.length === requiredOQSArtifacts.length) {
+                  console.log(`✅ Found all required OQS Provider artifacts in run ${run.id}.`);
+                  artifactFound = true;
+                  foundOQSArtifactsCount = requiredOQSArtifacts.length;
+                  break; // All found in this run, no need to check other runs
+                } else if (currentRunFoundArtifacts.length > 0) {
+                  console.log(`Partially found OQS Provider artifacts in run ${run.id}: ${currentRunFoundArtifacts.join(', ')}`);
+                  // If we find some, but not all, keep looking in other runs if necessary
+                  // Or decide if you want to explicitly fail if not all in *one* run.
+                  // Current logic requires all in *one* run from the filter above.
+                }
+              }
+            } catch (error) {
+              console.error(`Error checking for OQS Provider artifacts: ${error.message}`);
+              allOQSArtifactsFound = false;
+            }
+
+            if (foundOQSArtifactsCount < requiredOQSArtifacts.length) {
+                allOQSArtifactsFound = false;
+                console.log('❌ Required OQS Provider artifacts not all found in a single run.');
+            }
+
+
+            core.setOutput('exists', allOQSArtifactsFound ? 'true' : 'false');
+            console.log(`OQS Provider All Artifacts Found: ${allOQSArtifactsFound}`);
+
+        env:
+          OQS_PROVIDER_VERSION: ${{ env.OQS_PROVIDER_VERSION }}
+          COMPILE_REPO_OWNER: ${{ env.COMPILE_REPO_OWNER }}
+          COMPILE_REPO_NAME: ${{ env.COMPILE_REPO_NAME }}
+          OQS_BUILD_WORKFLOW: "Build-oqs-provider-v0.7.yml" # Pass the specific workflow name
+
+      - name: Trigger missing OQS Provider build & send note
+        if: ${{ steps.check-oqs.outputs.exists != 'true' || github.event.inputs.force_build_dependencies }}
+        run: |
+          echo "::warning::OQS Provider artifacts are missing or forced build enabled. Triggering build workflow."
+          FORCE_BUILD="${{ github.event.inputs.force_build_dependencies }}"
+
+          # This assumes your OQS Provider build workflow in 'tall27/compile' is `workflow_dispatch` enabled
+          # and accepts a 'version' input. Adjust 'inputs' if your workflows are different.
+          echo "::notice file=.github/workflows/${{ github.workflow }}::Dispatching workflow 'Build-oqs-provider-v0.7.yml' for OQS Provider build."
+          gh workflow run "Build-oqs-provider-v0.7.yml" -R ${{ env.COMPILE_REPO_FULL }} \
+              -f version="${{ env.OQS_PROVIDER_VERSION }}" \
+              --ref main # Or your default branch for compile repo
+
+          echo "::error::Required OQS Provider artifacts are being built. Please re-run this workflow after they complete."
+          exit 1 # Fail this workflow to wait for dependencies
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+      - name: Install GitHub CLI (for OQS trigger)
+        if: ${{ steps.check-oqs.outputs.exists != 'true' || github.event.inputs.force_build_dependencies }}
+        uses: cli/cli-action@v1
+        with:
+          version: 2.x
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  # STEP TWO: When all artifacts available (openssl and oqs) start zcert compile.
   build-and-package:
+    needs: check-and-trigger-dependencies
+    # This 'if' condition ensures this job only runs if ALL dependencies were found in the previous step.
+    if: needs.check-and-trigger-dependencies.outputs.openssl-exists == 'true' && needs.check-and-trigger-dependencies.outputs.oqs-exists == 'true'
     strategy:
       fail-fast: false # Allows other matrix jobs to continue even if one platform build fails
       matrix:
@@ -26,10 +281,10 @@ jobs:
           - os: ubuntu-latest
             platform: linux
             arch: x64
-            openssl-expected-artifact: "openssl-3.5.0-x64-linux-portable" # Confirmed from your images
-            openssl-build-workflow: "openssl-3.5-linux.yaml" # Confirmed from your images
-            oqs-expected-artifact: "oqsprovider-linux-x64" # From your original YAML 
-            oqs-build-workflow: "Build-oqs-provider-v0.7.yml" # Confirmed from your input
+            openssl-expected-artifact: "openssl-3.5.0-x64-linux-portable"
+            openssl-build-workflow: "openssl-3.5-linux.yaml"
+            oqs-expected-artifact: "oqsprovider-linux-x64"
+            oqs-build-workflow: "Build-oqs-provider-v0.7.yml"
             zcert-name: linux
             oqs-ext: .so
             go-os: linux
@@ -38,10 +293,10 @@ jobs:
           - os: windows-latest
             platform: windows
             arch: x64
-            openssl-expected-artifact: "openssl-3.5.0-win64-portable" # Confirmed from your images
-            openssl-build-workflow: "openssl-3.5-windows.yaml" # Confirmed from your images
-            oqs-expected-artifact: "oqsprovider-windows-x64" # From your original YAML [cite: 42]
-            oqs-build-workflow: "Build-oqs-provider-v0.7.yml" # Confirmed from your input
+            openssl-expected-artifact: "openssl-3.5.0-win64-portable"
+            openssl-build-workflow: "openssl-3.5-windows.yaml"
+            oqs-expected-artifact: "oqsprovider-windows-x64"
+            oqs-build-workflow: "Build-oqs-provider-v0.7.yml"
             zcert-name: windows
             oqs-ext: .dll
             go-os: windows
@@ -50,10 +305,10 @@ jobs:
           - os: macos-latest
             platform: macos
             arch: x64
-            openssl-expected-artifact: "openssl-3.5.0-x64-macos-portable" # Confirmed from your images
-            openssl-build-workflow: "openssl-3.5-macos.yaml" # Confirmed from your images
-            oqs-expected-artifact: "oqsprovider-macos-x64" # From your original YAML [cite: 42]
-            oqs-build-workflow: "Build-oqs-provider-v0.7.yml" # Confirmed from your input
+            openssl-expected-artifact: "openssl-3.5.0-x64-macos-portable"
+            openssl-build-workflow: "openssl-3.5-macos.yaml"
+            oqs-expected-artifact: "oqsprovider-macos-x64"
+            oqs-build-workflow: "Build-oqs-provider-v0.7.yml"
             zcert-name: darwin
             oqs-ext: .dylib
             go-os: darwin
@@ -62,10 +317,11 @@ jobs:
           - os: macos-latest
             platform: macos
             arch: arm64
-            openssl-expected-artifact: "openssl-3.5.0-arm64-macos-portable" # Confirmed from your images
-            openssl-build-workflow: "openssl-3.5-macos.yaml" # Confirmed from your images
-            oqs-expected-artifact: "oqsprovider-macos-arm64" # From your original YAML [cite: 42]
-            oqs-build-workflow: "Build-oqs-provider-v0.7.yml" # Confirmed from your input
+            openssl-expected-artifact: "openssl-3.5.0-arm64-macos-portable"
+            openssl-build-workflow: "openssl-3.5-macos.yaml"
+            oqs-expected-workflow: "Build-oqs-provider-v0.7.yml" # NOTE: Typo fixed from 'oqs-build-workflow' if that was intended
+            oqs-expected-artifact: "oqsprovider-macos-arm64"
+            oqs-build-workflow: "Build-oqs-provider-v0.7.yml"
             zcert-name: darwin_arm
             oqs-ext: .dylib
             go-os: darwin
@@ -95,24 +351,24 @@ jobs:
         uses: dawidd6/action-download-artifact@v3
         with:
           github_token: ${{ github.token }}
-          workflow: ${{ matrix.openssl-build-workflow }} # Name of the workflow file in COMPILE_REPO
-          workflow_conclusion: success # Only download if the source workflow run was successful
-          name: ${{ matrix.openssl-expected-artifact }} # Exact name of the artifact to download
-          repo: ${{ env.COMPILE_REPO }} # Repository where the artifact is located
-          path: openssl-artifact # Directory to download the artifact into
-        # This step will fail if the artifact is not found, stopping the build for this platform
+          workflow: ${{ matrix.openssl-build-workflow }}
+          workflow_conclusion: success
+          name: ${{ matrix.openssl-expected-artifact }}
+          repo: ${{ env.COMPILE_REPO_FULL }}
+          path: openssl-artifact
+        # This step will fail if the artifact is not found, stopping this specific matrix build.
 
       - name: Download oqs-provider artifact
         id: download-oqs
         uses: dawidd6/action-download-artifact@v3
         with:
           github_token: ${{ github.token }}
-          workflow: ${{ matrix.oqs-build-workflow }} # Name of the workflow file in COMPILE_REPO
-          workflow_conclusion: success # Only download if the source workflow run was successful
-          name: ${{ matrix.oqs-expected-artifact }} # Exact name of the artifact to download
-          repo: ${{ env.COMPILE_REPO }} # Repository where the artifact is located
-          path: oqs-artifact # Directory to download the artifact into
-        # This step will fail if the artifact is not found, stopping the build for this platform
+          workflow: ${{ matrix.oqs-build-workflow }}
+          workflow_conclusion: success
+          name: ${{ matrix.oqs-expected-artifact }}
+          repo: ${{ env.COMPILE_REPO_FULL }}
+          path: oqs-artifact
+        # This step will fail if the artifact is not found, stopping this specific matrix build.
 
       - name: Debug - List downloaded OpenSSL artifact content
         run: |
@@ -128,10 +384,8 @@ jobs:
         shell: bash
         run: |
           echo "Starting extraction and packaging for ${{ matrix.platform }} ${{ matrix.arch }}"
-          # Create package directory
           mkdir -p package
 
-          # Copy zcert binary
           if [[ "${{ matrix.platform }}" == "windows" ]]; then
             cp zcert.exe package/
           else
@@ -139,34 +393,27 @@ jobs:
             chmod +x package/zcert
           fi
 
-          # Copy OpenSSL from artifact
-          # IMPORTANT: You MUST verify the exact path to the executable inside the downloaded artifact.
-          # Use the output from the "Debug - List downloaded OpenSSL artifact content" step.
-          # Based on your previous logs, 'openssl' is directly in 'openssl-artifact/'.
+          echo "Copying OpenSSL..."
+          # IMPORTANT: Verify the exact path to the executable inside the downloaded artifact.
+          # Based on your previous logs, 'openssl' and 'openssl.exe' are directly in 'openssl-artifact/'.
           if [[ "${{ matrix.platform }}" == "windows" ]]; then
-            cp openssl-artifact/openssl.exe package/ # Adjust this path if the exe is nested (e.g., openssl-artifact/bin/openssl.exe)
+            cp openssl-artifact/openssl.exe package/
           else
-            cp openssl-artifact/openssl package/ # Adjust this path if the executable is nested (e.g., openssl-artifact/bin/openssl)
+            cp openssl-artifact/openssl package/
             chmod +x package/openssl
           fi
-          # Copy README if exists (adjust path if needed based on 'ls -R openssl-artifact/')
           if [ -f openssl-artifact/README.txt ]; then
             cp openssl-artifact/README.txt package/openssl-README.txt
           fi
 
-          # Copy oqs-provider
-          # IMPORTANT: You MUST verify the exact path to the oqsprovider file inside the downloaded artifact.
-          # Use the output from the "Debug - List downloaded OQS Provider artifact content" step.
-          # Example: If `ls -R oqs-artifact/` shows `oqs-artifact/oqsprovider-linux-x64/lib/oqsprovider.so`,
-          # then your `find` command might need adjustment, or a direct `cp` if it's a simple file.
           echo "Copying OQS Provider..."
+          # IMPORTANT: Verify the exact path to the oqsprovider file inside the downloaded artifact.
+          # You will need to inspect the 'Debug - List downloaded OQS Provider artifact content' output.
           find oqs-artifact -name "oqsprovider${{ matrix.oqs-ext }}" -exec cp {} package/ \;
 
-          # List package contents for final verification
           echo "Package contents:"
           ls -la package/
 
-          # Create the release zip
           echo "Creating release zip..."
           cd package
           if [[ "${{ matrix.platform }}" == "windows" ]]; then
@@ -177,7 +424,6 @@ jobs:
           cd ..
           echo "Release zip created."
 
-          # Generate SHA1 checksum
           echo "Generating SHA1 checksum..."
           if [[ "${{ matrix.platform }}" == "windows" ]]; then
             certutil -hashfile zcert_v${{ github.event.inputs.version }}_${{ matrix.zcert-name }}.zip SHA1 | findstr /v ":" | findstr /v "CertUtil" > zcert_v${{ github.event.inputs.version }}_${{ matrix.zcert-name }}.zip.sha1
@@ -185,7 +431,6 @@ jobs:
             shasum -a 1 zcert_v${{ github.event.inputs.version }}_${{ matrix.zcert-name }}.zip | cut -d' ' -f1 > zcert_v${{ github.event.inputs.version }}_${{ matrix.zcert-name }}.zip.sha1
           fi
 
-          # Display checksum for verification
           echo "SHA1 checksum:"
           cat zcert_v${{ github.event.inputs.version }}_${{ matrix.zcert-name }}.zip.sha1
 
@@ -196,11 +441,10 @@ jobs:
           path: |
             zcert_v${{ github.event.inputs.version }}_${{ matrix.zcert-name }}.zip
             zcert_v${{ github.event.inputs.version }}_${{ matrix.zcert-name }}.zip.sha1
-        # These artifacts are uploaded to the current workflow run,
-        # and then downloaded by the 'create-release' job.
 
+  # STEP THREE: When done, create a draft for release.
   create-release:
-    needs: build-and-package # This job will run only after all matrix jobs in 'build-and-package' complete successfully
+    needs: build-and-package # This job will run only after ALL matrix jobs in 'build-and-package' complete successfully
     runs-on: ubuntu-latest
     steps:
       - name: Checkout zcert repository
@@ -215,12 +459,10 @@ jobs:
         run: |
           echo "Preparing release assets..."
           mkdir -p release-files
-          # Move all zip and sha1 files from the downloaded artifacts into a single 'release-files' directory
           find release-artifacts -name "*.zip" -o -name "*.sha1" | while read file; do
             cp "$file" release-files/
           done
 
-          # Create combined SHA1 checksum file for all packages
           echo "Creating combined checksums.txt..."
           cd release-files
           echo "# SHA1 checksums for zcert v${{ github.event.inputs.version }}" > checksums.txt
@@ -228,19 +470,18 @@ jobs:
           for sha1file in *.sha1; do
             if [ -f "$sha1file" ]; then
               sha1sum=$(cat "$sha1file")
-              filename="${sha1file%.sha1}" # Remove .sha1 extension
+              filename="${sha1file%.sha1}"
               echo "${sha1sum}  ${filename}" >> checksums.txt
             fi
           done
 
-          # List all files for verification before creating the release
           echo "Final release files to be uploaded:"
           ls -la
 
       - name: Create Draft Release
         uses: softprops/action-gh-release@v1
         with:
-          tag_name: v${{ github.event.inputs.version }} # Uses the version input from workflow_dispatch
+          tag_name: v${{ github.event.inputs.version }}
           name: zcert v${{ github.event.inputs.version }}
           body: |
             ## zcert v${{ github.event.inputs.version }}
@@ -260,7 +501,7 @@ jobs:
             SHA1 checksums are provided for each package.
           draft: true # Set to 'false' to publish immediately, 'true' to create a draft
           files: |
-            release-files/*.zip # Upload all generated zip packages
-            release-files/checksums.txt # Upload the combined checksum file
+            release-files/*.zip
+            release-files/checksums.txt
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Automatically provided token with write access
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
