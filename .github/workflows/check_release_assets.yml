@@ -1,0 +1,161 @@
+name: Check External Release Assets
+
+on:
+  workflow_dispatch:
+    inputs:
+      openssl_version:
+        description: 'OpenSSL Version to check (e.g., 3.5.0)'
+        required: true
+        default: '3.5.0'
+      oqs_provider_version:
+        description: 'OQS Provider Version to check (e.g., 0.7.0)'
+        required: true
+        default: '0.7.0'
+
+permissions:
+  contents: read # Only read access is needed to list releases and assets
+
+env:
+  # IMPORTANT: Adjust these repository paths to where your *releases* are published
+  OPENSSL_RELEASE_REPO: "tall27/compile" # Assuming OpenSSL releases are here
+  OQS_PROVIDER_RELEASE_REPO: "tall27/oqs-provider" # Assuming OQS Provider releases are here
+
+jobs:
+  check-assets:
+    runs-on: ubuntu-latest
+    outputs:
+      openssl-found: ${{ steps.check-openssl.outputs.exists }}
+      oqs-found: ${{ steps.check-oqs.outputs.exists }}
+
+    steps:
+      - name: Checkout code (not strictly needed for this check, but good practice)
+        uses: actions/checkout@v4
+
+      - name: Check for OpenSSL release assets
+        id: check-openssl
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = process.env.OPENSSL_RELEASE_REPO.split('/')[0];
+            const repo = process.env.OPENSSL_RELEASE_REPO.split('/')[1];
+            const opensslVersion = github.event.inputs.openssl_version;
+
+            // IMPORTANT: Adjust this tagName pattern to match how your OpenSSL releases are tagged.
+            // Examples: `openssl-${opensslVersion}`, `v${opensslVersion}`, `OpenSSL_${opensslVersion}`
+            const tagName = `openssl-${opensslVersion}`;
+
+            console.log(`Attempting to find OpenSSL release with tag: "${tagName}" in ${owner}/${repo}`);
+
+            try {
+              const { data: release } = await github.rest.repos.getReleaseByTag({
+                owner,
+                repo,
+                tag: tagName
+              });
+
+              if (!release) {
+                console.log(`❌ OpenSSL release with tag "${tagName}" not found.`);
+                core.setOutput('exists', 'false');
+                return;
+              }
+
+              // IMPORTANT: Adjust these asset names to exactly match the files attached to your OpenSSL releases.
+              // Include file extensions (e.g., .zip, .tar.gz)
+              const requiredAssetNames = [
+                `openssl-${opensslVersion}-x64-linux-portable.zip`,
+                `openssl-${opensslVersion}-win64-portable.zip`,
+                `openssl-${opensslVersion}-x64-macos-portable.zip`,
+                `openssl-${opensslVersion}-arm64-macos-portable.zip`
+              ];
+
+              const assetNames = release.assets.map(asset => asset.name);
+              const foundAssets = requiredAssetNames.filter(name => assetNames.includes(name));
+
+              if (foundAssets.length === requiredAssetNames.length) {
+                console.log(`✅ Found all required OpenSSL assets in release "${tagName}".`);
+                core.setOutput('exists', 'true');
+              } else {
+                console.log(`❌ Missing some OpenSSL assets in release "${tagName}".`);
+                console.log('Expected:', requiredAssetNames);
+                console.log('Found:', assetNames);
+                console.log('Missing:', requiredAssetNames.filter(name => !assetNames.includes(name)));
+                core.setOutput('exists', 'false');
+              }
+
+            } catch (error) {
+              if (error.status === 404) {
+                 console.error(`Error 404: OpenSSL release for tag "${tagName}" not found. Double-check tag name and repository.`);
+              } else {
+                console.error('An unexpected error occurred while checking OpenSSL assets:', error);
+              }
+              core.setOutput('exists', 'false');
+            }
+        env:
+          OPENSSL_RELEASE_REPO: ${{ env.OPENSSL_RELEASE_REPO }} # Pass env var to script
+
+      - name: Check for OQS Provider release assets
+        id: check-oqs
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = process.env.OQS_PROVIDER_RELEASE_REPO.split('/')[0];
+            const repo = process.env.OQS_PROVIDER_RELEASE_REPO.split('/')[1];
+            const oqsProviderVersion = github.event.inputs.oqs_provider_version;
+
+            // IMPORTANT: Adjust this tagName pattern to match how your OQS Provider releases are tagged.
+            // Examples: `v${oqsProviderVersion}`, `oqs-provider-${oqsProviderVersion}`
+            const tagName = `v${oqsProviderVersion}`;
+
+            console.log(`Attempting to find OQS Provider release with tag: "${tagName}" in ${owner}/${repo}`);
+
+            try {
+              const { data: release } = await github.rest.repos.getReleaseByTag({
+                owner,
+                repo,
+                tag: tagName
+              });
+
+              if (!release) {
+                console.log(`❌ OQS Provider release with tag "${tagName}" not found.`);
+                core.setOutput('exists', 'false');
+                return;
+              }
+
+              // IMPORTANT: Adjust these asset names to exactly match the files attached to your OQS Provider releases.
+              // Include file extensions (e.g., .zip, .tar.gz)
+              const requiredAssetNames = [
+                'oqsprovider-linux-x64.zip',
+                'oqsprovider-windows-x64.zip',
+                'oqsprovider-macos-x64.zip',
+                'oqsprovider-macos-arm64.zip'
+              ];
+
+              const assetNames = release.assets.map(asset => asset.name);
+              const foundAssets = requiredAssetNames.filter(name => assetNames.includes(name));
+
+              if (foundAssets.length === requiredAssetNames.length) {
+                console.log(`✅ Found all required OQS Provider assets in release "${tagName}".`);
+                core.setOutput('exists', 'true');
+              } else {
+                console.log(`❌ Missing some OQS Provider assets in release "${tagName}".`);
+                console.log('Expected:', requiredAssetNames);
+                console.log('Found:', assetNames);
+                console.log('Missing:', requiredAssetNames.filter(name => !assetNames.includes(name)));
+                core.setOutput('exists', 'false');
+              }
+
+            } catch (error) {
+              if (error.status === 404) {
+                 console.error(`Error 404: OQS Provider release for tag "${tagName}" not found. Double-check tag name and repository.`);
+              } else {
+                console.error('An unexpected error occurred while checking OQS Provider assets:', error);
+              }
+              core.setOutput('exists', 'false');
+            }
+        env:
+          OQS_PROVIDER_RELEASE_REPO: ${{ env.OQS_PROVIDER_RELEASE_REPO }} # Pass env var to script
+
+      - name: Report Results
+        run: |
+          echo "OpenSSL assets found: ${{ steps.check-openssl.outputs.exists }}"
+          echo "OQS Provider assets found: ${{ steps.check-oqs.outputs.exists }}"
