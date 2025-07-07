@@ -13,9 +13,9 @@ permissions:
   actions: read
 
 env:
-  OPENSSL_VERSION: 3.5.0
-  OQS_PROVIDER_VERSION: 0.7.0
-  COMPILE_REPO: tall27/compile
+  OPENSSL_VERSION: "3.5.0"
+  OQS_PROVIDER_VERSION: "0.7.0"
+  COMPILE_REPO: "tall27/compile"
 
 jobs:
   check-dependencies:
@@ -190,29 +190,29 @@ jobs:
           - os: ubuntu-latest
             platform: linux
             arch: x64
-            openssl-artifact: openssl-${{ env.OPENSSL_VERSION }}-x64-linux-portable
-            oqs-artifact: oqsprovider-linux-x64
+            openssl-artifact: "openssl-3.5.0-x64-linux-portable"
+            oqs-artifact: "oqsprovider-linux-x64"
             zcert-name: linux
             oqs-ext: .so
           - os: windows-latest
             platform: windows
             arch: x64
-            openssl-artifact: openssl-${{ env.OPENSSL_VERSION }}-win64-portable
-            oqs-artifact: oqsprovider-windows-x64
+            openssl-artifact: "openssl-3.5.0-win64-portable"
+            oqs-artifact: "oqsprovider-windows-x64"
             zcert-name: windows
             oqs-ext: .dll
           - os: macos-latest
             platform: macos
             arch: x64
-            openssl-artifact: openssl-${{ env.OPENSSL_VERSION }}-x64-macos-portable
-            oqs-artifact: oqsprovider-macos-x64
+            openssl-artifact: "openssl-3.5.0-x64-macos-portable"
+            oqs-artifact: "oqsprovider-macos-x64"
             zcert-name: darwin
             oqs-ext: .dylib
           - os: macos-latest
             platform: macos
             arch: arm64
-            openssl-artifact: openssl-${{ env.OPENSSL_VERSION }}-arm64-macos-portable
-            oqs-artifact: oqsprovider-macos-arm64
+            openssl-artifact: "openssl-3.5.0-arm64-macos-portable"
+            oqs-artifact: "oqsprovider-macos-arm64"
             zcert-name: darwin_arm
             oqs-ext: .dylib
     runs-on: ${{ matrix.os }}
