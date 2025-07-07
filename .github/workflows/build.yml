@@ -3,9 +3,9 @@ name: Build
 on:
   workflow_dispatch:
   push:
-    branches: [ 07-03-vs-code-windows ]
+    branches: [ main ]
   pull_request:
-    branches: [ 07-03-vs-code-windows ]
+    branches: [ main ]
 
 jobs:
   build:
