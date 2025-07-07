@@ -118,7 +118,7 @@ jobs:
           repo: ${{ env.COMPILE_REPO }} # Repository where the artifact is located
           path: oqs-artifact # Directory to download the artifact into
         # This step will fail if the artifact is not found in a successful run.
-
+        
       - name: Debug: List downloaded OpenSSL artifact content
         run: |
           echo "Contents of openssl-artifact:"
