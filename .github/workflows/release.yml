@@ -284,33 +284,42 @@ jobs:
           PKG_NAME="zcert_v${{ github.event.inputs.version }}_${{ matrix.zcert-name }}.zip"
           
           if [[ "${{ matrix.platform }}" == "windows" ]]; then
-            # For Windows, create special package structure with zcert.exe at the root
-            # and other files in a nested zip
-            echo "Creating Windows package with special structure..."
+            # For Windows, create a package with zcert.exe inside the internal zip
+            echo "Creating Windows package with zcert.exe inside internal zip..."
             
-            # First, create a deps.zip containing OpenSSL and OQS Provider
-            mkdir -p temp_deps
-            cp package/openssl.exe package/oqsprovider.dll package/README.txt temp_deps/
-            pwsh -Command "Compress-Archive -Path './temp_deps/*' -DestinationPath './deps.zip' -Force"
+            # First, create a full internal zip containing all files
+            mkdir -p zcert_package
+            cp package/zcert.exe package/openssl.exe package/oqsprovider.dll package/README.txt zcert_package/
             
-            # Then create the final zip with zcert.exe and deps.zip
+            # Use PowerShell to create a proper zip archive
+            pwsh -Command "Compress-Archive -Path './zcert_package/*' -DestinationPath './zcert-windows-files.zip' -Force"
+            echo "✅ Created zcert-windows-files.zip with all files"
+            
+            # Create the final package structure
             mkdir -p final_package
-            cp package/zcert.exe deps.zip final_package/
+            cp zcert-windows-files.zip final_package/
             
             # Create a new README.txt explaining the structure
             echo "zcert - CyberArk Zero Touch PKI CLI Tool v${{ github.event.inputs.version }}" > final_package/README.txt
             echo "" >> final_package/README.txt
             echo "This package contains:" >> final_package/README.txt
-            echo "- zcert.exe - The main application (extract and use directly)" >> final_package/README.txt
-            echo "- deps.zip - Contains required dependencies:" >> final_package/README.txt
+            echo "- zcert-windows-files.zip - Contains all required files:" >> final_package/README.txt
+            echo "  - zcert.exe - The main application" >> final_package/README.txt
             echo "  - openssl.exe - OpenSSL v${{ env.OPENSSL_VERSION }}" >> final_package/README.txt
             echo "  - oqsprovider.dll - OpenQuantumSafe Provider v${{ env.OQS_PROVIDER_VERSION }}" >> final_package/README.txt
             echo "" >> final_package/README.txt
-            echo "Extract deps.zip to the same directory as zcert.exe for proper functionality." >> final_package/README.txt
+            echo "IMPORTANT: Extract zcert-windows-files.zip to use the application." >> final_package/README.txt
+            echo "All files must be kept in the same directory for proper functionality." >> final_package/README.txt
+            echo "" >> final_package/README.txt
             echo "For more information, visit: https://github.com/${{ github.repository }}" >> final_package/README.txt
             
-            # Create the final package
+            # Verify final package contents
+            echo "Final package structure:"
+            ls -la final_package/
+            
+            # Create the final package using PowerShell for better Windows compatibility
             pwsh -Command "Compress-Archive -Path './final_package/*' -DestinationPath './$PKG_NAME' -Force"
+            echo "✅ Created final Windows package with zcert.exe inside zcert-windows-files.zip"
             
             # Generate SHA1 hash with PowerShell
             pwsh -Command "Get-FileHash -Algorithm SHA1 $PKG_NAME | ForEach-Object { \$_.Hash.ToLower() } | Out-File -FilePath ${PKG_NAME}.sha1 -NoNewline -Encoding utf8"
@@ -426,8 +435,7 @@ jobs:
             echo ""
             echo "## Package Components"
             echo ""
-            echo "| | |"
-            echo "|-|-|"
+            echo "| Component | Version |"
             echo "| zcert | ${version} |"
             echo "| OpenSSL | ${openssl_version} |"
             echo "| OQS Provider | ${oqs_version} |"
