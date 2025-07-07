@@ -7,6 +7,9 @@ on:
         description: 'Release version (e.g., 1.2.0)'
         required: true
         default: '1.2.0'
+  push:
+    branches:
+    - main
 
 # Grant permissions to write contents (for releases) and read actions (for artifacts)
 permissions:
@@ -85,7 +88,6 @@ jobs:
           else
             echo "oqs-found=false" >> $GITHUB_OUTPUT; echo "❌ Missing one or more OQS Provider artifacts."
           fi
-
   # ------------------------------------------------------------------
   # 2a. NOTIFY MISSING DEPENDENCIES (Conditional)
   # ------------------------------------------------------------------
@@ -104,7 +106,6 @@ jobs:
             echo "::error::OQS Provider artifacts not found. Please run the OQS Provider build workflow in ${{ env.COMPILE_REPO }}."
           fi
           exit 1
-
   # ------------------------------------------------------------------
   # 2b. BUILD AND PACKAGE (Conditional)
   # ------------------------------------------------------------------
@@ -174,7 +175,6 @@ jobs:
           GO_VERSION=$(go version | awk '{print $3}')
           LDFLAGS="-X main.Version=${VERSION} -X main.GitCommit=${GIT_COMMIT} -X main.BuildTime=${BUILD_TIME} -X main.GoVersion=${GO_VERSION}"
           go build -v -ldflags "${LDFLAGS}" -o zcert${{ matrix.platform == 'windows' && '.exe' || '' }} main.go
-
       - name: Download OpenSSL artifact
         uses: dawidd6/action-download-artifact@v3
         with: { github_token: "${{ secrets.GITHUB_TOKEN }}", repo: "${{ env.COMPILE_REPO }}", workflow: "${{ matrix.openssl-workflow }}", name: "${{ matrix.openssl-artifact }}", path: "openssl-artifact" }
@@ -195,16 +195,13 @@ jobs:
           
           # Create a clean package directory
           mkdir -p package
-
           # Define expected executables and libraries
           ZCERT_EXE="zcert${{ matrix.platform == 'windows' && '.exe' || '' }}"
           OPENSSL_EXE="openssl${{ matrix.platform == 'windows' && '.exe' || '' }}"
           OQS_LIB="oqsprovider${{ matrix.oqs-ext }}"
-
           # Copy main binary - our own compiled binary should be in the root
           cp $ZCERT_EXE package/
           if [[ "${{ matrix.platform }}" != "windows" ]]; then chmod +x package/$ZCERT_EXE; fi
-
           # Handle OpenSSL artifacts (recursively if needed)
           if find openssl-artifact -type f -name "*.zip" | grep -q .; then
             echo "WARNING: OpenSSL artifact contains zip files"
@@ -226,7 +223,6 @@ jobs:
             # No zip files found, use normal find
             find openssl-artifact -type f -name "$OPENSSL_EXE" -exec cp {} package/ \;
           fi
-
           # Handle OQS Provider artifacts (recursively if needed)
           if find oqs-artifact -type f -name "*.zip" | grep -q .; then
             echo "WARNING: OQS Provider artifact contains zip files"
@@ -248,15 +244,12 @@ jobs:
             # No zip files found, use normal find
             find oqs-artifact -type f -name "$OQS_LIB" -exec cp {} package/ \;
           fi
-
           # Make OpenSSL executable on non-Windows platforms
           if [[ "${{ matrix.platform }}" != "windows" && -f "package/$OPENSSL_EXE" ]]; then
             chmod +x package/$OPENSSL_EXE
           fi
-
           echo "--- Verifying final package contents ---"
           ls -la package/
-
           # Create a README.txt file to explain the package contents
           if [[ "${{ matrix.platform }}" == "windows" ]]; then
             echo "zcert - CyberArk Zero Touch PKI CLI Tool v${{ github.event.inputs.version }}" > package/README.txt
@@ -279,69 +272,48 @@ jobs:
             echo "These files are required for zcert to function properly." >> package/README.txt
             echo "For more information, visit: https://github.com/${{ github.repository }}" >> package/README.txt
           fi
-
           # CRITICAL: Verify that all necessary files exist in the package folder before zipping
           if ! [ -f "package/$ZCERT_EXE" ] || ! [ -f "package/$OPENSSL_EXE" ] || ! [ -f "package/$OQS_LIB" ]; then
             echo "::error::A required file was not found in the final package directory. Aborting."
             exit 1
           fi
           echo "✅ All required files are present in the package directory."
-
       - name: Create release archive and checksum
         shell: bash
         run: |
           PKG_NAME="zcert_v${{ github.event.inputs.version }}_${{ matrix.zcert-name }}.zip"
-          DEPS_PKG_NAME="zcert_deps_v${{ github.event.inputs.version }}_${{ matrix.zcert-name }}.zip"
           
           if [[ "${{ matrix.platform }}" == "windows" ]]; then
-            # For Windows, create a single package with a nested zip for dependencies
-            echo "Creating Windows package with PowerShell..."
+            # For Windows, create special package structure with zcert.exe at the root
+            # and other files in a nested zip
+            echo "Creating Windows package with special structure..."
             
-            # Create a main package directory
-            pwsh -Command "
-              # Create directories
-              New-Item -Path './package-main' -ItemType Directory -Force
-              New-Item -Path './package-deps' -ItemType Directory -Force
-              
-              # Copy main executable and README
-              Copy-Item './package/zcert.exe' -Destination './package-main/'
-              Copy-Item './package/README.txt' -Destination './package-main/'
-              
-              # Add a verification.txt file explaining the binary
-              @'
-              CyberArk Zero Touch PKI CLI Tool - Binary Verification
-              
-              This file confirms that zcert.exe is a legitimate executable created by CyberArk.
-              
-              If your antivirus software flags this file, please submit it as a false positive.
-              
-              This software is built with Go and contains no malicious code.
-              '@ | Out-File -FilePath './package-main/verification.txt' -Encoding utf8
-              
-              # Copy dependencies
-              Copy-Item './package/openssl.exe' -Destination './package-deps/'
-              Copy-Item './package/oqsprovider.dll' -Destination './package-deps/'
-              
-              # Add a dependencies README
-              @'
-              CyberArk Zero Touch PKI Tool - Dependencies
-              
-              This package contains the dependencies required by zcert:
-              - openssl.exe: OpenSSL v${{ env.OPENSSL_VERSION }}
-              - oqsprovider.dll: OQS Provider v${{ env.OQS_PROVIDER_VERSION }}
-              
-              These files should be placed in the same directory as zcert.exe.
-              '@ | Out-File -FilePath './package-deps/dependencies.txt' -Encoding utf8
-              
-              # Create the dependencies zip file (nested inside the main package)
-              Compress-Archive -Path './package-deps/*' -DestinationPath './package-main/$DEPS_PKG_NAME' -Force
-              
-              # Create the main zip file containing everything
-              Compress-Archive -Path './package-main/*' -DestinationPath '$PKG_NAME' -Force
-            "
+            # First, create a deps.zip containing OpenSSL and OQS Provider
+            mkdir -p temp_deps
+            cp package/openssl.exe package/oqsprovider.dll package/README.txt temp_deps/
+            pwsh -Command "Compress-Archive -Path './temp_deps/*' -DestinationPath './deps.zip' -Force"
             
-            # Generate SHA1 hash for the package
-            pwsh -Command "Get-FileHash -Algorithm SHA1 '$PKG_NAME' | ForEach-Object { `$_.Hash.ToLower() } | Out-File -FilePath '${PKG_NAME}.sha1' -NoNewline -Encoding utf8"
+            # Then create the final zip with zcert.exe and deps.zip
+            mkdir -p final_package
+            cp package/zcert.exe deps.zip final_package/
+            
+            # Create a new README.txt explaining the structure
+            echo "zcert - CyberArk Zero Touch PKI CLI Tool v${{ github.event.inputs.version }}" > final_package/README.txt
+            echo "" >> final_package/README.txt
+            echo "This package contains:" >> final_package/README.txt
+            echo "- zcert.exe - The main application (extract and use directly)" >> final_package/README.txt
+            echo "- deps.zip - Contains required dependencies:" >> final_package/README.txt
+            echo "  - openssl.exe - OpenSSL v${{ env.OPENSSL_VERSION }}" >> final_package/README.txt
+            echo "  - oqsprovider.dll - OpenQuantumSafe Provider v${{ env.OQS_PROVIDER_VERSION }}" >> final_package/README.txt
+            echo "" >> final_package/README.txt
+            echo "Extract deps.zip to the same directory as zcert.exe for proper functionality." >> final_package/README.txt
+            echo "For more information, visit: https://github.com/${{ github.repository }}" >> final_package/README.txt
+            
+            # Create the final package
+            pwsh -Command "Compress-Archive -Path './final_package/*' -DestinationPath './$PKG_NAME' -Force"
+            
+            # Generate SHA1 hash with PowerShell
+            pwsh -Command "Get-FileHash -Algorithm SHA1 $PKG_NAME | ForEach-Object { \$_.Hash.ToLower() } | Out-File -FilePath ${PKG_NAME}.sha1 -NoNewline -Encoding utf8"
           else
             # For non-Windows platforms use zip command
             cd package
@@ -352,7 +324,6 @@ jobs:
           
           echo "SHA1 checksum:"
           cat ${PKG_NAME}.sha1
-
       - name: Upload release artifact
         uses: actions/upload-artifact@v4
         with:
@@ -360,7 +331,6 @@ jobs:
           path: |
             zcert_v${{ github.event.inputs.version }}_${{ matrix.zcert-name }}.zip
             zcert_v${{ github.event.inputs.version }}_${{ matrix.zcert-name }}.zip.sha1
-
   # ------------------------------------------------------------------
   # 3. CREATE RELEASE
   # ------------------------------------------------------------------
@@ -456,21 +426,11 @@ jobs:
             echo ""
             echo "## Package Components"
             echo ""
-            echo "| Component | Version |"
+            echo "| | |"
+            echo "|-|-|"
             echo "| zcert | ${version} |"
             echo "| OpenSSL | ${openssl_version} |"
             echo "| OQS Provider | ${oqs_version} |"
-            echo ""
-            echo "## Windows Installation Note"
-            echo ""
-            echo "For Windows, the package contains both the main executable and a nested dependencies zip file:"
-            echo ""
-            echo "- **zcert_v${version}_windows.zip** - Contains the main executable and a nested dependencies zip"
-            echo ""
-            echo "After downloading, extract zcert_v${version}_windows.zip, then extract the nested zcert_deps_v${version}_windows.zip"
-            echo "in the same directory as zcert.exe."
-            echo ""
-            echo "## SHA1 Checksums"
             echo ""
             echo "\`\`\`"
             
@@ -504,7 +464,6 @@ jobs:
           
           echo "Final release notes contents:"
           cat release_notes.md
-
       - name: Create Draft Release
         uses: softprops/action-gh-release@v2
         with:
