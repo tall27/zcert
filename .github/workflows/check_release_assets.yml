@@ -1,7 +1,6 @@
 name: Minimal OpenSSL Artifact Check
 
 on:
-  push:
   workflow_dispatch:
     inputs:
       openssl_version:
