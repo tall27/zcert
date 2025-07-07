@@ -18,10 +18,6 @@ env:
   COMPILE_REPO: "tall27/compile" # The repository where OpenSSL and OQS Provider build workflows run and upload artifacts
 
 jobs:
-  # The 'check-dependencies' job is removed.
-  # The logic for checking artifact existence is now integrated directly into the 'build-and-package' job
-  # using 'dawidd6/action-download-artifact', which will fail the job if dependencies are not found.
-
   build-and-package:
     strategy:
       fail-fast: false # Allows other matrix jobs to continue even if one platform build fails
@@ -30,9 +26,9 @@ jobs:
           - os: ubuntu-latest
             platform: linux
             arch: x64
-            openssl-expected-artifact: "openssl-3.5.0-x64-linux-portable"
+            openssl-expected-artifact: "openssl-3.5.0-x64-linux-portable" # Confirmed from your images
             openssl-build-workflow: "openssl-3.5-linux.yaml" # Confirmed from your images
-            oqs-expected-artifact: "oqsprovider-linux-x64"
+            [cite_start]oqs-expected-artifact: "oqsprovider-linux-x64" # From your original YAML [cite: 42]
             oqs-build-workflow: "Build-oqs-provider-v0.7.yml" # Confirmed from your input
             zcert-name: linux
             oqs-ext: .so
@@ -42,9 +38,9 @@ jobs:
           - os: windows-latest
             platform: windows
             arch: x64
-            openssl-expected-artifact: "openssl-3.5.0-win64-portable"
+            openssl-expected-artifact: "openssl-3.5.0-win64-portable" # Confirmed from your images
             openssl-build-workflow: "openssl-3.5-windows.yaml" # Confirmed from your images
-            oqs-expected-artifact: "oqsprovider-windows-x64"
+            [cite_start]oqs-expected-artifact: "oqsprovider-windows-x64" # From your original YAML [cite: 42]
             oqs-build-workflow: "Build-oqs-provider-v0.7.yml" # Confirmed from your input
             zcert-name: windows
             oqs-ext: .dll
@@ -54,9 +50,9 @@ jobs:
           - os: macos-latest
             platform: macos
             arch: x64
-            openssl-expected-artifact: "openssl-3.5.0-x64-macos-portable"
+            openssl-expected-artifact: "openssl-3.5.0-x64-macos-portable" # Confirmed from your images
             openssl-build-workflow: "openssl-3.5-macos.yaml" # Confirmed from your images
-            oqs-expected-artifact: "oqsprovider-macos-x64"
+            [cite_start]oqs-expected-artifact: "oqsprovider-macos-x64" # From your original YAML [cite: 42]
             oqs-build-workflow: "Build-oqs-provider-v0.7.yml" # Confirmed from your input
             zcert-name: darwin
             oqs-ext: .dylib
@@ -66,9 +62,9 @@ jobs:
           - os: macos-latest
             platform: macos
             arch: arm64
-            openssl-expected-artifact: "openssl-3.5.0-arm64-macos-portable"
+            openssl-expected-artifact: "openssl-3.5.0-arm64-macos-portable" # Confirmed from your images
             openssl-build-workflow: "openssl-3.5-macos.yaml" # Confirmed from your images
-            oqs-expected-artifact: "oqsprovider-macos-arm64"
+            [cite_start]oqs-expected-artifact: "oqsprovider-macos-arm64" # From your original YAML [cite: 42]
             oqs-build-workflow: "Build-oqs-provider-v0.7.yml" # Confirmed from your input
             zcert-name: darwin_arm
             oqs-ext: .dylib
@@ -104,8 +100,7 @@ jobs:
           name: ${{ matrix.openssl-expected-artifact }} # Exact name of the artifact to download
           repo: ${{ env.COMPILE_REPO }} # Repository where the artifact is located
           path: openssl-artifact # Directory to download the artifact into
-        # This step will fail if the artifact is not found in a successful run,
-        # effectively acting as an existence check.
+        # This step will fail if the artifact is not found, stopping the build for this platform
 
       - name: Download oqs-provider artifact
         id: download-oqs
@@ -117,15 +112,14 @@ jobs:
           name: ${{ matrix.oqs-expected-artifact }} # Exact name of the artifact to download
           repo: ${{ env.COMPILE_REPO }} # Repository where the artifact is located
           path: oqs-artifact # Directory to download the artifact into
-        # This step will fail if the artifact is not found in a successful run.
-        
-      - name: Debug List downloaded OpenSSL artifact content
+        # This step will fail if the artifact is not found, stopping the build for this platform
+
+      - name: Debug - List downloaded OpenSSL artifact content
         run: |
           echo "Contents of openssl-artifact:"
-          # Use 'ls -R' to recursively list contents, '|| true' to prevent step failure if dir is empty/missing
           ls -R openssl-artifact/ || echo "openssl-artifact directory not found or empty."
 
-      - name: Debug List downloaded OQS Provider artifact content
+      - name: Debug - List downloaded OQS Provider artifact content
         run: |
           echo "Contents of oqs-artifact:"
           ls -R oqs-artifact/ || echo "oqs-artifact directory not found or empty."
@@ -147,14 +141,12 @@ jobs:
 
           # Copy OpenSSL from artifact
           # IMPORTANT: You MUST verify the exact path to the executable inside the downloaded artifact.
-          # Use the output from the "Debug: List downloaded OpenSSL artifact content" step.
-          # Example: If 'ls -R openssl-artifact/' shows 'openssl-artifact/openssl-3.5.0-x64-linux-portable/bin/openssl',
-          # then your 'cp' source path should be 'openssl-artifact/${{ matrix.openssl-expected-artifact }}/bin/openssl'
-          echo "Copying OpenSSL..."
+          # Use the output from the "Debug - List downloaded OpenSSL artifact content" step.
+          # Based on your previous logs, 'openssl' is directly in 'openssl-artifact/'.
           if [[ "${{ matrix.platform }}" == "windows" ]]; then
-            cp openssl-artifact/openssl.exe package/ # Adjust this path if the exe is nested
+            cp openssl-artifact/openssl.exe package/ # Adjust this path if the exe is nested (e.g., openssl-artifact/bin/openssl.exe)
           else
-            cp openssl-artifact/openssl package/ # Adjust this path if the executable is nested
+            cp openssl-artifact/openssl package/ # Adjust this path if the executable is nested (e.g., openssl-artifact/bin/openssl)
             chmod +x package/openssl
           fi
           # Copy README if exists (adjust path if needed based on 'ls -R openssl-artifact/')
@@ -164,7 +156,7 @@ jobs:
 
           # Copy oqs-provider
           # IMPORTANT: You MUST verify the exact path to the oqsprovider file inside the downloaded artifact.
-          # Use the output from the "Debug: List downloaded OQS Provider artifact content" step.
+          # Use the output from the "Debug - List downloaded OQS Provider artifact content" step.
           # Example: If `ls -R oqs-artifact/` shows `oqs-artifact/oqsprovider-linux-x64/lib/oqsprovider.so`,
           # then your `find` command might need adjustment, or a direct `cp` if it's a simple file.
           echo "Copying OQS Provider..."
