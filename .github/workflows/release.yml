@@ -112,7 +112,7 @@ jobs:
             arch: x64
             openssl-workflow: "openssl-3.5-linux.yaml"
             openssl-artifact: "openssl-3.5.0-x64-linux-portable" # Corrected
-            oqs-artifact: "oqsprovider-linux-x64"
+            oqs-artifact: "oqs-provider-linux-amd64"
             zcert-name: linux
             oqs-ext: .so
             go-os: linux
@@ -122,7 +122,7 @@ jobs:
             arch: x64
             openssl-workflow: "openssl-3.5-windows.yaml"
             openssl-artifact: "openssl-3.5.0-win64-portable" # Corrected
-            oqs-artifact: "oqsprovider-windows-x64"
+            oqs-artifact: "oqs-provider-windows-amd64"
             zcert-name: windows
             oqs-ext: .dll
             go-os: windows
@@ -132,7 +132,7 @@ jobs:
             arch: x64
             openssl-workflow: "openssl-3.5-macos.yaml"
             openssl-artifact: "openssl-3.5.0-x64-macos-portable" # Corrected
-            oqs-artifact: "oqsprovider-macos-x64"
+            oqs-artifact: "oqs-provider-macos-amd64"
             zcert-name: darwin
             oqs-ext: .dylib
             go-os: darwin
@@ -142,7 +142,7 @@ jobs:
             arch: arm64
             openssl-workflow: "openssl-3.5-macos.yaml"
             openssl-artifact: "openssl-3.5.0-arm64-macos-portable" # Corrected
-            oqs-artifact: "oqsprovider-macos-arm64"
+            oqs-artifact: "oqs-provider-macos-arm64"
             zcert-name: darwin_arm
             oqs-ext: .dylib
             go-os: darwin
