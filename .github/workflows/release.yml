@@ -1,0 +1,427 @@
+name: Release zcert
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version (e.g., 1.2.0)'
+        required: true
+        default: '1.2.0'
+
+permissions:
+  contents: write
+  actions: read
+
+env:
+  OPENSSL_VERSION: 3.5.0
+  OQS_PROVIDER_VERSION: 0.7.0
+  COMPILE_REPO: tall27/compile
+
+jobs:
+  check-dependencies:
+    runs-on: ubuntu-latest
+    outputs:
+      openssl-exists: ${{ steps.check-openssl.outputs.exists }}
+      oqs-exists: ${{ steps.check-oqs.outputs.exists }}
+      openssl-run-id: ${{ steps.check-openssl.outputs.run-id }}
+      oqs-run-id: ${{ steps.check-oqs.outputs.run-id }}
+    steps:
+      - name: Check for OpenSSL artifacts
+        id: check-openssl
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = '${{ env.COMPILE_REPO }}'.split('/')[0];
+            const repo = '${{ env.COMPILE_REPO }}'.split('/')[1];
+            
+            try {
+              const { data: runs } = await github.rest.actions.listWorkflowRuns({
+                owner,
+                repo,
+                workflow_id: 'openssl-linux.yaml',
+                status: 'success',
+                per_page: 10
+              });
+              
+              const requiredArtifacts = [
+                `openssl-${{ env.OPENSSL_VERSION }}-x64-linux-portable`,
+                `openssl-${{ env.OPENSSL_VERSION }}-win64-portable`,
+                `openssl-${{ env.OPENSSL_VERSION }}-x64-macos-portable`,
+                `openssl-${{ env.OPENSSL_VERSION }}-arm64-macos-portable`
+              ];
+              
+              for (const run of runs.workflow_runs) {
+                const { data: artifacts } = await github.rest.actions.listWorkflowRunArtifacts({
+                  owner,
+                  repo,
+                  run_id: run.id,
+                  per_page: 100
+                });
+                
+                const artifactNames = artifacts.artifacts.map(a => a.name);
+                const hasAllArtifacts = requiredArtifacts.every(name => 
+                  artifactNames.includes(name)
+                );
+                
+                if (hasAllArtifacts) {
+                  console.log(`Found all OpenSSL artifacts in run ${run.id}`);
+                  core.setOutput('exists', 'true');
+                  core.setOutput('run-id', run.id);
+                  return;
+                }
+              }
+              
+              console.log('Required OpenSSL artifacts not found');
+              core.setOutput('exists', 'false');
+            } catch (error) {
+              console.error('Error checking OpenSSL artifacts:', error);
+              core.setOutput('exists', 'false');
+            }
+
+      - name: Check for oqs-provider artifacts
+        id: check-oqs
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = '${{ env.COMPILE_REPO }}'.split('/')[0];
+            const repo = '${{ env.COMPILE_REPO }}'.split('/')[1];
+            
+            try {
+              const { data: runs } = await github.rest.actions.listWorkflowRuns({
+                owner,
+                repo,
+                workflow_id: 'Build-oqs-provider-v0.7.yml',
+                status: 'success',
+                per_page: 10
+              });
+              
+              const requiredArtifacts = [
+                'oqsprovider-linux-x64',
+                'oqsprovider-windows-x64',
+                'oqsprovider-macos-x64',
+                'oqsprovider-macos-arm64'
+              ];
+              
+              for (const run of runs.workflow_runs) {
+                const { data: artifacts } = await github.rest.actions.listWorkflowRunArtifacts({
+                  owner,
+                  repo,
+                  run_id: run.id,
+                  per_page: 100
+                });
+                
+                const artifactNames = artifacts.artifacts.map(a => a.name);
+                const hasAllArtifacts = requiredArtifacts.every(name => 
+                  artifactNames.includes(name)
+                );
+                
+                if (hasAllArtifacts) {
+                  console.log(`Found all oqs-provider artifacts in run ${run.id}`);
+                  core.setOutput('exists', 'true');
+                  core.setOutput('run-id', run.id);
+                  return;
+                }
+              }
+              
+              console.log('Required oqs-provider artifacts not found');
+              core.setOutput('exists', 'false');
+            } catch (error) {
+              console.error('Error checking oqs-provider artifacts:', error);
+              core.setOutput('exists', 'false');
+            }
+
+  trigger-missing-builds:
+    needs: check-dependencies
+    runs-on: ubuntu-latest
+    if: needs.check-dependencies.outputs.openssl-exists != 'true' || needs.check-dependencies.outputs.oqs-exists != 'true'
+    steps:
+      - name: Trigger OpenSSL builds
+        if: needs.check-dependencies.outputs.openssl-exists != 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = '${{ env.COMPILE_REPO }}'.split('/')[0];
+            const repo = '${{ env.COMPILE_REPO }}'.split('/')[1];
+            
+            const workflows = ['openssl-linux.yaml', 'openssl-windows.yaml', 'openssl-macos.yaml'];
+            
+            for (const workflow of workflows) {
+              await github.rest.actions.createWorkflowDispatch({
+                owner,
+                repo,
+                workflow_id: workflow,
+                ref: 'main'
+              });
+              console.log(`Triggered ${workflow}`);
+            }
+
+      - name: Trigger oqs-provider build
+        if: needs.check-dependencies.outputs.oqs-exists != 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = '${{ env.COMPILE_REPO }}'.split('/')[0];
+            const repo = '${{ env.COMPILE_REPO }}'.split('/')[1];
+            
+            await github.rest.actions.createWorkflowDispatch({
+              owner,
+              repo,
+              workflow_id: 'Build-oqs-provider-v0.7.yml',
+              ref: 'main'
+            });
+            console.log('Triggered oqs-provider build');
+
+      - name: Wait for builds to complete
+        uses: actions/github-script@v7
+        with:
+          script: |
+            console.log('Waiting 5 minutes for builds to complete...');
+            await new Promise(resolve => setTimeout(resolve, 300000));
+            
+            // In a production workflow, you'd want to poll and check status
+            // For now, we'll just wait and hope they complete
+
+  build-and-package:
+    needs: [check-dependencies, trigger-missing-builds]
+    if: always()
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux
+            arch: x64
+            openssl-artifact: openssl-${{ env.OPENSSL_VERSION }}-x64-linux-portable
+            oqs-artifact: oqsprovider-linux-x64
+            zcert-name: linux
+            oqs-ext: .so
+          - os: windows-latest
+            platform: windows
+            arch: x64
+            openssl-artifact: openssl-${{ env.OPENSSL_VERSION }}-win64-portable
+            oqs-artifact: oqsprovider-windows-x64
+            zcert-name: windows
+            oqs-ext: .dll
+          - os: macos-latest
+            platform: macos
+            arch: x64
+            openssl-artifact: openssl-${{ env.OPENSSL_VERSION }}-x64-macos-portable
+            oqs-artifact: oqsprovider-macos-x64
+            zcert-name: darwin
+            oqs-ext: .dylib
+          - os: macos-latest
+            platform: macos
+            arch: arm64
+            openssl-artifact: openssl-${{ env.OPENSSL_VERSION }}-arm64-macos-portable
+            oqs-artifact: oqsprovider-macos-arm64
+            zcert-name: darwin_arm
+            oqs-ext: .dylib
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 'stable'
+
+      - name: Build zcert
+        env:
+          GOOS: ${{ matrix.platform == 'windows' && 'windows' || matrix.platform == 'macos' && 'darwin' || 'linux' }}
+          GOARCH: ${{ matrix.arch == 'x64' && 'amd64' || 'arm64' }}
+        run: |
+          go build -o zcert${{ matrix.platform == 'windows' && '.exe' || '' }} ./cmd/zcert
+
+      - name: Download OpenSSL artifact
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = '${{ env.COMPILE_REPO }}'.split('/')[0];
+            const repo = '${{ env.COMPILE_REPO }}'.split('/')[1];
+            
+            let runId = '${{ needs.check-dependencies.outputs.openssl-run-id }}';
+            if (!runId || runId === '') {
+              // Get the latest successful run
+              const { data: runs } = await github.rest.actions.listWorkflowRuns({
+                owner,
+                repo,
+                workflow_id: 'openssl-${{ matrix.platform }}.yaml',
+                status: 'success',
+                per_page: 1
+              });
+              runId = runs.workflow_runs[0].id;
+            }
+            
+            const { data: artifacts } = await github.rest.actions.listWorkflowRunArtifacts({
+              owner,
+              repo,
+              run_id: runId,
+              per_page: 100
+            });
+            
+            const artifact = artifacts.artifacts.find(a => a.name === '${{ matrix.openssl-artifact }}');
+            if (!artifact) {
+              throw new Error('OpenSSL artifact not found: ${{ matrix.openssl-artifact }}');
+            }
+            
+            const download = await github.rest.actions.downloadArtifact({
+              owner,
+              repo,
+              artifact_id: artifact.id,
+              archive_format: 'zip'
+            });
+            
+            const fs = require('fs');
+            fs.writeFileSync('openssl-artifact.zip', Buffer.from(download.data));
+
+      - name: Download oqs-provider artifact
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const owner = '${{ env.COMPILE_REPO }}'.split('/')[0];
+            const repo = '${{ env.COMPILE_REPO }}'.split('/')[1];
+            
+            let runId = '${{ needs.check-dependencies.outputs.oqs-run-id }}';
+            if (!runId || runId === '') {
+              // Get the latest successful run
+              const { data: runs } = await github.rest.actions.listWorkflowRuns({
+                owner,
+                repo,
+                workflow_id: 'Build-oqs-provider-v0.7.yml',
+                status: 'success',
+                per_page: 1
+              });
+              runId = runs.workflow_runs[0].id;
+            }
+            
+            const { data: artifacts } = await github.rest.actions.listWorkflowRunArtifacts({
+              owner,
+              repo,
+              run_id: runId,
+              per_page: 100
+            });
+            
+            const artifact = artifacts.artifacts.find(a => a.name === '${{ matrix.oqs-artifact }}');
+            if (!artifact) {
+              throw new Error('oqs-provider artifact not found: ${{ matrix.oqs-artifact }}');
+            }
+            
+            const download = await github.rest.actions.downloadArtifact({
+              owner,
+              repo,
+              artifact_id: artifact.id,
+              archive_format: 'zip'
+            });
+            
+            const fs = require('fs');
+            fs.writeFileSync('oqs-artifact.zip', Buffer.from(download.data));
+
+      - name: Extract and package
+        shell: bash
+        run: |
+          # Create package directory
+          mkdir -p package
+          
+          # Copy zcert binary
+          if [[ "${{ matrix.platform }}" == "windows" ]]; then
+            cp zcert.exe package/
+          else
+            cp zcert package/
+            chmod +x package/zcert
+          fi
+          
+          # Extract OpenSSL
+          unzip openssl-artifact.zip
+          if [[ "${{ matrix.platform }}" == "windows" ]]; then
+            cp openssl.exe package/
+          else
+            cp openssl package/
+            chmod +x package/openssl
+          fi
+          # Copy README if exists
+          if [ -f README.txt ]; then
+            cp README.txt package/openssl-README.txt
+          fi
+          
+          # Extract oqs-provider
+          unzip oqs-artifact.zip
+          # Find the oqsprovider file with the correct extension
+          find . -name "oqsprovider${{ matrix.oqs-ext }}" -exec cp {} package/ \;
+          
+          # Create the release zip
+          cd package
+          if [[ "${{ matrix.platform }}" == "windows" ]]; then
+            7z a ../zcert_v${{ github.event.inputs.version }}_${{ matrix.zcert-name }}.zip *
+          else
+            zip -r ../zcert_v${{ github.event.inputs.version }}_${{ matrix.zcert-name }}.zip *
+          fi
+          cd ..
+          
+          # Generate SHA1 checksum
+          if [[ "${{ matrix.platform }}" == "windows" ]]; then
+            certutil -hashfile zcert_v${{ github.event.inputs.version }}_${{ matrix.zcert-name }}.zip SHA1 | findstr /v ":" > zcert_v${{ github.event.inputs.version }}_${{ matrix.zcert-name }}.zip.sha1
+          else
+            shasum -a 1 zcert_v${{ github.event.inputs.version }}_${{ matrix.zcert-name }}.zip | cut -d' ' -f1 > zcert_v${{ github.event.inputs.version }}_${{ matrix.zcert-name }}.zip.sha1
+          fi
+
+      - name: Upload release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: zcert-${{ matrix.zcert-name }}
+          path: |
+            zcert_v${{ github.event.inputs.version }}_${{ matrix.zcert-name }}.zip
+            zcert_v${{ github.event.inputs.version }}_${{ matrix.zcert-name }}.zip.sha1
+
+  create-release:
+    needs: build-and-package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+
+      - name: Prepare release assets
+        run: |
+          mkdir -p release-files
+          find release-artifacts -name "*.zip" -o -name "*.sha1" | while read file; do
+            cp "$file" release-files/
+          done
+          
+          # Create combined SHA1 checksum file
+          cd release-files
+          cat *.sha1 | while read sha file; do
+            echo "$sha  $(basename $file .sha1)" >> checksums.txt
+          done
+          
+          # List all files for verification
+          ls -la
+
+      - name: Create Draft Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ github.event.inputs.version }}
+          name: zcert v${{ github.event.inputs.version }}
+          body: |
+            ## zcert v${{ github.event.inputs.version }}
+            
+            ### Changes
+            - TODO: Add release notes here
+            
+            ### Components
+            - zcert v${{ github.event.inputs.version }}
+            - OpenSSL ${{ env.OPENSSL_VERSION }}
+            - oqs-provider ${{ env.OQS_PROVIDER_VERSION }}
+            
+            ### Downloads
+            See assets below for platform-specific packages.
+            
+            ### Checksums
+            SHA1 checksums are provided for each package.
+          draft: true
+          files: |
+            release-files/*.zip
+            release-files/checksums.txt
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
