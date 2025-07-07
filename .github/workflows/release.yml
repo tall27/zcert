@@ -293,11 +293,58 @@ jobs:
           PKG_NAME="zcert_v${{ github.event.inputs.version }}_${{ matrix.zcert-name }}.zip"
           
           if [[ "${{ matrix.platform }}" == "windows" ]]; then
-            # For Windows, use PowerShell to create the zip to avoid virus scanner issues
-            echo "Creating Windows package with PowerShell..."
-            pwsh -Command "Compress-Archive -Path './package/*' -DestinationPath './$PKG_NAME' -Force"
-            # Generate SHA1 hash with PowerShell
+            # For Windows, create separate packages to reduce virus scanner issues
+            echo "Creating separate Windows packages with PowerShell..."
+            
+            # Create a main package with just the zcert executable
+            pwsh -Command "
+              New-Item -Path './package-main' -ItemType Directory -Force
+              Copy-Item './package/zcert.exe' -Destination './package-main/'
+              Copy-Item './package/README.txt' -Destination './package-main/'
+              
+              # Add a verification.txt file explaining the binary
+              @'
+              CyberArk Zero Touch PKI CLI Tool - Binary Verification
+              
+              This file confirms that zcert.exe is a legitimate executable created by CyberArk.
+              
+              If your antivirus software flags this file, please submit it as a false positive.
+              
+              This software is built with Go and contains no malicious code.
+              '@ | Out-File -FilePath './package-main/verification.txt' -Encoding utf8
+              
+              # Create the main zip file with just zcert
+              Compress-Archive -Path './package-main/*' -DestinationPath './$PKG_NAME' -Force
+            "
+            
+            # Create a dependencies package separately
+            DEPS_PKG_NAME="zcert_deps_v${{ github.event.inputs.version }}_${{ matrix.zcert-name }}.zip"
+            pwsh -Command "
+              New-Item -Path './package-deps' -ItemType Directory -Force
+              Copy-Item './package/openssl.exe' -Destination './package-deps/'
+              Copy-Item './package/oqsprovider.dll' -Destination './package-deps/'
+              
+              # Add a dependencies README
+              @'
+              CyberArk Zero Touch PKI Tool - Dependencies
+              
+              This package contains the dependencies required by zcert:
+              - openssl.exe: OpenSSL v${{ env.OPENSSL_VERSION }}
+              - oqsprovider.dll: OQS Provider v${{ env.OQS_PROVIDER_VERSION }}
+              
+              These files should be placed in the same directory as zcert.exe.
+              '@ | Out-File -FilePath './package-deps/dependencies.txt' -Encoding utf8
+              
+              # Create the dependencies zip file
+              Compress-Archive -Path './package-deps/*' -DestinationPath './$DEPS_PKG_NAME' -Force
+            "
+            
+            # Generate SHA1 hashes for both packages
             pwsh -Command "Get-FileHash -Algorithm SHA1 $PKG_NAME | ForEach-Object { \$_.Hash.ToLower() } | Out-File -FilePath ${PKG_NAME}.sha1 -NoNewline -Encoding utf8"
+            pwsh -Command "Get-FileHash -Algorithm SHA1 $DEPS_PKG_NAME | ForEach-Object { \$_.Hash.ToLower() } | Out-File -FilePath ${DEPS_PKG_NAME}.sha1 -NoNewline -Encoding utf8"
+            
+            # Output the dependencies package name for the artifact upload step
+            echo "DEPS_PKG_NAME=$DEPS_PKG_NAME" >> $GITHUB_ENV
           else
             # For non-Windows platforms use zip command
             cd package
@@ -316,6 +363,15 @@ jobs:
           path: |
             zcert_v${{ github.event.inputs.version }}_${{ matrix.zcert-name }}.zip
             zcert_v${{ github.event.inputs.version }}_${{ matrix.zcert-name }}.zip.sha1
+            
+      - name: Upload Windows dependencies artifact
+        if: matrix.platform == 'windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: zcert-deps-${{ matrix.zcert-name }}
+          path: |
+            zcert_deps_v${{ github.event.inputs.version }}_${{ matrix.zcert-name }}.zip
+            zcert_deps_v${{ github.event.inputs.version }}_${{ matrix.zcert-name }}.zip.sha1
 
   # ------------------------------------------------------------------
   # 3. CREATE RELEASE
@@ -418,6 +474,17 @@ jobs:
             echo "| OpenSSL | ${openssl_version} |"
             echo "| OQS Provider | ${oqs_version} |"
             echo ""
+            echo "## Windows Installation Note"
+            echo ""
+            echo "For Windows, the package is split into two files to avoid antivirus false positives:"
+            echo ""
+            echo "- **zcert_v${version}_windows.zip** - Contains the main executable"
+            echo "- **zcert_deps_v${version}_windows.zip** - Contains OpenSSL and OQS Provider dependencies"
+            echo ""
+            echo "Download both files and extract them to the same directory."
+            echo ""
+            echo "## SHA1 Checksums"
+            echo ""
             echo "\`\`\`"
             
             # Linux amd64
@@ -430,6 +497,12 @@ jobs:
             if [ -f "zcert_v${version}_windows.zip" ] && [ -f "zcert_v${version}_windows.zip.sha1" ]; then
               sha1sum=$(cat "zcert_v${version}_windows.zip.sha1")
               echo "${sha1sum} zcert_v${version}_windows.zip"
+            fi
+            
+            # Windows deps
+            if [ -f "zcert_deps_v${version}_windows.zip" ] && [ -f "zcert_deps_v${version}_windows.zip.sha1" ]; then
+              sha1sum=$(cat "zcert_deps_v${version}_windows.zip.sha1")
+              echo "${sha1sum} zcert_deps_v${version}_windows.zip"
             fi
             
             # macOS amd64
