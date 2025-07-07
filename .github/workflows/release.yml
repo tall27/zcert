@@ -452,6 +452,7 @@ jobs:
             echo "## Package Components"
             echo ""
             echo "| Component | Version |"
+            echo "|-----------|---------|"
             echo "| zcert | ${version} |"
             echo "| OpenSSL | ${openssl_version} |"
             echo "| OQS Provider | ${oqs_version} |"
