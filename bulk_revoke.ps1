@@ -1,1 +1,0 @@
-.\zcert search --cn 1.1.1.1 --status valid --wide | Select-Object -Skip 2 | ForEach-Object { .\zcert revoke --id ($_ -split '\s+')[0] --reason 3 --force }

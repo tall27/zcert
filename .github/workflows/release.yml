@@ -32,23 +32,7 @@ jobs:
     outputs:
       openssl-exists: ${{ steps.report-status.outputs.openssl-found }}
       oqs-exists: ${{ steps.report-status.outputs.oqs-found }}
-      version: ${{ steps.set-version.outputs.version }}
     steps:
-      - name: Set version variable
-        id: set-version
-        run: |
-          # If triggered by workflow_dispatch, use the provided version
-          # If triggered by push, use a version based on date
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
-            echo "Using provided version: ${{ github.event.inputs.version }}"
-          else
-            DATE_VERSION=$(date +'%Y.%m.%d')
-            GIT_SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
-            AUTO_VERSION="${DATE_VERSION}-${GIT_SHORT_SHA}"
-            echo "version=${AUTO_VERSION}" >> $GITHUB_OUTPUT
-            echo "Using auto-generated version: ${AUTO_VERSION}"
-          fi
       - name: Check for OpenSSL Linux (x64)
         id: check-openssl-linux-x64
         uses: dawidd6/action-download-artifact@v3
@@ -185,7 +169,7 @@ jobs:
           CGO_ENABLED: 0
         shell: bash
         run: |
-          VERSION="${{ needs.check-dependencies.outputs.version }}"
+          VERSION="${{ github.event.inputs.version }}"
           GIT_COMMIT=$(git rev-parse --short HEAD)
           BUILD_TIME=$(date -u '+%Y%m%d.%H%M%S')
           GO_VERSION=$(go version | awk '{print $3}')
@@ -268,7 +252,7 @@ jobs:
           ls -la package/
           # Create a README.txt file to explain the package contents
           if [[ "${{ matrix.platform }}" == "windows" ]]; then
-            echo "zcert - CyberArk Zero Touch PKI CLI Tool v${{ needs.check-dependencies.outputs.version }}" > package/README.txt
+            echo "zcert - CyberArk Zero Touch PKI CLI Tool v${{ github.event.inputs.version }}" > package/README.txt
             echo "" >> package/README.txt
             echo "This package contains:" >> package/README.txt
             echo "- zcert.exe - The main application" >> package/README.txt
@@ -278,7 +262,7 @@ jobs:
             echo "These files are required for zcert to function properly." >> package/README.txt
             echo "For more information, visit: https://github.com/${{ github.repository }}" >> package/README.txt
           else
-            echo "zcert - CyberArk Zero Touch PKI CLI Tool v${{ needs.check-dependencies.outputs.version }}" > package/README.txt
+            echo "zcert - CyberArk Zero Touch PKI CLI Tool v${{ github.event.inputs.version }}" > package/README.txt
             echo "" >> package/README.txt
             echo "This package contains:" >> package/README.txt
             echo "- zcert - The main application" >> package/README.txt
@@ -297,7 +281,7 @@ jobs:
       - name: Create release archive and checksum
         shell: bash
         run: |
-          PKG_NAME="zcert_v${{ needs.check-dependencies.outputs.version }}_${{ matrix.zcert-name }}.zip"
+          PKG_NAME="zcert_v${{ github.event.inputs.version }}_${{ matrix.zcert-name }}.zip"
           
           if [[ "${{ matrix.platform }}" == "windows" ]]; then
             # For Windows, create a package with zcert.exe inside the internal zip
@@ -316,7 +300,7 @@ jobs:
             cp zcert-windows-files.zip final_package/
             
             # Create a new README.txt explaining the structure
-            echo "zcert - CyberArk Zero Touch PKI CLI Tool v${{ needs.check-dependencies.outputs.version }}" > final_package/README.txt
+            echo "zcert - CyberArk Zero Touch PKI CLI Tool v${{ github.event.inputs.version }}" > final_package/README.txt
             echo "" >> final_package/README.txt
             echo "This package contains:" >> final_package/README.txt
             echo "- zcert-windows-files.zip - Contains all required files:" >> final_package/README.txt
@@ -360,7 +344,7 @@ jobs:
   # 3. CREATE RELEASE
   # ------------------------------------------------------------------
   create-release:
-    needs: [check-dependencies, build-and-package]
+    needs: build-and-package
     runs-on: ubuntu-latest
     steps:
       - name: Download all package artifacts
@@ -437,7 +421,7 @@ jobs:
           ls -la
           
           # Create the release notes markdown file - need to escape special chars for YAML
-          version="${{ needs.check-dependencies.outputs.version }}"
+          version="${{ github.event.inputs.version }}"
           openssl_version="${{ env.OPENSSL_VERSION }}"
           oqs_version="${{ env.OQS_PROVIDER_VERSION }}"
           repo="${{ github.repository }}"
@@ -492,8 +476,8 @@ jobs:
       - name: Create Draft Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: v${{ needs.check-dependencies.outputs.version }}
-          name: zcert v${{ needs.check-dependencies.outputs.version }}
+          tag_name: v${{ github.event.inputs.version }}
+          name: zcert v${{ github.event.inputs.version }}
           body_path: release-assets/release_notes.md
           draft: true
           files: |

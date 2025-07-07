@@ -500,3 +500,22 @@ For issues and questions:
 - Interactive and non-interactive modes
 - Configuration file and environment variable support
 
+## Tips and Tricks
+
+### Bulk Certificate Operations
+
+#### Bulk Revocation
+For bulk certificate revocation, you can use PowerShell or Bash to pipe search results to revocation commands:
+
+```powershell
+# PowerShell: Revoke all valid certificates with CN 1.1.1.1
+.\zcert search --cn 1.1.1.1 --status valid --wide | Select-Object -Skip 2 | ForEach-Object { .\zcert revoke --id ($_ -split '\s+')[0] --reason 3 --force }
+```
+
+```bash
+# Bash: Revoke all valid certificates with CN 1.1.1.1
+./zcert search --cn 1.1.1.1 --status valid --wide | tail -n +3 | awk '{print $1}' | xargs -I {} ./zcert revoke --id {} --reason 3 --force
+```
+
+For more deployment guidance and security information, see [DEPLOYMENT.md](DEPLOYMENT.md).
+
