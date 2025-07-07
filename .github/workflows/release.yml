@@ -291,21 +291,21 @@ jobs:
         shell: bash
         run: |
           PKG_NAME="zcert_v${{ github.event.inputs.version }}_${{ matrix.zcert-name }}.zip"
-          cd package
+          
           if [[ "${{ matrix.platform }}" == "windows" ]]; then
-            # For Windows, use the zip command instead of 7z to reduce malware false positives
-            zip -r ../$PKG_NAME *
-          else
-            zip -r ../$PKG_NAME *
-          fi
-          cd ..
-
-          if [[ "${{ matrix.platform }}" == "windows" ]]; then
-            # On Windows, use PowerShell to generate the SHA1 hash consistently
+            # For Windows, use PowerShell to create the zip to avoid virus scanner issues
+            echo "Creating Windows package with PowerShell..."
+            pwsh -Command "Compress-Archive -Path './package/*' -DestinationPath './$PKG_NAME' -Force"
+            # Generate SHA1 hash with PowerShell
             pwsh -Command "Get-FileHash -Algorithm SHA1 $PKG_NAME | ForEach-Object { \$_.Hash.ToLower() } | Out-File -FilePath ${PKG_NAME}.sha1 -NoNewline -Encoding utf8"
           else
+            # For non-Windows platforms use zip command
+            cd package
+            zip -r ../$PKG_NAME *
+            cd ..
             shasum -a 1 $PKG_NAME | cut -d' ' -f1 > ${PKG_NAME}.sha1
           fi
+          
           echo "SHA1 checksum:"
           cat ${PKG_NAME}.sha1
 
