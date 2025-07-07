@@ -1,4 +1,4 @@
-name: Release zcert
+name: check_release_assets
 
 on:
   workflow_dispatch:
