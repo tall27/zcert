@@ -154,8 +154,17 @@ jobs:
         with: { go-version: 'stable' }
 
       - name: Build zcert
-        env: { GOOS: "${{ matrix.go-os }}", GOARCH: "${{ matrix.go-arch }}" }
-        run: go build -o zcert${{ matrix.platform == 'windows' && '.exe' || '' }} ./cmd/zcert
+        env:
+          GOOS: "${{ matrix.go-os }}"
+          GOARCH: "${{ matrix.go-arch }}"
+          CGO_ENABLED: 0
+        run: |
+          VERSION="${{ github.event.inputs.version }}"
+          GIT_COMMIT=$(git rev-parse --short HEAD)
+          BUILD_TIME=$(date -u '+%Y%m%d.%H%M%S')
+          GO_VERSION=$(go version | awk '{print $3}')
+          LDFLAGS="-X main.Version=${VERSION} -X main.GitCommit=${GIT_COMMIT} -X main.BuildTime=${BUILD_TIME} -X main.GoVersion=${GO_VERSION}"
+          go build -v -ldflags "${LDFLAGS}" -o zcert${{ matrix.platform == 'windows' && '.exe' || '' }} main.go
 
       - name: Download OpenSSL artifact
         uses: dawidd6/action-download-artifact@v3
