@@ -12,6 +12,15 @@ export interface ResearchReport {
   pass: boolean;
 }
 
+export interface LlmResearchReport {
+  marketId: string;
+  estimatedProbability: number;
+  confidence: number;
+  reasoningSummary: string;
+  riskFlags: string[];
+  pass: boolean;
+}
+
 export interface StrategyDecision {
   marketId: string;
   direction: SignalDirection;

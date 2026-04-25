@@ -1,6 +1,6 @@
 import { AppConfig } from '../config/defaultConfig';
 import { ScoredMarket } from '../types/market';
-import { ResearchReport, StrategyDecision } from '../types/signal';
+import { LlmResearchReport, ResearchReport, StrategyDecision } from '../types/signal';
 import { WalletScore } from '../types/wallet';
 
 const walletDirectionalBias = (wallets: WalletScore[]): 'yes' | 'no' | 'none' => {
@@ -15,19 +15,23 @@ export const buildStrategyDecisions = (
   scanned: ScoredMarket[],
   researchReports: ResearchReport[],
   wallets: WalletScore[],
-  config: AppConfig
+  config: AppConfig,
+  llmReports: LlmResearchReport[] = []
 ): StrategyDecision[] => {
   const researchByMarket = new Map(researchReports.map((r) => [r.market_id, r]));
+  const llmByMarket = new Map(llmReports.map((r) => [r.marketId, r]));
   const walletBias = walletDirectionalBias(wallets);
 
   return scanned
     .filter((m) => m.scannerPass)
     .map((market) => {
       const report = researchByMarket.get(market.id);
+      const llm = llmByMarket.get(market.id);
       const scannerSignal = market.estimatedProbability > market.currentPrice ? 'yes' : 'no';
       const researchSignal = report && report.pass ? (report.estimated_probability > report.current_price ? 'yes' : 'no') : 'none';
+      const llmSignal = llm && llm.pass ? (llm.estimatedProbability > market.currentPrice ? 'yes' : 'no') : 'none';
 
-      const signals = [scannerSignal, researchSignal, walletBias].filter((s) => s !== 'none');
+      const signals = [scannerSignal, researchSignal, walletBias, llmSignal].filter((s) => s !== 'none');
       const yesVotes = signals.filter((s) => s === 'yes').length;
       const noVotes = signals.filter((s) => s === 'no').length;
       const consensusCount = Math.max(yesVotes, noVotes);
@@ -40,7 +44,7 @@ export const buildStrategyDecisions = (
           consensusCount,
           confidence: 0,
           desiredExposure: 0,
-          rationale: 'Disagreement among scanner/research/wallet signals.'
+          rationale: 'Disagreement among scanner/research/wallet/llm signals.'
         } satisfies StrategyDecision;
       }
 
@@ -63,9 +67,9 @@ export const buildStrategyDecisions = (
         direction,
         strategy: 'convergence',
         consensusCount,
-        confidence: 0.5 + consensusCount * 0.15,
+        confidence: 0.5 + consensusCount * 0.12,
         desiredExposure: config.strategy.fullPositionExposure,
-        rationale: `Consensus ${consensusCount}/3 with ${direction.toUpperCase()} bias.`
+        rationale: `Consensus ${consensusCount}/4 with ${direction.toUpperCase()} bias.`
       } satisfies StrategyDecision;
     });
 };

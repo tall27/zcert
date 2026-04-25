@@ -55,6 +55,13 @@ export interface AppConfig {
     limit: number;
     tradeHistoryEndpoint?: string;
   };
+  llm: {
+    enabled: boolean;
+    provider: "none" | "anthropic" | "openai";
+    model: string;
+    maxMarketsPerRun: number;
+    timeoutMs: number;
+  };
 }
 
 export const defaultConfig: AppConfig = {
@@ -110,6 +117,13 @@ export const defaultConfig: AppConfig = {
   polymarket: {
     apiBase: 'https://gamma-api.polymarket.com',
     limit: 200
+  },
+  llm: {
+    enabled: false,
+    provider: 'none',
+    model: 'gpt-4o-mini',
+    maxMarketsPerRun: 5,
+    timeoutMs: 7000
   }
 };
 
@@ -124,5 +138,6 @@ export const mergeConfig = (base: AppConfig, override: Partial<AppConfig>): AppC
   exits: { ...base.exits, ...(override.exits ?? {}) },
   engine: { ...base.engine, ...(override.engine ?? {}) },
   guardrails: { ...base.guardrails, ...(override.guardrails ?? {}) },
-  polymarket: { ...base.polymarket, ...(override.polymarket ?? {}) }
+  polymarket: { ...base.polymarket, ...(override.polymarket ?? {}) },
+  llm: { ...base.llm, ...(override.llm ?? {}) }
 });

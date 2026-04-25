@@ -53,7 +53,20 @@ npm run dev -- --mode backtest --source sample --trade-source json --trade-file 
 - `--trade-file <path>`
 - `--bankroll <number>`
 - `--config <path>`
+- `--llm <on|off>` (default off)
 
+
+
+## Optional LLM research
+Enable optional LLM enrichment (never required):
+```bash
+npm run dev -- --mode paper --llm on
+```
+
+- LLM adds at most one extra strategy signal.
+- LLM cannot bypass scanner, risk sizing, strategy guardrails, or backtest rules.
+- If API key is missing, provider fails, response is malformed, or timeout occurs, the system logs a warning and continues with deterministic research.
+- LLM artifacts are persisted to `artifacts/llm_research.json`.
 
 ## Strategy guardrails
 Before simulated execution, strategy decisions are gated by validation checks:

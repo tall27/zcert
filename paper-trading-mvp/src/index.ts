@@ -1,5 +1,6 @@
 import path from 'node:path';
 import { runBacktest } from './backtest/engine';
+import { runLlmResearch } from './agents/llmResearch';
 import { runResearch } from './agents/research';
 import { runScanner } from './agents/scanner';
 import { buildStrategyDecisions } from './agents/strategy';
@@ -34,9 +35,8 @@ const main = async (): Promise<void> => {
       ? mergeConfig(baseConfig, { engine: { ...baseConfig.engine, startingBankroll: args.bankroll } })
       : baseConfig;
 
-    if (args.source) {
-      config = mergeConfig(config, { marketSource: args.source });
-    }
+    if (args.source) config = mergeConfig(config, { marketSource: args.source });
+    if (args.llm) config = mergeConfig(config, { llm: { ...config.llm, enabled: args.llm === 'on' } });
 
     if (!Number.isFinite(config.engine.startingBankroll) || config.engine.startingBankroll <= 0) {
       throw new Error('startingBankroll must be a positive number.');
@@ -58,14 +58,16 @@ const main = async (): Promise<void> => {
     const survived = scanned.filter((m) => m.scannerPass);
 
     const research = runResearch(config);
+    const llmReports = await runLlmResearch(survived, config);
     const wallets = rankWallets(tradeHistory, config);
-    const decisions = buildStrategyDecisions(scanned, research, wallets, config);
+    const decisions = buildStrategyDecisions(scanned, research, wallets, config, llmReports);
     const { ledger, metrics } = runPaperEngine(decisions, scanned, wallets, config);
 
     const summary = {
       mode,
       source: config.marketSource,
       trade_source: tradeSource,
+      llm_enabled: config.llm.enabled,
       scanned_markets: scanned.length,
       scanner_survivors: survived.length,
       selected_candidates: decisions.filter((d) => d.direction !== 'none').length,
@@ -77,8 +79,7 @@ const main = async (): Promise<void> => {
       note: ledger.trades.length === 0 ? 'No surviving trades were executed.' : 'Simulation completed.'
     };
 
-    const summaryPath = path.resolve(process.cwd(), config.engine.artifactsDir, 'run_summary.json');
-    writeJson(summaryPath, summary);
+    writeJson(path.resolve(process.cwd(), config.engine.artifactsDir, 'run_summary.json'), summary);
 
     console.log('--- Scanner Survivors ---');
     console.table(survived.map((m) => ({ id: m.id, edge: m.estimatedEdge.toFixed(4), price: m.currentPrice })));

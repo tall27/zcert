@@ -11,6 +11,7 @@ export interface CliArgs {
   tradeSource?: TradeSourceType;
   tradeFile?: string;
   mode?: RunMode;
+  llm?: 'on' | 'off';
 }
 
 export const parseCliArgs = (argv: string[]): CliArgs => {
@@ -23,6 +24,10 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
     if (token === '--markets') args.marketsPath = next;
     if (token === '--trade-file') args.tradeFile = next;
     if (token === '--config') args.configPath = next;
+    if (token === '--llm') {
+      if (next !== 'on' && next !== 'off') throw new Error(`Unsupported --llm value '${next}'. Use 'on' or 'off'.`);
+      args.llm = next;
+    }
     if (token === '--mode') {
       if (next !== 'paper' && next !== 'backtest') {
         throw new Error(`Unsupported mode '${next}'. Use 'paper' or 'backtest'.`);
