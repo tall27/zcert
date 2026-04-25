@@ -3,7 +3,8 @@ import assert from 'node:assert/strict';
 import { parseCliArgs } from '../src/utils/cli';
 
 test('cli parses source polymarket and trade source csv', () => {
-  const parsed = parseCliArgs(['--source', 'polymarket', '--trade-source', 'csv', '--trade-file', './fills.csv']);
+  const parsed = parseCliArgs(['--mode','backtest','--source', 'polymarket', '--trade-source', 'csv', '--trade-file', './fills.csv']);
+  assert.equal(parsed.mode, 'backtest');
   assert.equal(parsed.source, 'polymarket');
   assert.equal(parsed.tradeSource, 'csv');
   assert.equal(parsed.tradeFile, './fills.csv');
@@ -15,4 +16,9 @@ test('cli rejects unsupported source', () => {
 
 test('cli rejects unsupported trade source', () => {
   assert.throws(() => parseCliArgs(['--trade-source', 'foo']), /Unsupported trade source/);
+});
+
+
+test('cli rejects unsupported mode', () => {
+  assert.throws(() => parseCliArgs(['--mode', 'live']), /Unsupported mode/);
 });

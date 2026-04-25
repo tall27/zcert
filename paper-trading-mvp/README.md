@@ -1,12 +1,12 @@
 # Paper Trading MVP (Prediction Market Multi-Agent)
 
-CLI-first TypeScript MVP for **offline simulated** prediction-market research and execution.
+CLI-first TypeScript MVP for paper simulation and historical backtesting.
 
 ## Safety boundaries
 - No live trading
 - No private keys
 - No wallet signing
-- No real order placement
+- No order placement
 
 ## Install
 ```bash
@@ -14,53 +14,56 @@ cd paper-trading-mvp
 npm install
 ```
 
-## Run full simulation
+## Modes
+Paper mode (default):
 ```bash
-npm run dev
+npm run dev -- --mode paper
+```
+
+Backtest mode:
+```bash
+npm run dev -- --mode backtest
 ```
 
 ## Market source modes
-Sample/offline mode (default):
 ```bash
-npm run dev -- --source sample
+npm run dev -- --mode paper --source sample
+npm run dev -- --mode paper --source polymarket
 ```
 
-Live read-only Polymarket market data mode:
-```bash
-npm run dev -- --source polymarket
-```
-
-> Warning: polymarket mode is **read-only market data**. This project does **not** place orders, sign wallets, or execute live trades.
+> `--source polymarket` is read-only market data only.
 
 ## Historical trade ingestion modes
-Use sample trade history (default):
 ```bash
-npm run dev -- --trade-source sample
+npm run dev -- --mode paper --trade-source sample
+npm run dev -- --mode paper --trade-source csv --trade-file ./data/sample_trades.csv
+npm run dev -- --mode paper --trade-source json --trade-file ./data/sample_trades.json
 ```
 
-Load local CSV fills:
+Backtest with deterministic fixture-style local data:
 ```bash
-npm run dev -- --trade-source csv --trade-file ./data/sample_trades.csv
+npm run dev -- --mode backtest --source sample --trade-source json --trade-file ./data/sample_trades.json
 ```
 
-Load local JSON fills:
-```bash
-npm run dev -- --trade-source json --trade-file ./data/sample_trades.json
-```
+## CLI flags
+- `--mode <paper|backtest>`
+- `--source <sample|polymarket>`
+- `--markets <path>`
+- `--trade-source <sample|csv|json>`
+- `--trade-file <path>`
+- `--bankroll <number>`
+- `--config <path>`
 
-## Run with flags
-```bash
-npm run dev -- --markets ./data/sample_markets.json --trade-source sample --bankroll 12000
-npm run dev -- --config ./config.override.json
-```
-
-### Supported CLI flags
-- `--markets <path>` custom markets JSON
-- `--bankroll <number>` override starting bankroll
-- `--config <path>` JSON config override
-- `--source <sample|polymarket>` market data source selector
-- `--trade-source <sample|csv|json>` historical trade source selector
-- `--trade-file <path>` required for `csv`/`json` trade source
+## Backtest output
+Backtest writes `artifacts/backtest_summary.json` and prints metrics including:
+- total trades
+- win rate
+- realized PnL
+- ROI
+- max drawdown
+- average holding time
+- profit factor
+- sharpe-like score
 
 ## Quality checks
 ```bash
@@ -69,21 +72,8 @@ npm test
 npm run lint
 ```
 
-## Expected output artifacts
-All generated files go to `/artifacts`:
-- `artifacts/scanner_queue.json`
-- `artifacts/research_output.json`
+## Artifacts
+- `artifacts/run_summary.json`
 - `artifacts/wallet_rankings.json`
 - `artifacts/paper_ledger.json`
-- `artifacts/run_summary.json`
-
-## Error handling
-The CLI fails clearly for:
-- missing input files
-- malformed JSON
-- malformed CSV rows
-- invalid numeric inputs (including bankroll)
-- empty markets input
-
-## Config
-Default thresholds live in `src/config/defaultConfig.ts`.
+- `artifacts/backtest_summary.json`

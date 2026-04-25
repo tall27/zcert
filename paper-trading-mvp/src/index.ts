@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { runBacktest } from './backtest/engine';
 import { runResearch } from './agents/research';
 import { runScanner } from './agents/scanner';
 import { buildStrategyDecisions } from './agents/strategy';
@@ -26,6 +27,7 @@ const resolveMarkets = async (config: AppConfig, marketsPath?: string) => {
 const main = async (): Promise<void> => {
   try {
     const args = parseCliArgs(process.argv.slice(2));
+    const mode = args.mode ?? 'paper';
     const baseConfig = loadConfig(args.configPath);
 
     let config = args.bankroll
@@ -41,18 +43,27 @@ const main = async (): Promise<void> => {
     }
 
     const tradeSource: TradeSourceType = args.tradeSource ?? 'sample';
-
     const markets = await resolveMarkets(config, args.marketsPath);
+    const tradeHistory = loadTradeHistory(tradeSource, args.tradeFile, config);
+
+    if (mode === 'backtest') {
+      const result = runBacktest(markets, tradeHistory, config);
+      console.log('--- Backtest Summary ---');
+      console.log(result.summary);
+      console.log(`Artifacts written to ${path.resolve(process.cwd(), config.engine.artifactsDir)}`);
+      return;
+    }
+
     const scanned = runScanner(markets, config);
     const survived = scanned.filter((m) => m.scannerPass);
 
     const research = runResearch(config);
-    const tradeHistory = loadTradeHistory(tradeSource, args.tradeFile, config);
     const wallets = rankWallets(tradeHistory, config);
     const decisions = buildStrategyDecisions(scanned, research, wallets, config);
     const { ledger, metrics } = runPaperEngine(decisions, scanned, config);
 
     const summary = {
+      mode,
       source: config.marketSource,
       trade_source: tradeSource,
       scanned_markets: scanned.length,
