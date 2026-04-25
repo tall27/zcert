@@ -5,6 +5,7 @@ import { buildStrategyDecisions } from './agents/strategy';
 import { rankWallets } from './agents/walletIntel';
 import { AppConfig, defaultConfig, mergeConfig } from './config/defaultConfig';
 import { loadMarkets } from './data/marketSource';
+import { loadPolymarketMarkets } from './data/polymarketMarketSource';
 import { loadWalletTrades } from './data/tradeHistorySource';
 import { runPaperEngine } from './paper/engine';
 import { parseCliArgs } from './utils/cli';
@@ -16,19 +17,30 @@ const loadConfig = (configPath?: string): AppConfig => {
   return mergeConfig(defaultConfig, override);
 };
 
-const main = (): void => {
+const resolveMarkets = async (config: AppConfig, marketsPath?: string) => {
+  if (config.marketSource === 'sample') return loadMarkets(marketsPath);
+  if (config.marketSource === 'polymarket') return loadPolymarketMarkets(config);
+  throw new Error(`Unsupported source '${String(config.marketSource)}'.`);
+};
+
+const main = async (): Promise<void> => {
   try {
     const args = parseCliArgs(process.argv.slice(2));
     const baseConfig = loadConfig(args.configPath);
-    const config = args.bankroll
+
+    let config = args.bankroll
       ? mergeConfig(baseConfig, { engine: { ...baseConfig.engine, startingBankroll: args.bankroll } })
       : baseConfig;
+
+    if (args.source) {
+      config = mergeConfig(config, { marketSource: args.source });
+    }
 
     if (!Number.isFinite(config.engine.startingBankroll) || config.engine.startingBankroll <= 0) {
       throw new Error('startingBankroll must be a positive number.');
     }
 
-    const markets = loadMarkets(args.marketsPath);
+    const markets = await resolveMarkets(config, args.marketsPath);
     const scanned = runScanner(markets, config);
     const survived = scanned.filter((m) => m.scannerPass);
 
@@ -38,6 +50,7 @@ const main = (): void => {
     const { ledger, metrics } = runPaperEngine(decisions, scanned, config);
 
     const summary = {
+      source: config.marketSource,
       scanned_markets: scanned.length,
       scanner_survivors: survived.length,
       selected_candidates: decisions.filter((d) => d.direction !== 'none').length,
@@ -72,4 +85,4 @@ const main = (): void => {
   }
 };
 
-main();
+void main();

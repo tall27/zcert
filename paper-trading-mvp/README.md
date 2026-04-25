@@ -18,6 +18,20 @@ npm install
 npm run dev
 ```
 
+
+## Market source modes
+Sample/offline mode (default):
+```bash
+npm run dev -- --source sample
+```
+
+Live read-only Polymarket market data mode:
+```bash
+npm run dev -- --source polymarket
+```
+
+> Warning: polymarket mode is **read-only market data**. This project does **not** place orders, sign wallets, or execute live trades.
+
 ## Run with flags
 ```bash
 npm run dev -- --markets ./data/sample_markets.json --trades ./data/sample_trades.json --bankroll 12000
@@ -29,6 +43,7 @@ npm run dev -- --config ./config.override.json
 - `--trades <path>` custom trade history JSON
 - `--bankroll <number>` override starting bankroll
 - `--config <path>` JSON config override
+- `--source <sample|polymarket>` market data source selector
 
 ## Quality checks
 ```bash

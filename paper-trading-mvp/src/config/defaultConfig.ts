@@ -1,4 +1,7 @@
+export type MarketSourceType = 'sample' | 'polymarket';
+
 export interface AppConfig {
+  marketSource: MarketSourceType;
   scanner: {
     minLiquidity: number;
     maxSpread: number;
@@ -36,9 +39,14 @@ export interface AppConfig {
     startingBankroll: number;
     artifactsDir: string;
   };
+  polymarket: {
+    apiBase: string;
+    limit: number;
+  };
 }
 
 export const defaultConfig: AppConfig = {
+  marketSource: 'sample',
   scanner: {
     minLiquidity: 20000,
     maxSpread: 0.06,
@@ -75,6 +83,10 @@ export const defaultConfig: AppConfig = {
   engine: {
     startingBankroll: 10000,
     artifactsDir: 'artifacts'
+  },
+  polymarket: {
+    apiBase: 'https://gamma-api.polymarket.com',
+    limit: 200
   }
 };
 
@@ -87,5 +99,6 @@ export const mergeConfig = (base: AppConfig, override: Partial<AppConfig>): AppC
   strategy: { ...base.strategy, ...(override.strategy ?? {}) },
   risk: { ...base.risk, ...(override.risk ?? {}) },
   exits: { ...base.exits, ...(override.exits ?? {}) },
-  engine: { ...base.engine, ...(override.engine ?? {}) }
+  engine: { ...base.engine, ...(override.engine ?? {}) },
+  polymarket: { ...base.polymarket, ...(override.polymarket ?? {}) }
 });
