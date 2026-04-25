@@ -10,6 +10,7 @@ import { loadMarkets } from './data/marketSource';
 import { loadPolymarketMarkets } from './data/polymarketMarketSource';
 import { TradeSourceType, loadTradeHistory } from './data/polymarketTradeHistorySource';
 import { runPaperEngine } from './paper/engine';
+import { buildReportArtifacts } from './reporting/reportBuilder';
 import { parseCliArgs } from './utils/cli';
 import { readJson, writeJson } from './utils/io';
 
@@ -50,6 +51,8 @@ const main = async (): Promise<void> => {
       const result = runBacktest(markets, tradeHistory, config);
       console.log('--- Backtest Summary ---');
       console.log(result.summary);
+      const report = buildReportArtifacts({ mode: 'backtest', artifactsDir: config.engine.artifactsDir });
+      console.log(`Report generated: ${report.mdPath} and ${report.htmlPath}`);
       console.log(`Artifacts written to ${path.resolve(process.cwd(), config.engine.artifactsDir)}`);
       return;
     }
@@ -97,6 +100,8 @@ const main = async (): Promise<void> => {
 
     console.log('\n--- Metrics ---');
     console.log(summary);
+    const report = buildReportArtifacts({ mode: 'paper', artifactsDir: config.engine.artifactsDir });
+    console.log(`Report generated: ${report.mdPath} and ${report.htmlPath}`);
     console.log(`Artifacts written to ${path.resolve(process.cwd(), config.engine.artifactsDir)}`);
   } catch (error) {
     console.error(`Pipeline failed: ${(error as Error).message}`);

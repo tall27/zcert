@@ -107,3 +107,6 @@ npm run lint
 - `artifacts/backtest_train_summary.json`
 - `artifacts/backtest_test_summary.json`
 - `artifacts/guardrail_rejections.json`
+
+- `artifacts/report.md`
+- `artifacts/report.html`
