@@ -1,11 +1,51 @@
-export const defaultConfig = {
+export interface AppConfig {
+  scanner: {
+    minLiquidity: number;
+    maxSpread: number;
+    minHoursToResolution: number;
+    maxHoursToResolution: number;
+    categoryAllowList: string[];
+    categoryBlockList: string[];
+    minEstimatedEdge: number;
+  };
+  research: {
+    minConfidence: number;
+    passEdge: number;
+  };
+  walletIntel: {
+    minTradesForTrust: number;
+    topN: number;
+  };
+  strategy: {
+    fullPositionExposure: number;
+    halfPositionExposure: number;
+  };
+  risk: {
+    cappedKellyFraction: number;
+    maxPositionSize: number;
+    maxDailyLoss: number;
+    maxOpenPositions: number;
+  };
+  exits: {
+    targetRoi: number;
+    stopRoi: number;
+    staleThesisHours: number;
+    maxHoldingHours: number;
+  };
+  engine: {
+    startingBankroll: number;
+    artifactsDir: string;
+  };
+}
+
+export const defaultConfig: AppConfig = {
   scanner: {
     minLiquidity: 20000,
     maxSpread: 0.06,
     minHoursToResolution: 4,
     maxHoursToResolution: 30000,
-    categoryAllowList: ['politics', 'sports', 'crypto', 'macro'] as const,
-    categoryBlockList: ['other'] as const,
+    categoryAllowList: ['politics', 'sports', 'crypto', 'macro'],
+    categoryBlockList: ['other'],
     minEstimatedEdge: 0.005
   },
   research: {
@@ -33,8 +73,19 @@ export const defaultConfig = {
     maxHoldingHours: 36
   },
   engine: {
-    startingBankroll: 10000
+    startingBankroll: 10000,
+    artifactsDir: 'artifacts'
   }
 };
 
-export type AppConfig = typeof defaultConfig;
+export const mergeConfig = (base: AppConfig, override: Partial<AppConfig>): AppConfig => ({
+  ...base,
+  ...override,
+  scanner: { ...base.scanner, ...(override.scanner ?? {}) },
+  research: { ...base.research, ...(override.research ?? {}) },
+  walletIntel: { ...base.walletIntel, ...(override.walletIntel ?? {}) },
+  strategy: { ...base.strategy, ...(override.strategy ?? {}) },
+  risk: { ...base.risk, ...(override.risk ?? {}) },
+  exits: { ...base.exits, ...(override.exits ?? {}) },
+  engine: { ...base.engine, ...(override.engine ?? {}) }
+});

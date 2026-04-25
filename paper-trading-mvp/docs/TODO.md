@@ -1,11 +1,9 @@
-# TODO (Post-MVP)
+# TODO (Next Phases)
 
-- Replace deterministic scanner probability estimate with pluggable modeling modules.
-- Add real market connectors (Polymarket/subgraph/websocket) behind feature flags.
-- Add robust time-series simulation with intraday candles.
-- Integrate wallet clustering and wallet-follow confidence decay.
-- Add persistent storage (SQLite/Postgres) and migrations.
-- Add backtest mode with date slicing.
-- Add strategy-level attribution and richer risk overlays.
-- Add real execution adapter (still paper in staging) with strict dry-run guardrails.
-- Add alerting/reporting (Slack/Discord/email).
+- Build live Polymarket market-data adapter (read-only first).
+- Add real historical fills ingestion pipeline from exchange exports.
+- Integrate LLM-powered research agent with prompt/version tracking.
+- Build operator dashboard for runs, positions, and risk telemetry.
+- Add live trading mode only behind compliance review and explicit gated approvals.
+- Add deeper backtesting and walk-forward evaluation tools.
+- Add portfolio-level exposure/risk constraints across correlated markets.

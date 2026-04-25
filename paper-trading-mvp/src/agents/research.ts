@@ -1,14 +1,14 @@
-import fs from 'node:fs';
 import path from 'node:path';
 import { AppConfig } from '../config/defaultConfig';
 import { ScoredMarket } from '../types/market';
 import { ResearchReport } from '../types/signal';
+import { readJson, writeJson } from '../utils/io';
 
 const confidenceFromEdge = (edge: number): number => Math.max(0.5, Math.min(0.9, 0.5 + edge * 2));
 
 export const runResearch = (config: AppConfig): ResearchReport[] => {
-  const queuePath = path.resolve(process.cwd(), 'data', 'scanner_queue.json');
-  const queued = JSON.parse(fs.readFileSync(queuePath, 'utf-8')) as ScoredMarket[];
+  const queuePath = path.resolve(process.cwd(), config.engine.artifactsDir, 'scanner_queue.json');
+  const queued = readJson(queuePath) as ScoredMarket[];
 
   const reports = queued.map((market) => {
     const confidence = confidenceFromEdge(market.estimatedEdge);
@@ -33,8 +33,8 @@ export const runResearch = (config: AppConfig): ResearchReport[] => {
     };
   });
 
-  const outputPath = path.resolve(process.cwd(), 'data', 'research_output.json');
-  fs.writeFileSync(outputPath, JSON.stringify(reports, null, 2));
+  const outputPath = path.resolve(process.cwd(), config.engine.artifactsDir, 'research_output.json');
+  writeJson(outputPath, reports);
 
   return reports;
 };

@@ -1,8 +1,9 @@
-import fs from 'node:fs';
 import path from 'node:path';
 import { Market } from '../types/market';
+import { readJson } from '../utils/io';
+import { validateMarkets } from '../utils/validation';
 
-export const loadMarkets = (): Market[] => {
-  const filePath = path.resolve(process.cwd(), 'data', 'sample_markets.json');
-  return JSON.parse(fs.readFileSync(filePath, 'utf-8')) as Market[];
+export const loadMarkets = (customPath?: string): Market[] => {
+  const filePath = customPath ? path.resolve(customPath) : path.resolve(process.cwd(), 'data', 'sample_markets.json');
+  return validateMarkets(readJson(filePath));
 };

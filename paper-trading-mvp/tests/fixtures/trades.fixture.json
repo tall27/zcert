@@ -1,0 +1,6 @@
+[
+  {"wallet":"0x1","marketId":"fx_market_1","category":"politics","stake":100,"payout":170,"timestamp":"2026-01-01T00:00:00Z"},
+  {"wallet":"0x1","marketId":"fx_market_1","category":"politics","stake":80,"payout":0,"timestamp":"2026-01-02T00:00:00Z"},
+  {"wallet":"0x2","marketId":"fx_market_1","category":"macro","stake":100,"payout":0,"timestamp":"2026-01-03T00:00:00Z"},
+  {"wallet":"0x2","marketId":"fx_market_1","category":"macro","stake":100,"payout":160,"timestamp":"2026-01-04T00:00:00Z"}
+]

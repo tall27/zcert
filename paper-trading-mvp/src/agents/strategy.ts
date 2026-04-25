@@ -32,7 +32,7 @@ export const buildStrategyDecisions = (
       const noVotes = signals.filter((s) => s === 'no').length;
       const consensusCount = Math.max(yesVotes, noVotes);
 
-      if (consensusCount < 2) {
+      if (signals.length === 0 || (yesVotes > 0 && noVotes > 0 && consensusCount < 2)) {
         return {
           marketId: market.id,
           direction: 'none',
@@ -40,21 +40,31 @@ export const buildStrategyDecisions = (
           consensusCount,
           confidence: 0,
           desiredExposure: 0,
-          rationale: 'Insufficient agreement among scanner/research/wallet signals.'
+          rationale: 'Disagreement among scanner/research/wallet signals.'
+        } satisfies StrategyDecision;
+      }
+
+      if (consensusCount === 1) {
+        const direction = yesVotes === 1 ? 'yes' : 'no';
+        return {
+          marketId: market.id,
+          direction,
+          strategy: 'copy_trade_placeholder',
+          consensusCount,
+          confidence: 0.55,
+          desiredExposure: config.strategy.halfPositionExposure,
+          rationale: `Single-signal ${direction.toUpperCase()} bias: half exposure.`
         } satisfies StrategyDecision;
       }
 
       const direction = yesVotes > noVotes ? 'yes' : 'no';
-      const desiredExposure =
-        consensusCount >= 2 ? config.strategy.fullPositionExposure : config.strategy.halfPositionExposure;
-
       return {
         marketId: market.id,
         direction,
         strategy: 'convergence',
         consensusCount,
         confidence: 0.5 + consensusCount * 0.15,
-        desiredExposure,
+        desiredExposure: config.strategy.fullPositionExposure,
         rationale: `Consensus ${consensusCount}/3 with ${direction.toUpperCase()} bias.`
       } satisfies StrategyDecision;
     });

@@ -1,21 +1,18 @@
 # Architecture Overview
 
-This MVP implements a CLI-first, file-backed paper-trading pipeline inspired by a multi-agent prediction market workflow.
+This MVP is a CLI-first, file-backed paper-trading workflow inspired by a multi-agent prediction market system.
 
 ## Flow
-1. **Scanner Agent** reads `data/sample_markets.json`, applies filter gates, and writes `data/scanner_queue.json`.
-2. **Research Agent** reads scanner queue and emits structured reports to `data/research_output.json`.
-3. **Wallet Intelligence Agent** ranks wallets from `data/sample_trades.json` and writes `data/top_wallets.json`.
-4. **Strategy Agent** combines scanner + research + wallet signals into consensus decisions.
-5. **Risk/Sizing Agent** applies capped Kelly and hard risk limits.
-6. **Exit Agent** deterministically simulates exits and labels each exit reason.
-7. **Paper Engine** updates bankroll, persists `data/paper_ledger.json`, and computes metrics.
+1. Scanner reads market JSON, applies filtering/scoring, and writes `artifacts/scanner_queue.json`.
+2. Research reads scanner queue and writes `artifacts/research_output.json`.
+3. Wallet Intelligence ranks wallets from trade history and writes `artifacts/top_wallets.json`.
+4. Strategy combines scanner/research/wallet signals with consensus logic.
+5. Risk/Sizing applies capped Kelly + hard risk limits.
+6. Exit simulates deterministic exits and assigns exit reason.
+7. Paper Engine updates bankroll, writes `artifacts/paper_ledger.json`, and computes metrics.
+8. Entry point writes `artifacts/run_summary.json`.
 
-## Persistence
-- JSON-only persistence for auditability and zero external dependencies.
-- Every step creates artifact files to trace decisions.
-
-## Safety Constraints
-- No live keys.
-- No real API order routing.
-- No private key handling.
+## Input validation and safety
+- Runtime JSON validation for market/trade inputs.
+- Clear error messages for malformed data and invalid numeric inputs.
+- No live trading, private keys, or order routing.

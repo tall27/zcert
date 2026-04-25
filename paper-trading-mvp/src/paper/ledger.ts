@@ -1,6 +1,6 @@
-import fs from 'node:fs';
 import path from 'node:path';
 import { ClosedTrade, PaperMetrics } from '../types/trade';
+import { writeJson } from '../utils/io';
 
 export interface LedgerState {
   bankroll: number;
@@ -50,7 +50,7 @@ export const computeMetrics = (ledger: LedgerState, startingBankroll: number): P
   };
 };
 
-export const persistLedger = (ledger: LedgerState): void => {
-  const outputPath = path.resolve(process.cwd(), 'data', 'paper_ledger.json');
-  fs.writeFileSync(outputPath, JSON.stringify(ledger, null, 2));
+export const persistLedger = (ledger: LedgerState, artifactsDir: string): void => {
+  const outputPath = path.resolve(process.cwd(), artifactsDir, 'paper_ledger.json');
+  writeJson(outputPath, ledger);
 };

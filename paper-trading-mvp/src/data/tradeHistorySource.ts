@@ -1,8 +1,9 @@
-import fs from 'node:fs';
 import path from 'node:path';
 import { WalletTrade } from '../types/wallet';
+import { readJson } from '../utils/io';
+import { validateWalletTrades } from '../utils/validation';
 
-export const loadWalletTrades = (): WalletTrade[] => {
-  const filePath = path.resolve(process.cwd(), 'data', 'sample_trades.json');
-  return JSON.parse(fs.readFileSync(filePath, 'utf-8')) as WalletTrade[];
+export const loadWalletTrades = (customPath?: string): WalletTrade[] => {
+  const filePath = customPath ? path.resolve(customPath) : path.resolve(process.cwd(), 'data', 'sample_trades.json');
+  return validateWalletTrades(readJson(filePath));
 };

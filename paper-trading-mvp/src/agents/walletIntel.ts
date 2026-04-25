@@ -1,7 +1,7 @@
-import fs from 'node:fs';
 import path from 'node:path';
 import { AppConfig } from '../config/defaultConfig';
 import { WalletScore, WalletTrade } from '../types/wallet';
+import { writeJson } from '../utils/io';
 
 const computeDrawdown = (profits: number[]): number => {
   let peak = 0;
@@ -55,7 +55,7 @@ export const rankWallets = (trades: WalletTrade[], config: AppConfig): WalletSco
   });
 
   const sorted = scores.sort((a, b) => b.rankScore - a.rankScore).slice(0, config.walletIntel.topN);
-  const outputPath = path.resolve(process.cwd(), 'data', 'top_wallets.json');
-  fs.writeFileSync(outputPath, JSON.stringify(sorted, null, 2));
+  const outputPath = path.resolve(process.cwd(), config.engine.artifactsDir, 'top_wallets.json');
+  writeJson(outputPath, sorted);
   return sorted;
 };

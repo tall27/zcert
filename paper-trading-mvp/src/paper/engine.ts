@@ -13,6 +13,11 @@ export const runPaperEngine = (
 ) => {
   const ledger = initLedger(config.engine.startingBankroll);
 
+  if (decisions.length === 0) {
+    persistLedger(ledger, config.engine.artifactsDir);
+    return { ledger, metrics: computeMetrics(ledger, config.engine.startingBankroll) };
+  }
+
   for (const decision of decisions) {
     const market = scannedMarkets.find((m) => m.id === decision.marketId);
     if (!market) continue;
@@ -44,7 +49,7 @@ export const runPaperEngine = (
     recordClosedTrade(ledger, closed);
   }
 
-  persistLedger(ledger);
+  persistLedger(ledger, config.engine.artifactsDir);
   const metrics = computeMetrics(ledger, config.engine.startingBankroll);
   return { ledger, metrics };
 };

@@ -15,6 +15,13 @@ export const sizeDecision = (
   openPositions: number,
   config: AppConfig
 ): SizedDecision => {
+  if (!Number.isFinite(bankroll) || bankroll <= 0) {
+    throw new Error('Invalid bankroll for risk sizing.');
+  }
+  if (!Number.isFinite(estimatedEdge)) {
+    throw new Error('Invalid estimated edge for risk sizing.');
+  }
+
   if (decision.direction === 'none' || decision.desiredExposure <= 0) {
     return { ...decision, sizeUsd: 0, allowed: false, rejectionReason: 'no_trade_signal' };
   }
@@ -27,7 +34,6 @@ export const sizeDecision = (
     return { ...decision, sizeUsd: 0, allowed: false, rejectionReason: 'max_open_positions_hit' };
   }
 
-  // Capped Kelly approximation using edge as proxy for expected advantage.
   const rawKelly = estimatedEdge / Math.max(0.2, 1 - estimatedEdge);
   const fStar = Math.max(0, Math.min(rawKelly * config.risk.cappedKellyFraction, 0.25));
   if (fStar <= 0) {
