@@ -10,6 +10,7 @@ import { loadMarkets } from './data/marketSource';
 import { loadPolymarketMarkets } from './data/polymarketMarketSource';
 import { TradeSourceType, loadTradeHistory } from './data/polymarketTradeHistorySource';
 import { runPaperEngine } from './paper/engine';
+import { analyzeDataQuality, persistDataQualityReport } from './validation/dataQuality';
 import { buildReportArtifacts } from './reporting/reportBuilder';
 import { parseCliArgs } from './utils/cli';
 import { readJson, writeJson } from './utils/io';
@@ -46,6 +47,12 @@ const main = async (): Promise<void> => {
     const tradeSource: TradeSourceType = args.tradeSource ?? 'sample';
     const markets = await resolveMarkets(config, args.marketsPath);
     const tradeHistory = loadTradeHistory(tradeSource, args.tradeFile, config);
+
+    const dataQuality = analyzeDataQuality(markets, tradeHistory);
+    persistDataQualityReport(dataQuality, config.engine.artifactsDir);
+    if (args.strictData === 'on' && dataQuality.criticalIssues.length > 0) {
+      throw new Error(`Strict data mode failed: ${dataQuality.criticalIssues.join(';')}`);
+    }
 
     if (mode === 'backtest') {
       const result = runBacktest(markets, tradeHistory, config);

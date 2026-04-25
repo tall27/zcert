@@ -12,6 +12,7 @@ export interface CliArgs {
   tradeFile?: string;
   mode?: RunMode;
   llm?: 'on' | 'off';
+  strictData?: 'on' | 'off';
 }
 
 export const parseCliArgs = (argv: string[]): CliArgs => {
@@ -24,6 +25,10 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
     if (token === '--markets') args.marketsPath = next;
     if (token === '--trade-file') args.tradeFile = next;
     if (token === '--config') args.configPath = next;
+    if (token === '--strict-data') {
+      if (next !== 'on' && next !== 'off') throw new Error(`Unsupported --strict-data value '${next}'. Use 'on' or 'off'.`);
+      args.strictData = next;
+    }
     if (token === '--llm') {
       if (next !== 'on' && next !== 'off') throw new Error(`Unsupported --llm value '${next}'. Use 'on' or 'off'.`);
       args.llm = next;

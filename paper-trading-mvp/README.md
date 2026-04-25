@@ -54,6 +54,7 @@ npm run dev -- --mode backtest --source sample --trade-source json --trade-file 
 - `--bankroll <number>`
 - `--config <path>`
 - `--llm <on|off>` (default off)
+- `--strict-data <on|off>` (default off)
 
 
 
@@ -67,6 +68,10 @@ npm run dev -- --mode paper --llm on
 - LLM cannot bypass scanner, risk sizing, strategy guardrails, or backtest rules.
 - If API key is missing, provider fails, response is malformed, or timeout occurs, the system logs a warning and continues with deterministic research.
 - LLM artifacts are persisted to `artifacts/llm_research.json`.
+
+## Data quality diagnostics
+Runs now produce `artifacts/data_quality_report.json` with warnings/critical issues for duplicates, timestamps, price bounds, liquidity, outlier sizes, and market-trade mismatches.
+Use `--strict-data on` to fail run when critical issues are found.
 
 ## Strategy guardrails
 Before simulated execution, strategy decisions are gated by validation checks:

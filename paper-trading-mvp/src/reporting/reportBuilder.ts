@@ -26,6 +26,7 @@ export const buildReportArtifacts = ({ mode, artifactsDir }: BuildReportInput): 
   const guardRejections = safeRead<Array<{ marketId: string; reasons: string[] }>>(path.join(dir, 'guardrail_rejections.json'), []);
   const llmResearch = safeRead<Array<Record<string, unknown>>>(path.join(dir, 'llm_research.json'), []);
   const ledger = safeRead<{ trades?: Array<Record<string, unknown>>; bankroll?: number }>(path.join(dir, 'paper_ledger.json'), {});
+  const dataQuality = safeRead<{ criticalIssues?: string[]; warnings?: string[] }>(path.join(dir, 'data_quality_report.json'), {});
 
   const topAcceptedTrades =
     mode === 'backtest'
@@ -108,6 +109,11 @@ ${Object.entries(rejectionByReason).map(([k, v]) => `- ${k}: ${v}`).join('\n') |
 
 - enabled: ${String(runSummary.llm_enabled ?? false)}
 - llm reports generated: ${llmResearch.length}
+
+## Data quality diagnostics
+
+- critical issues: ${(dataQuality.criticalIssues ?? []).join(', ') || 'none'}
+- warnings: ${(dataQuality.warnings ?? []).join(', ') || 'none'}
 `;
 
   const htmlRows = topAcceptedTrades
@@ -136,6 +142,7 @@ ${Object.entries(rejectionByReason).map(([k, v]) => `- ${k}: ${v}`).join('\n') |
 <tr><td>Test</td><td>${toPct(trainVsTest.testRoi)}</td><td>${toPct(trainVsTest.testWinRate)}</td></tr>
 </table>
 <h2>LLM Summary</h2><p>Enabled: ${String(runSummary.llm_enabled ?? false)}, Reports: ${llmResearch.length}</p>
+<h2>Data Quality</h2><p>Critical: ${(dataQuality.criticalIssues ?? []).join(', ') || 'none'}</p><p>Warnings: ${(dataQuality.warnings ?? []).join(', ') || 'none'}</p>
 </body></html>`;
 
   const mdPath = path.join(dir, 'report.md');

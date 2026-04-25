@@ -14,6 +14,7 @@ test('report builder generates markdown and html', () => {
   fs.writeFileSync(path.join(artifacts, 'paper_ledger.json'), JSON.stringify({ bankroll: 10100, trades: [{ marketId: 'm1', pnl: 10, roi: 0.1 }] }));
   fs.writeFileSync(path.join(artifacts, 'guardrail_rejections.json'), JSON.stringify([{ marketId: 'm2', reasons: ['spread_above_maximum'] }]));
   fs.writeFileSync(path.join(artifacts, 'llm_research.json'), JSON.stringify([]));
+  fs.writeFileSync(path.join(artifacts, 'data_quality_report.json'), JSON.stringify({ criticalIssues: ['duplicate_market_ids:m1'], warnings: ['future_timestamps:1'] }));
   fs.writeFileSync(path.join(artifacts, 'backtest_train_summary.json'), JSON.stringify({ roi: 0.1, winRate: 0.5 }));
   fs.writeFileSync(path.join(artifacts, 'backtest_test_summary.json'), JSON.stringify({ roi: 0.02, winRate: 0.45 }));
 
@@ -26,6 +27,7 @@ test('report builder generates markdown and html', () => {
     const md = fs.readFileSync(out.mdPath, 'utf-8');
     assert.match(md, /Run mode:\*\* paper/);
     assert.match(md, /Rejected trades by guardrail reason/);
+    assert.match(md, /Data quality diagnostics/);
   } finally {
     process.chdir(cwd);
   }
