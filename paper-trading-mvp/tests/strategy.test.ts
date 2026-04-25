@@ -37,7 +37,7 @@ test('strategy uses consensus to produce full exposure', () => {
         pass: true
       }
     ],
-    [{ wallet: 'x', numberOfTrades: 10, winRate: 0.7, realizedProfit: 100, maxDrawdown: 10, categoryConsistency: 0.8, trustedSample: true, rankScore: 9 }],
+    [{ wallet: 'x', totalTrades: 10, winRate: 0.7, realizedPnl: 100, roi: 0.2, averageTradeSize: 50, maxDrawdown: 10, categoryConcentration: 0.8, confidenceScore: 0.9, trustedSample: true, rankScore: 9 }],
     defaultConfig
   );
 

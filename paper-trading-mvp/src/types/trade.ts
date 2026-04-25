@@ -1,3 +1,14 @@
+import { MarketCategory } from './market';
+
+export interface HistoricalTrade {
+  wallet: string;
+  marketId: string;
+  category: MarketCategory;
+  stake: number;
+  payout: number;
+  timestamp: string;
+}
+
 export interface SimulatedTrade {
   id: string;
   marketId: string;

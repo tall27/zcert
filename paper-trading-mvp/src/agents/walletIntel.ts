@@ -24,38 +24,52 @@ export const rankWallets = (trades: WalletTrade[], config: AppConfig): WalletSco
   }
 
   const scores: WalletScore[] = Array.from(grouped.entries()).map(([wallet, walletTrades]) => {
-    const numberOfTrades = walletTrades.length;
+    const totalTrades = walletTrades.length;
     const profits = walletTrades.map((t) => t.payout - t.stake);
     const wins = profits.filter((p) => p > 0).length;
-    const winRate = numberOfTrades ? wins / numberOfTrades : 0;
-    const realizedProfit = profits.reduce((a, b) => a + b, 0);
+    const winRate = totalTrades ? wins / totalTrades : 0;
+    const realizedPnl = profits.reduce((a, b) => a + b, 0);
+    const totalStake = walletTrades.reduce((sum, t) => sum + t.stake, 0);
+    const roi = totalStake > 0 ? realizedPnl / totalStake : 0;
+    const averageTradeSize = totalTrades > 0 ? totalStake / totalTrades : 0;
     const maxDrawdown = computeDrawdown(profits);
 
     const catCounts = new Map<string, number>();
     for (const t of walletTrades) catCounts.set(t.category, (catCounts.get(t.category) ?? 0) + 1);
     const largestCategory = Math.max(...Array.from(catCounts.values()));
-    const categoryConsistency = largestCategory / numberOfTrades;
+    const categoryConcentration = largestCategory / totalTrades;
 
-    const trustedSample = numberOfTrades >= config.walletIntel.minTradesForTrust;
-    const samplePenalty = trustedSample ? 1 : Math.max(0.3, numberOfTrades / config.walletIntel.minTradesForTrust);
+    const sampleSizeScore = Math.min(1, totalTrades / Math.max(1, config.walletIntel.minTradesForTrust));
+    const confidenceScore = Math.max(0, Math.min(1, sampleSizeScore * (0.6 + winRate * 0.4)));
+    const trustedSample = sampleSizeScore >= 1;
 
     const rankScore =
-      (winRate * 40 + realizedProfit / 20 + categoryConsistency * 20 - maxDrawdown / 25) * samplePenalty;
+      winRate * 25 + roi * 30 + realizedPnl / 25 + confidenceScore * 20 - maxDrawdown / 25 - categoryConcentration * 2;
 
     return {
       wallet,
-      numberOfTrades,
+      totalTrades,
       winRate,
-      realizedProfit,
+      realizedPnl,
+      roi,
+      averageTradeSize,
       maxDrawdown,
-      categoryConsistency,
+      categoryConcentration,
+      confidenceScore,
       trustedSample,
       rankScore
     };
   });
 
-  const sorted = scores.sort((a, b) => b.rankScore - a.rankScore).slice(0, config.walletIntel.topN);
-  const outputPath = path.resolve(process.cwd(), config.engine.artifactsDir, 'top_wallets.json');
+  const filtered = scores.filter(
+    (s) =>
+      s.totalTrades >= config.walletIntel.minTrades &&
+      s.realizedPnl >= config.walletIntel.minRealizedPnl &&
+      s.confidenceScore >= config.walletIntel.minConfidenceScore
+  );
+
+  const sorted = filtered.sort((a, b) => b.rankScore - a.rankScore).slice(0, config.walletIntel.topN);
+  const outputPath = path.resolve(process.cwd(), config.engine.artifactsDir, 'wallet_rankings.json');
   writeJson(outputPath, sorted);
   return sorted;
 };

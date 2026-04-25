@@ -1,21 +1,17 @@
-import { MarketCategory } from './market';
+import { HistoricalTrade } from './trade';
 
-export interface WalletTrade {
-  wallet: string;
-  marketId: string;
-  category: MarketCategory;
-  stake: number;
-  payout: number;
-  timestamp: string;
-}
+export type WalletTrade = HistoricalTrade;
 
 export interface WalletScore {
   wallet: string;
-  numberOfTrades: number;
+  totalTrades: number;
   winRate: number;
-  realizedProfit: number;
+  realizedPnl: number;
+  roi: number;
+  averageTradeSize: number;
   maxDrawdown: number;
-  categoryConsistency: number;
+  categoryConcentration: number;
+  confidenceScore: number;
   trustedSample: boolean;
   rankScore: number;
 }

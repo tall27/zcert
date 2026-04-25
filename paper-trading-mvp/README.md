@@ -5,6 +5,7 @@ CLI-first TypeScript MVP for **offline simulated** prediction-market research an
 ## Safety boundaries
 - No live trading
 - No private keys
+- No wallet signing
 - No real order placement
 
 ## Install
@@ -17,7 +18,6 @@ npm install
 ```bash
 npm run dev
 ```
-
 
 ## Market source modes
 Sample/offline mode (default):
@@ -32,18 +32,35 @@ npm run dev -- --source polymarket
 
 > Warning: polymarket mode is **read-only market data**. This project does **not** place orders, sign wallets, or execute live trades.
 
+## Historical trade ingestion modes
+Use sample trade history (default):
+```bash
+npm run dev -- --trade-source sample
+```
+
+Load local CSV fills:
+```bash
+npm run dev -- --trade-source csv --trade-file ./data/sample_trades.csv
+```
+
+Load local JSON fills:
+```bash
+npm run dev -- --trade-source json --trade-file ./data/sample_trades.json
+```
+
 ## Run with flags
 ```bash
-npm run dev -- --markets ./data/sample_markets.json --trades ./data/sample_trades.json --bankroll 12000
+npm run dev -- --markets ./data/sample_markets.json --trade-source sample --bankroll 12000
 npm run dev -- --config ./config.override.json
 ```
 
 ### Supported CLI flags
 - `--markets <path>` custom markets JSON
-- `--trades <path>` custom trade history JSON
 - `--bankroll <number>` override starting bankroll
 - `--config <path>` JSON config override
 - `--source <sample|polymarket>` market data source selector
+- `--trade-source <sample|csv|json>` historical trade source selector
+- `--trade-file <path>` required for `csv`/`json` trade source
 
 ## Quality checks
 ```bash
@@ -56,33 +73,15 @@ npm run lint
 All generated files go to `/artifacts`:
 - `artifacts/scanner_queue.json`
 - `artifacts/research_output.json`
-- `artifacts/top_wallets.json`
+- `artifacts/wallet_rankings.json`
 - `artifacts/paper_ledger.json`
 - `artifacts/run_summary.json`
-
-## Example console output
-```text
---- Scanner Survivors ---
-(index) id                  edge      price
-0       mkt_us_election...  0.0625    0.54
-
---- Strategy Candidates ---
-(index) market                 direction rationale
-0       mkt_us_election_2028   yes       Consensus 3/3 with YES bias.
-
---- Simulated Trades ---
-(index) market                 pnl     roi      exit
-0       mkt_us_election_2028   30.86   0.0926   max_holding_time
-
---- Metrics ---
-{ scanned_markets: 5, simulated_trades: 3, final_bankroll: 10030.82 }
-Artifacts written to /workspace/zcert/paper-trading-mvp/artifacts
-```
 
 ## Error handling
 The CLI fails clearly for:
 - missing input files
 - malformed JSON
+- malformed CSV rows
 - invalid numeric inputs (including bankroll)
 - empty markets input
 

@@ -1,9 +1,6 @@
-import path from 'node:path';
+import { AppConfig, defaultConfig } from '../config/defaultConfig';
 import { WalletTrade } from '../types/wallet';
-import { readJson } from '../utils/io';
-import { validateWalletTrades } from '../utils/validation';
+import { loadTradeHistory } from './polymarketTradeHistorySource';
 
-export const loadWalletTrades = (customPath?: string): WalletTrade[] => {
-  const filePath = customPath ? path.resolve(customPath) : path.resolve(process.cwd(), 'data', 'sample_trades.json');
-  return validateWalletTrades(readJson(filePath));
-};
+export const loadWalletTrades = (customPath?: string, config: AppConfig = defaultConfig): WalletTrade[] =>
+  loadTradeHistory(customPath ? 'json' : 'sample', customPath, config);

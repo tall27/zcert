@@ -6,7 +6,7 @@ import { rankWallets } from './agents/walletIntel';
 import { AppConfig, defaultConfig, mergeConfig } from './config/defaultConfig';
 import { loadMarkets } from './data/marketSource';
 import { loadPolymarketMarkets } from './data/polymarketMarketSource';
-import { loadWalletTrades } from './data/tradeHistorySource';
+import { TradeSourceType, loadTradeHistory } from './data/polymarketTradeHistorySource';
 import { runPaperEngine } from './paper/engine';
 import { parseCliArgs } from './utils/cli';
 import { readJson, writeJson } from './utils/io';
@@ -40,17 +40,21 @@ const main = async (): Promise<void> => {
       throw new Error('startingBankroll must be a positive number.');
     }
 
+    const tradeSource: TradeSourceType = args.tradeSource ?? 'sample';
+
     const markets = await resolveMarkets(config, args.marketsPath);
     const scanned = runScanner(markets, config);
     const survived = scanned.filter((m) => m.scannerPass);
 
     const research = runResearch(config);
-    const wallets = rankWallets(loadWalletTrades(args.tradesPath), config);
+    const tradeHistory = loadTradeHistory(tradeSource, args.tradeFile, config);
+    const wallets = rankWallets(tradeHistory, config);
     const decisions = buildStrategyDecisions(scanned, research, wallets, config);
     const { ledger, metrics } = runPaperEngine(decisions, scanned, config);
 
     const summary = {
       source: config.marketSource,
+      trade_source: tradeSource,
       scanned_markets: scanned.length,
       scanner_survivors: survived.length,
       selected_candidates: decisions.filter((d) => d.direction !== 'none').length,
@@ -67,6 +71,9 @@ const main = async (): Promise<void> => {
 
     console.log('--- Scanner Survivors ---');
     console.table(survived.map((m) => ({ id: m.id, edge: m.estimatedEdge.toFixed(4), price: m.currentPrice })));
+
+    console.log('\n--- Wallet Rankings ---');
+    console.table(wallets.map((w) => ({ wallet: w.wallet, trades: w.totalTrades, pnl: w.realizedPnl.toFixed(2), confidence: w.confidenceScore.toFixed(2) })));
 
     console.log('\n--- Strategy Candidates ---');
     console.table(decisions.map((d) => ({ market: d.marketId, direction: d.direction, rationale: d.rationale })));

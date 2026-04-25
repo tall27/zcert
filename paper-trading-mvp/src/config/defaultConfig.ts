@@ -17,6 +17,9 @@ export interface AppConfig {
   };
   walletIntel: {
     minTradesForTrust: number;
+    minTrades: number;
+    minRealizedPnl: number;
+    minConfidenceScore: number;
     topN: number;
   };
   strategy: {
@@ -42,6 +45,7 @@ export interface AppConfig {
   polymarket: {
     apiBase: string;
     limit: number;
+    tradeHistoryEndpoint?: string;
   };
 }
 
@@ -62,6 +66,9 @@ export const defaultConfig: AppConfig = {
   },
   walletIntel: {
     minTradesForTrust: 8,
+    minTrades: 2,
+    minRealizedPnl: -1000000,
+    minConfidenceScore: 0.2,
     topN: 5
   },
   strategy: {
