@@ -1,0 +1,52 @@
+[
+  {
+    "id": "mkt_us_election_2028",
+    "question": "Will candidate A win the 2028 election?",
+    "category": "politics",
+    "currentPrice": 0.54,
+    "spread": 0.03,
+    "liquidity": 85000,
+    "volume24h": 45000,
+    "resolutionAt": "2028-11-05T00:00:00Z"
+  },
+  {
+    "id": "mkt_btc_120k_2026",
+    "question": "Will BTC hit $120k by year-end 2026?",
+    "category": "crypto",
+    "currentPrice": 0.41,
+    "spread": 0.04,
+    "liquidity": 56000,
+    "volume24h": 39000,
+    "resolutionAt": "2026-12-31T23:59:59Z"
+  },
+  {
+    "id": "mkt_nba_finals_2026",
+    "question": "Will Team X win the 2026 NBA Finals?",
+    "category": "sports",
+    "currentPrice": 0.62,
+    "spread": 0.07,
+    "liquidity": 18000,
+    "volume24h": 12000,
+    "resolutionAt": "2026-06-30T00:00:00Z"
+  },
+  {
+    "id": "mkt_fed_cut_july",
+    "question": "Will the Fed cut rates by July meeting?",
+    "category": "macro",
+    "currentPrice": 0.33,
+    "spread": 0.02,
+    "liquidity": 43000,
+    "volume24h": 27000,
+    "resolutionAt": "2026-07-30T18:00:00Z"
+  },
+  {
+    "id": "mkt_meme_other",
+    "question": "Will meme token XYZ trend on social media next week?",
+    "category": "other",
+    "currentPrice": 0.48,
+    "spread": 0.08,
+    "liquidity": 5000,
+    "volume24h": 2500,
+    "resolutionAt": "2026-05-07T00:00:00Z"
+  }
+]

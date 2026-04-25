@@ -1,0 +1,7 @@
+node_modules/
+dist/
+data/scanner_queue.json
+data/research_output.json
+data/top_wallets.json
+data/paper_ledger.json
+data/run_summary.json
