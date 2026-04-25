@@ -54,6 +54,20 @@ npm run dev -- --mode backtest --source sample --trade-source json --trade-file 
 - `--bankroll <number>`
 - `--config <path>`
 
+
+## Strategy guardrails
+Before simulated execution, strategy decisions are gated by validation checks:
+- minimum liquidity
+- maximum spread
+- minimum edge after spread
+- minimum wallet signal sample size
+- reject near-resolution markets
+- reject stale price data
+- reject trades where slippage removes edge
+
+A simple slippage model estimates impact from trade size vs liquidity, then computes `edgeAfterSlippage`.
+Rejected candidates are written to `artifacts/guardrail_rejections.json`.
+
 ## Backtest output
 Backtest writes `artifacts/backtest_summary.json` and prints metrics including:
 - total trades
@@ -77,3 +91,6 @@ npm run lint
 - `artifacts/wallet_rankings.json`
 - `artifacts/paper_ledger.json`
 - `artifacts/backtest_summary.json`
+- `artifacts/backtest_train_summary.json`
+- `artifacts/backtest_test_summary.json`
+- `artifacts/guardrail_rejections.json`

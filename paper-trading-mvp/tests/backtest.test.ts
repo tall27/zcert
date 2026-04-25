@@ -33,6 +33,8 @@ test('backtest profitable replay', () => {
   const result = runBacktest([market], trades, cfg);
   assert.equal(result.summary.totalTrades > 0, true);
   assert.equal(result.summary.realizedPnl > 0, true);
+  assert.equal(typeof result.trainSummary.roi, 'number');
+  assert.equal(typeof result.testSummary.roi, 'number');
 });
 
 test('backtest losing replay', () => {

@@ -42,6 +42,14 @@ export interface AppConfig {
     startingBankroll: number;
     artifactsDir: string;
   };
+  guardrails: {
+    minLiquidity: number;
+    maxSpread: number;
+    minEdgeAfterSpread: number;
+    minWalletSampleSize: number;
+    minHoursToResolution: number;
+    maxPriceStaleMinutes: number;
+  };
   polymarket: {
     apiBase: string;
     limit: number;
@@ -91,6 +99,14 @@ export const defaultConfig: AppConfig = {
     startingBankroll: 10000,
     artifactsDir: 'artifacts'
   },
+  guardrails: {
+    minLiquidity: 20000,
+    maxSpread: 0.06,
+    minEdgeAfterSpread: 0.005,
+    minWalletSampleSize: 2,
+    minHoursToResolution: 4,
+    maxPriceStaleMinutes: 180
+  },
   polymarket: {
     apiBase: 'https://gamma-api.polymarket.com',
     limit: 200
@@ -107,5 +123,6 @@ export const mergeConfig = (base: AppConfig, override: Partial<AppConfig>): AppC
   risk: { ...base.risk, ...(override.risk ?? {}) },
   exits: { ...base.exits, ...(override.exits ?? {}) },
   engine: { ...base.engine, ...(override.engine ?? {}) },
+  guardrails: { ...base.guardrails, ...(override.guardrails ?? {}) },
   polymarket: { ...base.polymarket, ...(override.polymarket ?? {}) }
 });

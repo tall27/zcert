@@ -9,6 +9,7 @@ export interface Market {
   liquidity: number;
   volume24h: number;
   resolutionAt: string;
+  lastPriceUpdatedAt?: string;
 }
 
 export interface ScoredMarket extends Market {

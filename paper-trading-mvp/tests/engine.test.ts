@@ -25,6 +25,7 @@ test('paper engine runs and computes metrics', () => {
   const out = runPaperEngine(
     [{ marketId: 'fx_market_1', direction: 'yes', strategy: 'convergence', consensusCount: 3, confidence: 0.9, desiredExposure: 1, rationale: 'ok' }],
     scanned,
+    [{ wallet: "w", totalTrades: 5, winRate: 0.6, realizedPnl: 10, roi: 0.1, averageTradeSize: 50, maxDrawdown: 5, categoryConcentration: 0.7, confidenceScore: 0.8, trustedSample: true, rankScore: 1 }],
     defaultConfig
   );
 

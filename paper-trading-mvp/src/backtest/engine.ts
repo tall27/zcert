@@ -4,12 +4,13 @@ import { runResearch } from '../agents/research';
 import { buildStrategyDecisions } from '../agents/strategy';
 import { rankWallets } from '../agents/walletIntel';
 import { AppConfig } from '../config/defaultConfig';
-import { Market } from '../types/market';
+import { ScoredMarket } from '../types/market';
 import { WalletTrade } from '../types/wallet';
 import { writeJson } from '../utils/io';
+import { evaluateStrategyGuards } from '../validation/strategyGuards';
 import { BacktestTradeResult, calculateBacktestMetrics } from './metrics';
 
-const assertHistoricalData = (markets: Market[], trades: WalletTrade[]): void => {
+const assertHistoricalData = (markets: ScoredMarket[] | any[], trades: WalletTrade[]): void => {
   if (markets.length === 0) throw new Error('Backtest requires at least one historical market.');
   if (trades.length === 0) throw new Error('Backtest requires at least one historical trade/fill.');
   for (const trade of trades) {
@@ -22,7 +23,16 @@ const assertHistoricalData = (markets: Market[], trades: WalletTrade[]): void =>
   }
 };
 
-export const runBacktest = (markets: Market[], trades: WalletTrade[], config: AppConfig) => {
+const splitTrainTest = (trades: BacktestTradeResult[]) => {
+  const sorted = [...trades].sort((a, b) => new Date(a.entryTime).getTime() - new Date(b.entryTime).getTime());
+  const splitIdx = Math.max(1, Math.floor(sorted.length * 0.7));
+  return {
+    train: sorted.slice(0, splitIdx),
+    test: sorted.slice(splitIdx)
+  };
+};
+
+export const runBacktest = (markets: any[], trades: WalletTrade[], config: AppConfig) => {
   assertHistoricalData(markets, trades);
 
   const scanned = runScanner(markets, config);
@@ -33,6 +43,7 @@ export const runBacktest = (markets: Market[], trades: WalletTrade[], config: Ap
   let bankroll = config.engine.startingBankroll;
   const equityCurve = [bankroll];
   const tradeResults: BacktestTradeResult[] = [];
+  const rejections: Array<{ marketId: string; reasons: string[] }> = [];
 
   for (const decision of decisions) {
     if (decision.direction === 'none') continue;
@@ -45,11 +56,16 @@ export const runBacktest = (markets: Market[], trades: WalletTrade[], config: Ap
 
     if (related.length === 0) continue;
 
+    const positionSize = Math.min(config.risk.maxPositionSize, bankroll * 0.05);
+    const guard = evaluateStrategyGuards(market, decision, positionSize, walletScores, config);
+    if (!guard.allowed) {
+      rejections.push({ marketId: market.id, reasons: guard.reasons });
+      continue;
+    }
+
     const totalStake = related.reduce((sum, t) => sum + t.stake, 0);
     const totalPayout = related.reduce((sum, t) => sum + t.payout, 0);
     const marketReturn = totalStake > 0 ? (totalPayout - totalStake) / totalStake : 0;
-
-    const positionSize = Math.min(config.risk.maxPositionSize, bankroll * 0.05);
     if (positionSize <= 0) continue;
 
     const signedReturn = decision.direction === 'yes' ? marketReturn : -marketReturn;
@@ -63,23 +79,16 @@ export const runBacktest = (markets: Market[], trades: WalletTrade[], config: Ap
     const exitTime = related[related.length - 1].timestamp;
     const holdingMs = Math.max(0, new Date(exitTime).getTime() - new Date(entryTime).getTime());
 
-    tradeResults.push({
-      marketId: market.id,
-      direction: decision.direction,
-      entryTime,
-      exitTime,
-      holdingMs,
-      pnl,
-      roi
-    });
+    tradeResults.push({ marketId: market.id, direction: decision.direction, entryTime, exitTime, holdingMs, pnl, roi });
   }
 
-  const summary = calculateBacktestMetrics(
-    tradeResults,
-    config.engine.startingBankroll,
-    bankroll,
-    equityCurve
-  );
+  const summary = calculateBacktestMetrics(tradeResults, config.engine.startingBankroll, bankroll, equityCurve);
+  const { train, test } = splitTrainTest(tradeResults);
+  const trainSummary = calculateBacktestMetrics(train, config.engine.startingBankroll, config.engine.startingBankroll + train.reduce((s, t) => s + t.pnl, 0), [config.engine.startingBankroll, config.engine.startingBankroll + train.reduce((s, t) => s + t.pnl, 0)]);
+  const testStart = config.engine.startingBankroll + train.reduce((s, t) => s + t.pnl, 0);
+  const testSummary = calculateBacktestMetrics(test, testStart, testStart + test.reduce((s, t) => s + t.pnl, 0), [testStart, testStart + test.reduce((s, t) => s + t.pnl, 0)]);
+
+  const overfitWarning = trainSummary.roi > 0.1 && testSummary.roi < 0.02;
 
   const artifact = {
     mode: 'backtest',
@@ -88,9 +97,16 @@ export const runBacktest = (markets: Market[], trades: WalletTrade[], config: Ap
     scannedMarkets: scanned.length,
     decisionCount: decisions.length,
     tradeResults,
-    summary
+    summary,
+    trainSummary,
+    testSummary,
+    overfitWarning
   };
 
   writeJson(path.resolve(process.cwd(), config.engine.artifactsDir, 'backtest_summary.json'), artifact);
+  writeJson(path.resolve(process.cwd(), config.engine.artifactsDir, 'backtest_train_summary.json'), trainSummary);
+  writeJson(path.resolve(process.cwd(), config.engine.artifactsDir, 'backtest_test_summary.json'), testSummary);
+  writeJson(path.resolve(process.cwd(), config.engine.artifactsDir, 'guardrail_rejections.json'), rejections);
+
   return artifact;
 };

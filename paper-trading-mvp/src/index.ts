@@ -60,7 +60,7 @@ const main = async (): Promise<void> => {
     const research = runResearch(config);
     const wallets = rankWallets(tradeHistory, config);
     const decisions = buildStrategyDecisions(scanned, research, wallets, config);
-    const { ledger, metrics } = runPaperEngine(decisions, scanned, config);
+    const { ledger, metrics } = runPaperEngine(decisions, scanned, wallets, config);
 
     const summary = {
       mode,
