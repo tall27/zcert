@@ -1,0 +1,10 @@
+[
+  {"id":"pm_2024_us_pres","question":"Will Donald Trump win the 2024 US presidential election?","category":"politics","bestBid":0.51,"bestAsk":0.54,"liquidity":1280000,"volume":25400000,"endDate":"2024-11-06T05:00:00Z","lastPriceUpdatedAt":"2024-11-05T23:00:00Z"},
+  {"id":"pm_2024_house","question":"Will Republicans win the US House in 2024?","category":"politics","bestBid":0.58,"bestAsk":0.61,"liquidity":640000,"volume":11000000,"endDate":"2024-11-06T05:00:00Z","lastPriceUpdatedAt":"2024-11-05T23:10:00Z"},
+  {"id":"pm_2024_senate","question":"Will Republicans win the US Senate in 2024?","category":"politics","bestBid":0.62,"bestAsk":0.65,"liquidity":710000,"volume":12400000,"endDate":"2024-11-06T05:00:00Z","lastPriceUpdatedAt":"2024-11-05T23:15:00Z"},
+  {"id":"pm_btc_100k_2025","question":"Will BTC hit $100k before Jan 1, 2025?","category":"crypto","bestBid":0.47,"bestAsk":0.50,"liquidity":540000,"volume":9800000,"endDate":"2025-01-01T00:00:00Z","lastPriceUpdatedAt":"2024-12-31T20:00:00Z"},
+  {"id":"pm_eth_etf_2024","question":"Will spot ETH ETF be approved by Dec 31, 2024?","category":"crypto","bestBid":0.72,"bestAsk":0.75,"liquidity":450000,"volume":8200000,"endDate":"2024-12-31T23:59:59Z","lastPriceUpdatedAt":"2024-07-22T13:00:00Z"},
+  {"id":"pm_recession_2025","question":"Will the US enter recession in 2025?","category":"macro","bestBid":0.33,"bestAsk":0.36,"liquidity":230000,"volume":2900000,"endDate":"2025-12-31T23:59:59Z","lastPriceUpdatedAt":"2025-12-01T12:00:00Z"},
+  {"id":"pm_cpi_over_3_2025","question":"Will US CPI YoY be over 3% in Dec 2025?","category":"macro","bestBid":0.29,"bestAsk":0.31,"liquidity":180000,"volume":1800000,"endDate":"2025-12-31T23:59:59Z","lastPriceUpdatedAt":"2025-12-15T12:00:00Z"},
+  {"id":"pm_superbowl_2025_chiefs","question":"Will the Chiefs win Super Bowl LIX?","category":"sports","bestBid":0.24,"bestAsk":0.27,"liquidity":310000,"volume":4200000,"endDate":"2025-02-10T04:00:00Z","lastPriceUpdatedAt":"2025-02-09T23:00:00Z"}
+]

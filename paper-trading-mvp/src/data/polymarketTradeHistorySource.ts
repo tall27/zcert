@@ -5,7 +5,7 @@ import { WalletTrade } from '../types/wallet';
 import { readJson } from '../utils/io';
 import { validateWalletTrades } from '../utils/validation';
 
-export type TradeSourceType = 'sample' | 'csv' | 'json';
+export type TradeSourceType = 'sample' | 'csv' | 'json' | 'fills';
 
 const parseCsvLine = (line: string): string[] => {
   const cells: string[] = [];
@@ -105,7 +105,7 @@ export const loadTradeHistory = (
     return validateWalletTrades(readJson(resolved));
   }
 
-  if (source === 'csv') {
+  if (source === 'csv' || source === 'fills') {
     const raw = fs.readFileSync(resolved, 'utf-8');
     return parseCsvTrades(raw);
   }

@@ -1,0 +1,130 @@
+[
+  {
+    "wallet": "0x111",
+    "marketId": "pm_2024_us_pres",
+    "category": "politics",
+    "stake": 350,
+    "payout": 660.3773584905659,
+    "timestamp": "2024-10-30T10:00:00Z"
+  },
+  {
+    "wallet": "0x111",
+    "marketId": "pm_2024_us_pres",
+    "category": "politics",
+    "stake": 420,
+    "payout": 777.7777777777777,
+    "timestamp": "2024-11-02T13:00:00Z"
+  },
+  {
+    "wallet": "0x222",
+    "marketId": "pm_2024_us_pres",
+    "category": "politics",
+    "stake": 275,
+    "payout": 528.8461538461538,
+    "timestamp": "2024-11-04T09:00:00Z"
+  },
+  {
+    "wallet": "0x333",
+    "marketId": "pm_2024_house",
+    "category": "politics",
+    "stake": 180,
+    "payout": 300,
+    "timestamp": "2024-10-25T15:00:00Z"
+  },
+  {
+    "wallet": "0x222",
+    "marketId": "pm_2024_house",
+    "category": "politics",
+    "stake": 260,
+    "payout": 426.2295081967213,
+    "timestamp": "2024-11-01T18:00:00Z"
+  },
+  {
+    "wallet": "0x444",
+    "marketId": "pm_2024_senate",
+    "category": "politics",
+    "stake": 200,
+    "payout": 317.46031746031747,
+    "timestamp": "2024-10-20T17:00:00Z"
+  },
+  {
+    "wallet": "0x555",
+    "marketId": "pm_2024_senate",
+    "category": "politics",
+    "stake": 310,
+    "payout": 484.375,
+    "timestamp": "2024-11-03T20:00:00Z"
+  },
+  {
+    "wallet": "0x666",
+    "marketId": "pm_btc_100k_2025",
+    "category": "crypto",
+    "stake": 140,
+    "payout": 285.7142857142857,
+    "timestamp": "2024-11-15T12:00:00Z"
+  },
+  {
+    "wallet": "0x666",
+    "marketId": "pm_btc_100k_2025",
+    "category": "crypto",
+    "stake": 220,
+    "payout": 440,
+    "timestamp": "2024-12-20T12:00:00Z"
+  },
+  {
+    "wallet": "0x777",
+    "marketId": "pm_eth_etf_2024",
+    "category": "crypto",
+    "stake": 260,
+    "payout": 351.35135135135135,
+    "timestamp": "2024-07-15T16:00:00Z"
+  },
+  {
+    "wallet": "0x777",
+    "marketId": "pm_eth_etf_2024",
+    "category": "crypto",
+    "stake": 290,
+    "payout": 397.2602739726027,
+    "timestamp": "2024-07-21T11:00:00Z"
+  },
+  {
+    "wallet": "0x888",
+    "marketId": "pm_recession_2025",
+    "category": "macro",
+    "stake": 120,
+    "payout": 342.8571428571429,
+    "timestamp": "2025-03-05T10:00:00Z"
+  },
+  {
+    "wallet": "0x999",
+    "marketId": "pm_recession_2025",
+    "category": "macro",
+    "stake": 170,
+    "payout": 499.99999999999994,
+    "timestamp": "2025-07-12T14:00:00Z"
+  },
+  {
+    "wallet": "0xaaa",
+    "marketId": "pm_cpi_over_3_2025",
+    "category": "macro",
+    "stake": 95,
+    "payout": 316.6666666666667,
+    "timestamp": "2025-09-20T12:00:00Z"
+  },
+  {
+    "wallet": "0xbbb",
+    "marketId": "pm_superbowl_2025_chiefs",
+    "category": "sports",
+    "stake": 180,
+    "payout": 692.3076923076923,
+    "timestamp": "2025-01-30T21:00:00Z"
+  },
+  {
+    "wallet": "0xccc",
+    "marketId": "pm_superbowl_2025_chiefs",
+    "category": "sports",
+    "stake": 210,
+    "payout": 840,
+    "timestamp": "2025-02-05T20:30:00Z"
+  }
+]

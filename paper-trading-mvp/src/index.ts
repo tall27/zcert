@@ -14,6 +14,7 @@ import { analyzeDataQuality, persistDataQualityReport } from './validation/dataQ
 import { buildReportArtifacts } from './reporting/reportBuilder';
 import { parseCliArgs } from './utils/cli';
 import { readJson, writeJson } from './utils/io';
+import { importAndNormalize } from './import/importer';
 
 const loadConfig = (configPath?: string): AppConfig => {
   if (!configPath) return defaultConfig;
@@ -42,6 +43,27 @@ const main = async (): Promise<void> => {
 
     if (!Number.isFinite(config.engine.startingBankroll) || config.engine.startingBankroll <= 0) {
       throw new Error('startingBankroll must be a positive number.');
+    }
+
+
+    if (mode === 'import') {
+      if (!args.input || !args.inputType || !args.output) {
+        throw new Error("Import mode requires --input, --input-type, and --output.");
+      }
+      const imported = importAndNormalize(args.input, args.inputType, args.output);
+      const summary = {
+        mode: 'import',
+        input: args.input,
+        inputType: args.inputType,
+        output: args.output,
+        outputType: imported.outputType,
+        recordsImported: imported.count,
+        createdAt: new Date().toISOString()
+      };
+      writeJson(path.resolve(process.cwd(), config.engine.artifactsDir, 'import_summary.json'), summary);
+      console.log('--- Import Summary ---');
+      console.log(summary);
+      return;
     }
 
     const tradeSource: TradeSourceType = args.tradeSource ?? 'sample';

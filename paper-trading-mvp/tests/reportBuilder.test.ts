@@ -28,6 +28,7 @@ test('report builder generates markdown and html', () => {
     assert.match(md, /Run mode:\*\* paper/);
     assert.match(md, /Rejected trades by guardrail reason/);
     assert.match(md, /Data quality diagnostics/);
+    assert.match(md, /Reality Check/);
   } finally {
     process.chdir(cwd);
   }

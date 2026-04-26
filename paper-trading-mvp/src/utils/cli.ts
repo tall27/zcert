@@ -1,7 +1,7 @@
 import { MarketSourceType } from '../config/defaultConfig';
 import { TradeSourceType } from '../data/polymarketTradeHistorySource';
 
-export type RunMode = 'paper' | 'backtest';
+export type RunMode = 'paper' | 'backtest' | 'import';
 
 export interface CliArgs {
   marketsPath?: string;
@@ -13,6 +13,9 @@ export interface CliArgs {
   mode?: RunMode;
   llm?: 'on' | 'off';
   strictData?: 'on' | 'off';
+  input?: string;
+  inputType?: 'markets' | 'trades' | 'fills';
+  output?: string;
 }
 
 export const parseCliArgs = (argv: string[]): CliArgs => {
@@ -34,8 +37,8 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
       args.llm = next;
     }
     if (token === '--mode') {
-      if (next !== 'paper' && next !== 'backtest') {
-        throw new Error(`Unsupported mode '${next}'. Use 'paper' or 'backtest'.`);
+      if (next !== 'paper' && next !== 'backtest' && next !== 'import') {
+        throw new Error(`Unsupported mode '${next}'. Use 'paper', 'backtest', or 'import'.`);
       }
       args.mode = next;
     }
@@ -46,11 +49,21 @@ export const parseCliArgs = (argv: string[]): CliArgs => {
       args.source = next;
     }
     if (token === '--trade-source') {
-      if (next !== 'sample' && next !== 'csv' && next !== 'json') {
-        throw new Error(`Unsupported trade source '${next}'. Use 'sample', 'csv', or 'json'.`);
+      if (next !== 'sample' && next !== 'csv' && next !== 'json' && next !== 'fills') {
+        throw new Error(`Unsupported trade source '${next}'. Use 'sample', 'csv', 'json', or 'fills'.`);
       }
       args.tradeSource = next;
     }
+
+    if (token === '--input') args.input = next;
+    if (token === '--output') args.output = next;
+    if (token === '--input-type') {
+      if (next !== 'markets' && next !== 'trades' && next !== 'fills') {
+        throw new Error(`Unsupported --input-type value '${next}'. Use 'markets', 'trades', or 'fills'.`);
+      }
+      args.inputType = next;
+    }
+
     if (token === '--bankroll') {
       const parsed = Number(next);
       if (!Number.isFinite(parsed) || parsed <= 0) {

@@ -46,17 +46,36 @@ npm run dev -- --mode backtest --source sample --trade-source json --trade-file 
 ```
 
 ## CLI flags
-- `--mode <paper|backtest>`
+- `--mode <paper|backtest|import>`
 - `--source <sample|polymarket>`
 - `--markets <path>`
-- `--trade-source <sample|csv|json>`
+- `--trade-source <sample|csv|json|fills>`
 - `--trade-file <path>`
 - `--bankroll <number>`
 - `--config <path>`
 - `--llm <on|off>` (default off)
 - `--strict-data <on|off>` (default off)
+- `--input <path>` (import mode)
+- `--input-type <markets|trades|fills>` (import mode)
+- `--output <path>` (import mode)
 
 
+
+
+## Import mode (real dataset normalization)
+Use import mode to normalize real market/trade files into backtest-ready JSON:
+```bash
+npm run dev -- --mode import --input ./data/raw_real_markets.json --input-type markets --output ./data/real_markets.json
+npm run dev -- --mode import --input ./data/raw_real_trades.json --input-type trades --output ./data/real_trades.json
+```
+
+Each import run writes `artifacts/import_summary.json`.
+
+Reality-check workflow on real data:
+```bash
+npm run dev -- --mode backtest --trade-source json --trade-file ./data/real_trades.json --markets ./data/real_markets.json --llm off --strict-data on
+npm run compare:runs
+```
 
 ## Optional LLM research
 Enable optional LLM enrichment (never required):
@@ -112,6 +131,8 @@ npm run lint
 - `artifacts/backtest_train_summary.json`
 - `artifacts/backtest_test_summary.json`
 - `artifacts/guardrail_rejections.json`
+- `artifacts/import_summary.json`
+- `artifacts/comparison_summary.json`
 
 - `artifacts/report.md`
 - `artifacts/report.html`

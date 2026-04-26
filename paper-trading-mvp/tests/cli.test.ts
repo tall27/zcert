@@ -12,6 +12,14 @@ test('cli parses source polymarket and trade source csv', () => {
   assert.equal(parsed.strictData, 'off');
 });
 
+test('cli parses import mode flags', () => {
+  const parsed = parseCliArgs(['--mode','import','--input','./raw.json','--input-type','markets','--output','./out.json']);
+  assert.equal(parsed.mode, 'import');
+  assert.equal(parsed.input, './raw.json');
+  assert.equal(parsed.inputType, 'markets');
+  assert.equal(parsed.output, './out.json');
+});
+
 test('cli rejects unsupported source', () => {
   assert.throws(() => parseCliArgs(['--source', 'foo']), /Unsupported source/);
 });
@@ -33,4 +41,8 @@ test('cli rejects unsupported llm flag', () => {
 
 test('cli rejects unsupported strict-data flag', () => {
   assert.throws(() => parseCliArgs(['--strict-data', 'maybe']), /Unsupported --strict-data value/);
+});
+
+test('cli rejects unsupported input-type flag', () => {
+  assert.throws(() => parseCliArgs(['--input-type', 'bad']), /Unsupported --input-type value/);
 });

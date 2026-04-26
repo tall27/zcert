@@ -10,7 +10,8 @@
     "start": "node dist/index.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "tsx --test tests/*.test.ts",
-    "lint": "npm run typecheck"
+    "lint": "npm run typecheck",
+    "compare:runs": "tsx src/analysis/compareRuns.ts"
   },
   "keywords": [
     "paper-trading",

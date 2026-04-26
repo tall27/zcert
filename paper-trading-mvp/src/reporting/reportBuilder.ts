@@ -27,6 +27,10 @@ export const buildReportArtifacts = ({ mode, artifactsDir }: BuildReportInput): 
   const llmResearch = safeRead<Array<Record<string, unknown>>>(path.join(dir, 'llm_research.json'), []);
   const ledger = safeRead<{ trades?: Array<Record<string, unknown>>; bankroll?: number }>(path.join(dir, 'paper_ledger.json'), {});
   const dataQuality = safeRead<{ criticalIssues?: string[]; warnings?: string[] }>(path.join(dir, 'data_quality_report.json'), {});
+  const comparison = safeRead<{ verdict?: string; reasons?: string[]; sample?: Record<string, number>; real?: Record<string, number> }>(
+    path.join(dir, 'comparison_summary.json'),
+    {}
+  );
 
   const topAcceptedTrades =
     mode === 'backtest'
@@ -114,6 +118,21 @@ ${Object.entries(rejectionByReason).map(([k, v]) => `- ${k}: ${v}`).join('\n') |
 
 - critical issues: ${(dataQuality.criticalIssues ?? []).join(', ') || 'none'}
 - warnings: ${(dataQuality.warnings ?? []).join(', ') || 'none'}
+
+## Reality Check
+
+- sample ROI: ${comparison.sample ? toPct(Number(comparison.sample.roi ?? 0)) : 'N/A'}
+- real ROI: ${comparison.real ? toPct(Number(comparison.real.roi ?? 0)) : 'N/A'}
+- sample win rate: ${comparison.sample ? toPct(Number(comparison.sample.winRate ?? 0)) : 'N/A'}
+- real win rate: ${comparison.real ? toPct(Number(comparison.real.winRate ?? 0)) : 'N/A'}
+- sample drawdown: ${comparison.sample ? Number(comparison.sample.maxDrawdown ?? 0).toFixed(2) : 'N/A'}
+- real drawdown: ${comparison.real ? Number(comparison.real.maxDrawdown ?? 0).toFixed(2) : 'N/A'}
+- sample trade count: ${comparison.sample ? Number(comparison.sample.tradeCount ?? 0) : 'N/A'}
+- real trade count: ${comparison.real ? Number(comparison.real.tradeCount ?? 0) : 'N/A'}
+- sample rejection rate: ${comparison.sample ? toPct(Number(comparison.sample.rejectionRate ?? 0)) : 'N/A'}
+- real rejection rate: ${comparison.real ? toPct(Number(comparison.real.rejectionRate ?? 0)) : 'N/A'}
+- signal verdict: ${String(comparison.verdict ?? 'N/A')}
+- no signal reasons: ${(comparison.reasons ?? []).join('; ') || 'none'}
 `;
 
   const htmlRows = topAcceptedTrades
@@ -143,6 +162,16 @@ ${Object.entries(rejectionByReason).map(([k, v]) => `- ${k}: ${v}`).join('\n') |
 </table>
 <h2>LLM Summary</h2><p>Enabled: ${String(runSummary.llm_enabled ?? false)}, Reports: ${llmResearch.length}</p>
 <h2>Data Quality</h2><p>Critical: ${(dataQuality.criticalIssues ?? []).join(', ') || 'none'}</p><p>Warnings: ${(dataQuality.warnings ?? []).join(', ') || 'none'}</p>
+<h2>Reality Check</h2>
+<table border="1"><tr><th>Metric</th><th>Sample</th><th>Real</th></tr>
+<tr><td>ROI</td><td>${comparison.sample ? toPct(Number(comparison.sample.roi ?? 0)) : 'N/A'}</td><td>${comparison.real ? toPct(Number(comparison.real.roi ?? 0)) : 'N/A'}</td></tr>
+<tr><td>Win rate</td><td>${comparison.sample ? toPct(Number(comparison.sample.winRate ?? 0)) : 'N/A'}</td><td>${comparison.real ? toPct(Number(comparison.real.winRate ?? 0)) : 'N/A'}</td></tr>
+<tr><td>Drawdown</td><td>${comparison.sample ? Number(comparison.sample.maxDrawdown ?? 0).toFixed(2) : 'N/A'}</td><td>${comparison.real ? Number(comparison.real.maxDrawdown ?? 0).toFixed(2) : 'N/A'}</td></tr>
+<tr><td>Trade count</td><td>${comparison.sample ? Number(comparison.sample.tradeCount ?? 0) : 'N/A'}</td><td>${comparison.real ? Number(comparison.real.tradeCount ?? 0) : 'N/A'}</td></tr>
+<tr><td>Rejection rate</td><td>${comparison.sample ? toPct(Number(comparison.sample.rejectionRate ?? 0)) : 'N/A'}</td><td>${comparison.real ? toPct(Number(comparison.real.rejectionRate ?? 0)) : 'N/A'}</td></tr>
+</table>
+<p><strong>Signal verdict:</strong> ${String(comparison.verdict ?? 'N/A')}</p>
+<p><strong>No-signal reasons:</strong> ${(comparison.reasons ?? []).join('; ') || 'none'}</p>
 </body></html>`;
 
   const mdPath = path.join(dir, 'report.md');

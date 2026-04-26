@@ -1,0 +1,82 @@
+[
+  {
+    "id": "pm_2024_us_pres",
+    "question": "Will Donald Trump win the 2024 US presidential election?",
+    "category": "politics",
+    "currentPrice": 0.5,
+    "spread": 0.030000000000000027,
+    "liquidity": 1280000,
+    "volume24h": 25400000,
+    "resolutionAt": "2024-11-06T05:00:00Z"
+  },
+  {
+    "id": "pm_2024_house",
+    "question": "Will Republicans win the US House in 2024?",
+    "category": "politics",
+    "currentPrice": 0.5,
+    "spread": 0.030000000000000027,
+    "liquidity": 640000,
+    "volume24h": 11000000,
+    "resolutionAt": "2024-11-06T05:00:00Z"
+  },
+  {
+    "id": "pm_2024_senate",
+    "question": "Will Republicans win the US Senate in 2024?",
+    "category": "politics",
+    "currentPrice": 0.5,
+    "spread": 0.030000000000000027,
+    "liquidity": 710000,
+    "volume24h": 12400000,
+    "resolutionAt": "2024-11-06T05:00:00Z"
+  },
+  {
+    "id": "pm_btc_100k_2025",
+    "question": "Will BTC hit $100k before Jan 1, 2025?",
+    "category": "crypto",
+    "currentPrice": 0.5,
+    "spread": 0.030000000000000027,
+    "liquidity": 540000,
+    "volume24h": 9800000,
+    "resolutionAt": "2025-01-01T00:00:00Z"
+  },
+  {
+    "id": "pm_eth_etf_2024",
+    "question": "Will spot ETH ETF be approved by Dec 31, 2024?",
+    "category": "crypto",
+    "currentPrice": 0.5,
+    "spread": 0.030000000000000027,
+    "liquidity": 450000,
+    "volume24h": 8200000,
+    "resolutionAt": "2024-12-31T23:59:59Z"
+  },
+  {
+    "id": "pm_recession_2025",
+    "question": "Will the US enter recession in 2025?",
+    "category": "macro",
+    "currentPrice": 0.5,
+    "spread": 0.02999999999999997,
+    "liquidity": 230000,
+    "volume24h": 2900000,
+    "resolutionAt": "2025-12-31T23:59:59Z"
+  },
+  {
+    "id": "pm_cpi_over_3_2025",
+    "question": "Will US CPI YoY be over 3% in Dec 2025?",
+    "category": "macro",
+    "currentPrice": 0.5,
+    "spread": 0.020000000000000018,
+    "liquidity": 180000,
+    "volume24h": 1800000,
+    "resolutionAt": "2025-12-31T23:59:59Z"
+  },
+  {
+    "id": "pm_superbowl_2025_chiefs",
+    "question": "Will the Chiefs win Super Bowl LIX?",
+    "category": "sports",
+    "currentPrice": 0.5,
+    "spread": 0.030000000000000027,
+    "liquidity": 310000,
+    "volume24h": 4200000,
+    "resolutionAt": "2025-02-10T04:00:00Z"
+  }
+]
