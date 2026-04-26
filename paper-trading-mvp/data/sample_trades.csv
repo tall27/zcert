@@ -1,0 +1,5 @@
+wallet,marketId,category,stake,payout,timestamp
+0xaaa,mkt_us_election_2028,politics,100,160,2026-03-01T10:00:00Z
+0xaaa,mkt_fed_cut_july,macro,120,0,2026-03-11T09:00:00Z
+0xbbb,mkt_btc_120k_2026,crypto,200,0,2026-03-03T10:00:00Z
+0xbbb,mkt_fed_cut_july,macro,220,380,2026-03-08T14:00:00Z

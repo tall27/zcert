@@ -1,0 +1,18 @@
+[
+  {"maker":"0x111","market_id":"pm_2024_us_pres","category":"politics","usd_amount":350,"price":0.53,"timestamp":"2024-10-30T10:00:00Z"},
+  {"maker":"0x111","market_id":"pm_2024_us_pres","category":"politics","usd_amount":420,"price":0.54,"timestamp":"2024-11-02T13:00:00Z"},
+  {"maker":"0x222","market_id":"pm_2024_us_pres","category":"politics","usd_amount":275,"price":0.52,"timestamp":"2024-11-04T09:00:00Z"},
+  {"maker":"0x333","market_id":"pm_2024_house","category":"politics","usd_amount":180,"price":0.60,"timestamp":"2024-10-25T15:00:00Z"},
+  {"maker":"0x222","market_id":"pm_2024_house","category":"politics","usd_amount":260,"price":0.61,"timestamp":"2024-11-01T18:00:00Z"},
+  {"maker":"0x444","market_id":"pm_2024_senate","category":"politics","usd_amount":200,"price":0.63,"timestamp":"2024-10-20T17:00:00Z"},
+  {"maker":"0x555","market_id":"pm_2024_senate","category":"politics","usd_amount":310,"price":0.64,"timestamp":"2024-11-03T20:00:00Z"},
+  {"maker":"0x666","market_id":"pm_btc_100k_2025","category":"crypto","usd_amount":140,"price":0.49,"timestamp":"2024-11-15T12:00:00Z"},
+  {"maker":"0x666","market_id":"pm_btc_100k_2025","category":"crypto","usd_amount":220,"price":0.50,"timestamp":"2024-12-20T12:00:00Z"},
+  {"maker":"0x777","market_id":"pm_eth_etf_2024","category":"crypto","usd_amount":260,"price":0.74,"timestamp":"2024-07-15T16:00:00Z"},
+  {"maker":"0x777","market_id":"pm_eth_etf_2024","category":"crypto","usd_amount":290,"price":0.73,"timestamp":"2024-07-21T11:00:00Z"},
+  {"maker":"0x888","market_id":"pm_recession_2025","category":"macro","usd_amount":120,"price":0.35,"timestamp":"2025-03-05T10:00:00Z"},
+  {"maker":"0x999","market_id":"pm_recession_2025","category":"macro","usd_amount":170,"price":0.34,"timestamp":"2025-07-12T14:00:00Z"},
+  {"maker":"0xaaa","market_id":"pm_cpi_over_3_2025","category":"macro","usd_amount":95,"price":0.30,"timestamp":"2025-09-20T12:00:00Z"},
+  {"maker":"0xbbb","market_id":"pm_superbowl_2025_chiefs","category":"sports","usd_amount":180,"price":0.26,"timestamp":"2025-01-30T21:00:00Z"},
+  {"maker":"0xccc","market_id":"pm_superbowl_2025_chiefs","category":"sports","usd_amount":210,"price":0.25,"timestamp":"2025-02-05T20:30:00Z"}
+]

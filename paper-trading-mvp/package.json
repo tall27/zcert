@@ -1,0 +1,29 @@
+{
+  "name": "paper-trading-mvp",
+  "version": "0.1.0",
+  "private": true,
+  "description": "CLI-first paper-trading MVP for multi-agent prediction-market research",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx src/index.ts",
+    "start": "node dist/index.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "tsx --test tests/*.test.ts",
+    "lint": "npm run typecheck",
+    "compare:runs": "tsx src/analysis/compareRuns.ts"
+  },
+  "keywords": [
+    "paper-trading",
+    "prediction-market",
+    "typescript",
+    "cli"
+  ],
+  "license": "MIT",
+  "dependencies": {},
+  "devDependencies": {
+    "@types/node": "^22.15.18",
+    "tsx": "^4.19.2",
+    "typescript": "^5.8.3"
+  }
+}

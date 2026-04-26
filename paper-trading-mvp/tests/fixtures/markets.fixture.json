@@ -1,0 +1,22 @@
+[
+  {
+    "id": "fx_market_1",
+    "question": "Will event A happen?",
+    "category": "politics",
+    "currentPrice": 0.4,
+    "spread": 0.02,
+    "liquidity": 60000,
+    "volume24h": 20000,
+    "resolutionAt": "2026-12-31T00:00:00Z"
+  },
+  {
+    "id": "fx_market_2",
+    "question": "Will event B happen?",
+    "category": "other",
+    "currentPrice": 0.5,
+    "spread": 0.09,
+    "liquidity": 1000,
+    "volume24h": 100,
+    "resolutionAt": "2026-07-01T00:00:00Z"
+  }
+]

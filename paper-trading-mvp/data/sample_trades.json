@@ -1,0 +1,17 @@
+[
+  {"wallet":"0xaaa","marketId":"mkt_us_election_2028","category":"politics","stake":100,"payout":160,"timestamp":"2026-03-01T10:00:00Z"},
+  {"wallet":"0xaaa","marketId":"mkt_fed_cut_july","category":"macro","stake":120,"payout":0,"timestamp":"2026-03-11T09:00:00Z"},
+  {"wallet":"0xaaa","marketId":"mkt_btc_120k_2026","category":"crypto","stake":80,"payout":140,"timestamp":"2026-03-20T11:00:00Z"},
+  {"wallet":"0xaaa","marketId":"mkt_us_election_2028","category":"politics","stake":140,"payout":230,"timestamp":"2026-03-27T13:00:00Z"},
+  {"wallet":"0xbbb","marketId":"mkt_btc_120k_2026","category":"crypto","stake":200,"payout":0,"timestamp":"2026-03-03T10:00:00Z"},
+  {"wallet":"0xbbb","marketId":"mkt_fed_cut_july","category":"macro","stake":220,"payout":380,"timestamp":"2026-03-08T14:00:00Z"},
+  {"wallet":"0xbbb","marketId":"mkt_btc_120k_2026","category":"crypto","stake":180,"payout":300,"timestamp":"2026-03-15T10:30:00Z"},
+  {"wallet":"0xbbb","marketId":"mkt_us_election_2028","category":"politics","stake":120,"payout":0,"timestamp":"2026-03-24T15:40:00Z"},
+  {"wallet":"0xccc","marketId":"mkt_fed_cut_july","category":"macro","stake":90,"payout":150,"timestamp":"2026-03-02T12:00:00Z"},
+  {"wallet":"0xccc","marketId":"mkt_us_election_2028","category":"politics","stake":90,"payout":0,"timestamp":"2026-03-05T12:00:00Z"},
+  {"wallet":"0xccc","marketId":"mkt_btc_120k_2026","category":"crypto","stake":90,"payout":0,"timestamp":"2026-03-16T12:00:00Z"},
+  {"wallet":"0xddd","marketId":"mkt_us_election_2028","category":"politics","stake":150,"payout":280,"timestamp":"2026-03-06T12:00:00Z"},
+  {"wallet":"0xddd","marketId":"mkt_fed_cut_july","category":"macro","stake":160,"payout":280,"timestamp":"2026-03-19T12:00:00Z"},
+  {"wallet":"0xddd","marketId":"mkt_btc_120k_2026","category":"crypto","stake":130,"payout":230,"timestamp":"2026-03-21T12:00:00Z"},
+  {"wallet":"0xddd","marketId":"mkt_us_election_2028","category":"politics","stake":120,"payout":0,"timestamp":"2026-03-29T12:00:00Z"}
+]
