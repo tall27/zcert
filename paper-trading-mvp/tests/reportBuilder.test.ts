@@ -17,6 +17,7 @@ test('report builder generates markdown and html', () => {
   fs.writeFileSync(path.join(artifacts, 'data_quality_report.json'), JSON.stringify({ criticalIssues: ['duplicate_market_ids:m1'], warnings: ['future_timestamps:1'] }));
   fs.writeFileSync(path.join(artifacts, 'backtest_train_summary.json'), JSON.stringify({ roi: 0.1, winRate: 0.5 }));
   fs.writeFileSync(path.join(artifacts, 'backtest_test_summary.json'), JSON.stringify({ roi: 0.02, winRate: 0.45 }));
+  fs.writeFileSync(path.join(artifacts, 'pipeline_diagnostics.json'), JSON.stringify({ funnel: { marketsLoaded: 10, scannerPassed: 4, researchPassed: 3, walletSignalsAvailable: 2, strategyCandidates: 2, riskApproved: 1, guardrailApproved: 1, executedTrades: 1 }, topBlockers: [{ stage: 'scanner', reason: 'too_close_to_resolution', count: 6 }], nearMissCandidates: [{ marketId: 'm3', failedStage: 'scanner', failedReason: 'too_close_to_resolution', edge: 0.02, edgeAfterSlippage: 0.01, liquidity: 1000, spread: 0.1, timeToResolutionHours: -5, walletSignal: 0.2 }] }));
 
   const cwd = process.cwd();
   process.chdir(tmpRoot);
@@ -29,6 +30,9 @@ test('report builder generates markdown and html', () => {
     assert.match(md, /Rejected trades by guardrail reason/);
     assert.match(md, /Data quality diagnostics/);
     assert.match(md, /Reality Check/);
+    assert.match(md, /Pipeline Diagnostics/);
+    assert.match(md, /Biggest blockers/);
+    assert.match(md, /Near-miss opportunities/);
   } finally {
     process.chdir(cwd);
   }

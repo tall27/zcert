@@ -58,6 +58,21 @@ test('backtest no-trade replay', () => {
   assert.equal(result.summary.totalTrades, 0);
 });
 
+
+test('backtest emits pipeline diagnostics with stage counts and near misses', () => {
+  const blockedMarket = { ...market, id: 'bt_diag', category: 'other' as const };
+  const trades = [
+    { wallet: '0xw', marketId: 'bt_diag', category: 'other' as const, stake: 100, payout: 180, timestamp: '2026-01-01T00:00:00Z' }
+  ];
+
+  const result = runBacktest([blockedMarket], trades, cfg);
+  assert.equal(result.pipelineDiagnostics.funnel.marketsLoaded, 1);
+  assert.equal(result.pipelineDiagnostics.funnel.executedTrades, 0);
+  assert.equal(result.pipelineDiagnostics.rejectionCountsByStage.scanner > 0, true);
+  assert.equal(result.pipelineDiagnostics.nearMissCandidates.length > 0, true);
+  assert.equal(typeof result.pipelineDiagnostics.nearMissCandidates[0].failedReason, 'string');
+});
+
 test('drawdown calculation', () => {
   const dd = calculateMaxDrawdown([100, 120, 90, 130, 110]);
   assert.equal(dd, 30);

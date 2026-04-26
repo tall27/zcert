@@ -31,6 +31,11 @@ export const buildReportArtifacts = ({ mode, artifactsDir }: BuildReportInput): 
     path.join(dir, 'comparison_summary.json'),
     {}
   );
+  const pipelineDiagnostics = safeRead<{
+    funnel?: Record<string, number>;
+    topBlockers?: Array<{ stage: string; reason: string; count: number }>;
+    nearMissCandidates?: Array<Record<string, unknown>>;
+  }>(path.join(dir, 'pipeline_diagnostics.json'), {});
 
   const topAcceptedTrades =
     mode === 'backtest'
@@ -133,6 +138,27 @@ ${Object.entries(rejectionByReason).map(([k, v]) => `- ${k}: ${v}`).join('\n') |
 - real rejection rate: ${comparison.real ? toPct(Number(comparison.real.rejectionRate ?? 0)) : 'N/A'}
 - signal verdict: ${String(comparison.verdict ?? 'N/A')}
 - no signal reasons: ${(comparison.reasons ?? []).join('; ') || 'none'}
+
+## Pipeline Diagnostics
+
+| Stage | Count |
+| --- | ---: |
+| markets loaded | ${Number(pipelineDiagnostics.funnel?.marketsLoaded ?? 0)} |
+| scanner passed | ${Number(pipelineDiagnostics.funnel?.scannerPassed ?? 0)} |
+| research passed | ${Number(pipelineDiagnostics.funnel?.researchPassed ?? 0)} |
+| wallet signals available | ${Number(pipelineDiagnostics.funnel?.walletSignalsAvailable ?? 0)} |
+| strategy candidates | ${Number(pipelineDiagnostics.funnel?.strategyCandidates ?? 0)} |
+| risk-approved trades | ${Number(pipelineDiagnostics.funnel?.riskApproved ?? 0)} |
+| guardrail-approved trades | ${Number(pipelineDiagnostics.funnel?.guardrailApproved ?? 0)} |
+| final executed trades | ${Number(pipelineDiagnostics.funnel?.executedTrades ?? 0)} |
+
+### Biggest blockers
+
+${(pipelineDiagnostics.topBlockers ?? []).map((b) => `- ${b.stage}: ${b.reason} (${b.count})`).join('\n') || '- none'}
+
+### Near-miss opportunities
+
+${(pipelineDiagnostics.nearMissCandidates ?? []).slice(0, 20).map((n) => `- ${String(n.marketId ?? '')}: stage=${String(n.failedStage ?? '')}, reason=${String(n.failedReason ?? '')}, edge=${Number(n.edge ?? 0).toFixed(4)}, edgeAfterSlippage=${Number(n.edgeAfterSlippage ?? 0).toFixed(4)}, liquidity=${Number(n.liquidity ?? 0)}, spread=${Number(n.spread ?? 0).toFixed(4)}, timeToResolution=${Number(n.timeToResolutionHours ?? 0).toFixed(2)}h, walletSignal=${Number(n.walletSignal ?? 0).toFixed(2)}`).join('\n') || '- none'}
 `;
 
   const htmlRows = topAcceptedTrades
@@ -172,6 +198,21 @@ ${Object.entries(rejectionByReason).map(([k, v]) => `- ${k}: ${v}`).join('\n') |
 </table>
 <p><strong>Signal verdict:</strong> ${String(comparison.verdict ?? 'N/A')}</p>
 <p><strong>No-signal reasons:</strong> ${(comparison.reasons ?? []).join('; ') || 'none'}</p>
+<h2>Pipeline Diagnostics</h2>
+<table border="1"><tr><th>Stage</th><th>Count</th></tr>
+<tr><td>Markets loaded</td><td>${Number(pipelineDiagnostics.funnel?.marketsLoaded ?? 0)}</td></tr>
+<tr><td>Scanner passed</td><td>${Number(pipelineDiagnostics.funnel?.scannerPassed ?? 0)}</td></tr>
+<tr><td>Research passed</td><td>${Number(pipelineDiagnostics.funnel?.researchPassed ?? 0)}</td></tr>
+<tr><td>Wallet signals available</td><td>${Number(pipelineDiagnostics.funnel?.walletSignalsAvailable ?? 0)}</td></tr>
+<tr><td>Strategy candidates</td><td>${Number(pipelineDiagnostics.funnel?.strategyCandidates ?? 0)}</td></tr>
+<tr><td>Risk-approved trades</td><td>${Number(pipelineDiagnostics.funnel?.riskApproved ?? 0)}</td></tr>
+<tr><td>Guardrail-approved trades</td><td>${Number(pipelineDiagnostics.funnel?.guardrailApproved ?? 0)}</td></tr>
+<tr><td>Final executed trades</td><td>${Number(pipelineDiagnostics.funnel?.executedTrades ?? 0)}</td></tr>
+</table>
+<h3>Biggest blockers</h3>
+<ul>${(pipelineDiagnostics.topBlockers ?? []).map((b) => `<li>${b.stage}: ${b.reason} (${b.count})</li>`).join('') || '<li>none</li>'}</ul>
+<h3>Near-miss opportunities</h3>
+<ul>${(pipelineDiagnostics.nearMissCandidates ?? []).slice(0, 20).map((n) => `<li>${String(n.marketId ?? '')}: stage=${String(n.failedStage ?? '')}, reason=${String(n.failedReason ?? '')}, edge=${Number(n.edge ?? 0).toFixed(4)}, edgeAfterSlippage=${Number(n.edgeAfterSlippage ?? 0).toFixed(4)}, liquidity=${Number(n.liquidity ?? 0)}, spread=${Number(n.spread ?? 0).toFixed(4)}, timeToResolution=${Number(n.timeToResolutionHours ?? 0).toFixed(2)}h, walletSignal=${Number(n.walletSignal ?? 0).toFixed(2)}</li>`).join('') || '<li>none</li>'}</ul>
 </body></html>`;
 
   const mdPath = path.join(dir, 'report.md');
